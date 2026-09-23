@@ -7,9 +7,10 @@ import type { BrandColorOverrides } from '../utils/mergePortalColors';
  */
 export const PRODUCT = {
   name: 'Edulynk',
-  tagline: 'Your School. Connected. Simplified.',
+  tagline: 'Connecting Your School',
   websiteUrl: 'https://edulynk.co.ke',
   websiteHost: 'edulynk.co.ke',
+  contactUrl: 'https://edulynk.co.ke/contact',
   salesEmail: 'sales@edulynk.co.ke',
   phone: '+254708225397',
   phoneDisplay: '+254 708 225 397',

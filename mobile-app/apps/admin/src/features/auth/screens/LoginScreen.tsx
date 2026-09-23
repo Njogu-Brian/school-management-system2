@@ -8,7 +8,7 @@ import {
   useBiometricAuth,
   useBranding,
 } from '@erp/core';
-import { Button, ForgotPasswordForm, KeyboardScrollProvider, ScreenContainer, Soft3DIcon, useAdaptiveLayout, useEnsureInputVisible, useKeyboardHeight, useTheme } from '@erp/ui';
+import { Button, ForgotPasswordForm, KeyboardScrollProvider, Soft3DIcon, buildLoginChrome, useAdaptiveLayout, useEnsureInputVisible, useKeyboardHeight, useTheme } from '@erp/ui';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -38,7 +38,7 @@ type UnlockSurface = 'quick' | 'pin' | 'password';
 type LoginAnnouncement = { id: number; title: string; content: string };
 
 /**
- * Flagship login — full-bleed hero, dark glass sheet, biometric-first when enrolled.
+ * Flagship login — school-branded hero, solid page fill, white sheet (stable across OTP/password).
  */
 export const LoginScreen: React.FC = () => {
   const {
@@ -61,8 +61,19 @@ export const LoginScreen: React.FC = () => {
   const { isTablet, formMaxWidth } = useAdaptiveLayout();
   const scrollRef = useRef<ScrollViewType>(null);
   const keyboardHeight = useKeyboardHeight();
-  const { schoolName, logoUrl, loginBackgroundUrl, loading: brandingLoading, branding, colorOverrides } =
-    useBranding();
+  const { schoolName, logoUrl, loginBackgroundUrl, loading: brandingLoading, branding } = useBranding();
+  const chrome = useMemo(
+    () =>
+      buildLoginChrome({
+        kind: 'admin',
+        primary: branding?.colors?.primary,
+        secondary: branding?.colors?.secondary,
+      }),
+    [branding?.colors?.primary, branding?.colors?.secondary],
+  );
+  const { accent: NAVY, ink: INK, muted: MUTED, line: LINE, fieldBg: FIELD_BG } = chrome;
+  const pageBackground = chrome.pageBg;
+  const heroColors = chrome.heroGradient;
 
   const scrollFieldIntoView = () => {
     // Android resize mode alone often leaves focused fields under the keyboard on this layout.
@@ -151,11 +162,6 @@ export const LoginScreen: React.FC = () => {
     return part;
   }, [rememberedFirstName]);
 
-  const gradientStops = useMemo((): [string, string, string] => {
-    const primary = branding?.colors?.primary ?? colorOverrides.primary ?? colors.primary;
-    return [primary, '#003366', '#0c1018'];
-  }, [branding?.colors, colorOverrides.primary, colors.primary]);
-
   const handlePasswordSubmit = async (): Promise<void> => {
     if (!canPasswordSubmit) return;
     try {
@@ -210,7 +216,7 @@ export const LoginScreen: React.FC = () => {
       style={[
         styles.modeRow,
         {
-          backgroundColor: 'rgba(255,255,255,0.06)',
+          backgroundColor: '#E8EDF3',
           borderRadius: radius.control,
           marginBottom: spacing.md,
           padding: 4,
@@ -230,14 +236,14 @@ export const LoginScreen: React.FC = () => {
             style={[
               styles.modeChip,
               {
-                backgroundColor: active ? colors.primary : 'transparent',
+                backgroundColor: active ? NAVY : 'transparent',
                 borderRadius: radius.md,
               },
             ]}
           >
             <Text
               style={{
-                color: active ? '#fff' : 'rgba(255,255,255,0.65)',
+                color: active ? '#FFFFFF' : INK,
                 fontWeight: '700',
                 fontSize: typography.caption.fontSize,
               }}
@@ -253,7 +259,7 @@ export const LoginScreen: React.FC = () => {
   const credentialForm = (
     <>
       {modeTabs}
-      <DarkField
+      <Field
         label={mode === 'otp' ? 'Phone or email' : 'Username'}
         value={identifier}
         onChangeText={setIdentifier}
@@ -263,10 +269,11 @@ export const LoginScreen: React.FC = () => {
         keyboardType={mode === 'otp' ? 'phone-pad' : 'email-address'}
         editable={!busy}
         onFocus={scrollFieldIntoView}
+        accent={NAVY}
       />
       {mode === 'password' ? (
         <>
-          <DarkField
+          <Field
             label="Password"
             value={password}
             onChangeText={setPassword}
@@ -276,12 +283,13 @@ export const LoginScreen: React.FC = () => {
             autoCapitalize="none"
             editable={!busy}
             onFocus={scrollFieldIntoView}
+            accent={NAVY}
             right={
               <Pressable onPress={() => setShowPassword((v) => !v)} hitSlop={8}>
                 <Ionicons
                   name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                   size={20}
-                  color="rgba(255,255,255,0.45)"
+                  color={MUTED}
                 />
               </Pressable>
             }
@@ -297,8 +305,8 @@ export const LoginScreen: React.FC = () => {
                 height: 22,
                 borderRadius: 6,
                 borderWidth: 2,
-                borderColor: remember ? colors.primaryOnDark : 'rgba(255,255,255,0.35)',
-                backgroundColor: remember ? colors.primary : 'transparent',
+                borderColor: remember ? NAVY : LINE,
+                backgroundColor: remember ? NAVY : FIELD_BG,
                 alignItems: 'center',
                 justifyContent: 'center',
                 marginRight: spacing.sm,
@@ -306,12 +314,12 @@ export const LoginScreen: React.FC = () => {
             >
               {remember ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
             </View>
-            <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: typography.body.fontSize }}>
+            <Text style={{ color: INK, fontSize: typography.body.fontSize }}>
               Keep me signed in
             </Text>
           </Pressable>
           <Pressable onPress={() => setShowForgot(true)} style={{ marginBottom: spacing.lg }}>
-            <Text style={{ color: colors.primaryOnDark, fontWeight: '700' }}>Forgot password?</Text>
+            <Text style={{ color: NAVY, fontWeight: '700' }}>Forgot password?</Text>
           </Pressable>
           <Button
             label="Sign in"
@@ -323,13 +331,13 @@ export const LoginScreen: React.FC = () => {
             onPress={() => setUnlockSurface('pin')}
             style={{ marginTop: spacing.md, alignItems: 'center' }}
           >
-            <Text style={{ color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>Sign in with PIN</Text>
+            <Text style={{ color: NAVY, fontWeight: '700' }}>Sign in with PIN</Text>
           </Pressable>
         </>
       ) : (
         <>
           {otpSent ? (
-            <DarkField
+            <Field
               label="6-digit code"
               value={otpCode}
               onChangeText={(t) => setOtpCode(t.replace(/\D/g, '').slice(0, 6))}
@@ -339,6 +347,7 @@ export const LoginScreen: React.FC = () => {
               editable={!busy}
               onFocus={scrollFieldIntoView}
               onSubmitEditing={handleVerifyOtp}
+              accent={NAVY}
             />
           ) : null}
           <Button
@@ -349,7 +358,7 @@ export const LoginScreen: React.FC = () => {
           />
           {otpSent ? (
             <Pressable onPress={handleRequestOtp} disabled={busy} style={{ marginTop: spacing.sm }}>
-              <Text style={{ color: colors.primaryOnDark, textAlign: 'center', fontWeight: '600' }}>
+              <Text style={{ color: NAVY, textAlign: 'center', fontWeight: '700' }}>
                 Resend code
               </Text>
             </Pressable>
@@ -364,7 +373,8 @@ export const LoginScreen: React.FC = () => {
       style={[
         styles.sheet,
         {
-          backgroundColor: 'rgba(12,16,24,0.94)',
+          backgroundColor: chrome.sheetBg,
+          borderWidth: 1,
           borderTopLeftRadius: radius.xl,
           borderTopRightRadius: radius.xl,
           borderBottomLeftRadius: isTablet ? radius.xl : 0,
@@ -372,19 +382,20 @@ export const LoginScreen: React.FC = () => {
           paddingTop: spacing.xl,
           paddingHorizontal: spacing.lg,
           paddingBottom: insets.bottom + spacing.xl,
-          borderColor: 'rgba(255,255,255,0.1)',
+          borderColor: chrome.sheetBorder,
           alignSelf: isTablet ? 'center' : undefined,
           width: isTablet ? '100%' : undefined,
           maxWidth: isTablet ? formMaxWidth : undefined,
           marginHorizontal: isTablet ? spacing.lg : 0,
           marginBottom: isTablet ? spacing.lg : 0,
+          flexGrow: 1,
         },
       ]}
     >
-      <View style={[styles.handle, { backgroundColor: 'rgba(255,255,255,0.28)', borderRadius: radius.full }]} />
+      <View style={[styles.handle, { backgroundColor: LINE, borderRadius: radius.full }]} />
       <Text
         style={{
-          color: '#fff',
+          color: INK,
           fontSize: typography.headlineLarge.fontSize,
           fontWeight: '800',
           marginBottom: spacing.xs,
@@ -392,13 +403,13 @@ export const LoginScreen: React.FC = () => {
       >
         {showQuick || showPinOnly
           ? greeting
-          : rememberedFirstName
-            ? greeting
-            : 'Sign in to Admin'}
+            : rememberedFirstName
+              ? greeting
+              : chrome.signInTitle}
       </Text>
       <Text
         style={{
-          color: 'rgba(255,255,255,0.65)',
+          color: MUTED,
           fontSize: typography.body.fontSize,
           marginBottom: spacing.lg,
         }}
@@ -420,18 +431,18 @@ export const LoginScreen: React.FC = () => {
             marginBottom: spacing.md,
             padding: spacing.mdSm,
             borderRadius: radius.control,
-            backgroundColor: 'rgba(75,159,255,0.12)',
-            borderWidth: StyleSheet.hairlineWidth,
-            borderColor: 'rgba(75,159,255,0.35)',
+            backgroundColor: '#F8FAFC',
+            borderWidth: 1,
+            borderColor: LINE,
           }}
         >
-          <Text style={{ color: '#93c5fd', fontWeight: '700', marginBottom: spacing.xs }}>
+          <Text style={{ color: NAVY, fontWeight: '700', marginBottom: spacing.xs }}>
             Announcements
           </Text>
           {announcements.map((a) => (
             <View key={a.id} style={{ marginBottom: spacing.xs }}>
-              <Text style={{ color: '#fff', fontWeight: '600' }}>{a.title}</Text>
-              <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: typography.caption.fontSize }}>
+              <Text style={{ color: INK, fontWeight: '600' }}>{a.title}</Text>
+              <Text style={{ color: MUTED, fontSize: typography.caption.fontSize }}>
                 {a.content}
               </Text>
             </View>
@@ -476,7 +487,7 @@ export const LoginScreen: React.FC = () => {
                 styles.bioPrimary,
                 {
                   borderRadius: radius.control,
-                  backgroundColor: colors.primary,
+                  backgroundColor: NAVY,
                   opacity: busy ? 0.5 : pressed ? 0.9 : 1,
                 },
               ]}
@@ -507,14 +518,14 @@ export const LoginScreen: React.FC = () => {
                 styles.bioBtn,
                 {
                   borderRadius: radius.control,
-                  borderColor: 'rgba(255,255,255,0.35)',
+                  borderColor: LINE,
                   marginTop: spacing.md,
                   opacity: pressed ? 0.85 : 1,
                 },
               ]}
             >
-              <Ionicons name="keypad-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
-              <Text style={{ color: '#fff', fontWeight: '600', fontSize: typography.button.fontSize }}>
+              <Ionicons name="keypad-outline" size={20} color={NAVY} style={{ marginRight: 8 }} />
+              <Text style={{ color: NAVY, fontWeight: '700', fontSize: typography.button.fontSize }}>
                 Unlock with PIN
               </Text>
             </Pressable>
@@ -523,7 +534,7 @@ export const LoginScreen: React.FC = () => {
             onPress={() => setUnlockSurface('password')}
             style={{ marginTop: spacing.md, alignItems: 'center' }}
           >
-            <Text style={{ color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>
+            <Text style={{ color: NAVY, fontWeight: '700' }}>
               Sign in with password
             </Text>
           </Pressable>
@@ -531,7 +542,7 @@ export const LoginScreen: React.FC = () => {
       ) : showPinOnly ? (
         <>
           <PinUnlockPanel
-            variant="onDark"
+            variant="default"
             onUsePassword={() => setUnlockSurface('password')}
             identifier={identifier}
             onIdentifierChange={setIdentifier}
@@ -541,7 +552,7 @@ export const LoginScreen: React.FC = () => {
               onPress={() => setUnlockSurface('quick')}
               style={{ marginTop: spacing.md, alignItems: 'center' }}
             >
-              <Text style={{ color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>
+              <Text style={{ color: NAVY, fontWeight: '700' }}>
                 Use {typeLabel} instead
               </Text>
             </Pressable>
@@ -555,7 +566,7 @@ export const LoginScreen: React.FC = () => {
               onPress={() => setUnlockSurface('quick')}
               style={{ marginTop: spacing.md, alignItems: 'center' }}
             >
-              <Text style={{ color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>
+              <Text style={{ color: NAVY, fontWeight: '700' }}>
                 Back to quick unlock
               </Text>
             </Pressable>
@@ -563,35 +574,48 @@ export const LoginScreen: React.FC = () => {
         </>
       )}
 
-      <Pressable
-        onPress={() =>
-          showError(
-            'Parents: use the Users app',
-            'Parent accounts are claimed and used in the School Users app. Please download and open the Users app to claim access with your phone or email.',
-          )
-        }
-        style={{ marginTop: spacing.lg, alignItems: 'center' }}
-      >
-        <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: typography.body.fontSize, textAlign: 'center' }}>
-          First time parent?{' '}
-          <Text style={{ color: colors.primaryOnDark ?? '#4B9FFF', fontWeight: '700' }}>
-            Use the Users app
-          </Text>
-        </Text>
-      </Pressable>
     </View>
   );
 
   const hero = (
-    <View
+    <LinearGradient
+      colors={heroColors}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
       style={{
-        flex: 1,
-        justifyContent: 'flex-end',
+        marginTop: insets.top + spacing.md,
+        marginHorizontal: spacing.lg,
+        marginBottom: spacing.md,
         paddingHorizontal: spacing.lg,
-        paddingBottom: spacing.xl,
-        paddingTop: insets.top + spacing.lg,
+        paddingVertical: spacing.lg,
+        borderRadius: radius.xl,
+        overflow: 'hidden',
       }}
     >
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          top: -40,
+          right: -30,
+          width: 160,
+          height: 160,
+          borderRadius: 80,
+          backgroundColor: 'rgba(255,255,255,0.12)',
+        }}
+      />
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          bottom: -50,
+          left: -20,
+          width: 140,
+          height: 140,
+          borderRadius: 70,
+          backgroundColor: 'rgba(255,255,255,0.08)',
+        }}
+      />
       {brandingLoading ? (
         <ActivityIndicator color="#fff" style={{ marginBottom: spacing.md }} />
       ) : logoUrl && !logoFailed ? (
@@ -634,19 +658,26 @@ export const LoginScreen: React.FC = () => {
           paddingHorizontal: spacing.mdSm,
           paddingVertical: spacing.xs,
           borderRadius: radius.full,
-          backgroundColor: 'rgba(251,191,36,0.22)',
+          backgroundColor: chrome.badgeBg,
           borderWidth: StyleSheet.hairlineWidth,
-          borderColor: 'rgba(251,191,36,0.5)',
+          borderColor: chrome.badgeBorder,
         }}
       >
-        <Text style={{ color: '#fcd34d', fontWeight: '800', fontSize: typography.caption.fontSize, letterSpacing: 0.6 }}>
-          ADMIN
+        <Text
+          style={{
+            color: chrome.badgeText,
+            fontWeight: '800',
+            fontSize: typography.caption.fontSize,
+            letterSpacing: 0.6,
+          }}
+        >
+          {chrome.badgeLabel}
         </Text>
       </View>
       <Text style={{ color: 'rgba(255,255,255,0.78)', fontSize: typography.bodyLarge.fontSize, marginTop: spacing.sm }}>
-        School management
+        {chrome.tagline}
       </Text>
-    </View>
+    </LinearGradient>
   );
 
   const content = (
@@ -668,7 +699,7 @@ export const LoginScreen: React.FC = () => {
           bounces={false}
           showsVerticalScrollIndicator={false}
         >
-          <View style={{ minHeight: keyboardHeight > 0 ? 72 : 220 }}>{hero}</View>
+          <View>{hero}</View>
           {sheet}
         </ScrollView>
       </KeyboardScrollProvider>
@@ -699,8 +730,8 @@ export const LoginScreen: React.FC = () => {
   }
 
   return (
-    <ScreenContainer edges={[]} scroll={false} clearFloatingTabBar={false} style={styles.transparent}>
-      <StatusBar style="light" />
+    <View style={[styles.flex, { backgroundColor: pageBackground }]}>
+      <StatusBar style={showBackground ? 'light' : 'dark'} />
       {showBackground ? (
         <ImageBackground
           source={{ uri: loginBackgroundUrl! }}
@@ -715,23 +746,23 @@ export const LoginScreen: React.FC = () => {
           {content}
         </ImageBackground>
       ) : (
-        <LinearGradient colors={gradientStops} start={{ x: 0.1, y: 0 }} end={{ x: 0.9, y: 1 }} style={styles.flex}>
-          {content}
-        </LinearGradient>
+        content
       )}
-    </ScreenContainer>
+    </View>
   );
 };
 
-function DarkField({
+function Field({
   label,
   icon,
   right,
+  accent = '#0F2744',
   ...props
 }: {
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
   right?: React.ReactNode;
+  accent?: string;
 } & TextInputProps) {
   const { spacing, typography, radius } = useTheme();
   const [focused, setFocused] = useState(false);
@@ -740,7 +771,7 @@ function DarkField({
     <View style={{ marginBottom: spacing.md }}>
       <Text
         style={{
-          color: 'rgba(255,255,255,0.55)',
+          color: '#4B5563',
           fontSize: typography.label.fontSize,
           fontWeight: typography.label.fontWeight,
           marginBottom: spacing.xs,
@@ -753,17 +784,17 @@ function DarkField({
           flexDirection: 'row',
           alignItems: 'center',
           borderWidth: 1,
-          borderColor: focused ? '#4B9FFF' : 'rgba(255,255,255,0.14)',
+          borderColor: focused ? accent : '#D1D5DB',
           borderRadius: radius.control,
-          backgroundColor: 'rgba(255,255,255,0.06)',
+          backgroundColor: '#FFFFFF',
           paddingHorizontal: spacing.mdSm,
           minHeight: 52,
         }}
       >
-        <Ionicons name={icon} size={18} color="rgba(255,255,255,0.45)" style={{ marginRight: spacing.sm }} />
+        <Ionicons name={icon} size={18} color="#4B5563" style={{ marginRight: spacing.sm }} />
         <TextInput
-          placeholderTextColor="rgba(255,255,255,0.35)"
-          selectionColor="#4B9FFF"
+          placeholderTextColor="#6B7280"
+          selectionColor={accent}
           {...props}
           onFocus={(e) => {
             setFocused(true);
@@ -776,7 +807,7 @@ function DarkField({
           }}
           style={{
             flex: 1,
-            color: '#fff',
+            color: '#111827',
             fontSize: typography.bodyLarge.fontSize,
             paddingVertical: spacing.mdSm,
           }}

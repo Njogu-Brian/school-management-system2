@@ -21,6 +21,7 @@ import {
   StudentSearchBar,
   useTheme,
 } from '@erp/ui';
+import { AttendanceActionSheet } from '../../shared/AttendanceActionSheet';
 import type { StudentEnrollmentStatusFilter, StudentGenderFilter } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -40,6 +41,7 @@ export const StudentRegistryScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<StudentsStackParamList>>();
   const { colors, spacing } = useTheme();
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [attendanceOpen, setAttendanceOpen] = useState(false);
 
   const {
     searchInput,
@@ -177,21 +179,12 @@ export const StudentRegistryScreen: React.FC = () => {
             />
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm }}>
               <QuickAction
-                label="Parent contacts"
-                icon="call-outline"
-                onPress={() => navigation.navigate('ParentsContact')}
-              />
-              <QuickAction
                 label="Attendance"
-                icon="calendar-outline"
-                onPress={() => navigation.navigate('AttendanceReport')}
-              />
-              <QuickAction
-                label="Archived"
-                icon="archive-outline"
-                onPress={() => navigation.navigate('ArchivedStudents')}
+                icon="attendance"
+                onPress={() => setAttendanceOpen(true)}
               />
             </View>
+            <AttendanceActionSheet visible={attendanceOpen} onClose={() => setAttendanceOpen(false)} />
           </>
         }
         searchBar={

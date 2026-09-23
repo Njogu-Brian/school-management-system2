@@ -4,11 +4,11 @@ import {
   useAppMode,
   useCurrentUser,
   userCanHome,
-  userCanWork,
   UserRole,
 } from '@erp/core';
 import { EmptyState, ScreenContainer, ScreenContainerDefaultsProvider } from '@erp/ui';
 import { DrawerNavigator } from '@admin/navigation/DrawerNavigator';
+import { AuthLoadingScreen } from '@users/features/auth';
 import React from 'react';
 import { DriverTabNavigator } from '@users/navigation/driver/DriverTabNavigator';
 import { ParentTabNavigator } from '@users/navigation/parent/ParentTabNavigator';
@@ -32,15 +32,25 @@ import { TeacherNavigator } from '@users/navigation/teacher/TeacherNavigator';
 export const CombinedRoleNavigator: React.FC = () => {
   const user = useCurrentUser();
   const role = effectiveRole(user);
-  const { mode } = useAppMode();
+  const { mode, ready } = useAppMode();
   const canHome = userCanHome(user);
-  const canWork = userCanWork(user);
+  const adminWork = isAdminAppRole(role) || role === UserRole.DIRECTOR;
 
-  if (canHome && (mode === 'home' || !canWork)) {
+  if (!ready) {
+    return <AuthLoadingScreen />;
+  }
+
+  // Parent tabs only when the user explicitly chose Home. Super Admin / staff
+  // must land on the Admin drawer — a leftover parent_id used to dump them
+  // into an empty parent shell (blank grey).
+  if (canHome && mode === 'home' && !adminWork) {
     return <ParentTabNavigator />;
   }
 
-  if (isAdminAppRole(role) || role === UserRole.DIRECTOR) {
+  if (adminWork) {
+    if (canHome && mode === 'home') {
+      return <ParentTabNavigator />;
+    }
     return (
       <ScreenContainerDefaultsProvider edges={['bottom']}>
         <DrawerNavigator />

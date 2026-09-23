@@ -30,20 +30,20 @@ export type ParentAbsenceSubmitResult = {
   records: ParentAbsenceRecordDto[];
 };
 
+/**
+ * `apiClient.get/post` already return the unwrapped JSON body (`ApiResponse<T>`).
+ * Do not destructure `{ data }` again — that drops `success` and breaks hooks.
+ */
 export const parentAbsenceApi = {
-  async listReasonCodes(): Promise<ApiResponse<AttendanceReasonCodeDto[]>> {
-    const { data } = await apiClient.get<ApiResponse<AttendanceReasonCodeDto[]>>('/attendance/reason-codes');
-    return data as ApiResponse<AttendanceReasonCodeDto[]>;
+  listReasonCodes(): Promise<ApiResponse<AttendanceReasonCodeDto[]>> {
+    return apiClient.get<AttendanceReasonCodeDto[]>('/attendance/reason-codes');
   },
 
-  async history(studentId: number): Promise<ApiResponse<ParentAbsenceRecordDto[]>> {
-    const { data } = await apiClient.get<ApiResponse<ParentAbsenceRecordDto[]>>(
-      `/students/${studentId}/attendance-absence`,
-    );
-    return data as ApiResponse<ParentAbsenceRecordDto[]>;
+  history(studentId: number): Promise<ApiResponse<ParentAbsenceRecordDto[]>> {
+    return apiClient.get<ParentAbsenceRecordDto[]>(`/students/${studentId}/attendance-absence`);
   },
 
-  async report(
+  report(
     studentId: number,
     payload: {
       start_date: string;
@@ -52,10 +52,9 @@ export const parentAbsenceApi = {
       reason_code_id?: number | null;
     },
   ): Promise<ApiResponse<ParentAbsenceSubmitResult>> {
-    const { data } = await apiClient.post<ApiResponse<ParentAbsenceSubmitResult>>(
+    return apiClient.post<ParentAbsenceSubmitResult>(
       `/students/${studentId}/attendance-absence`,
       payload,
     );
-    return data as ApiResponse<ParentAbsenceSubmitResult>;
   },
 };

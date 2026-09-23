@@ -167,6 +167,13 @@
               </tr>
             </thead>
             <tbody>
+              @if(!empty($group->lines_truncated))
+                <tr>
+                  <td colspan="{{ $showStatement ? 7 : 6 }}" class="small text-muted">
+                    Showing the latest {{ $group->lines->count() }} of {{ $group->transaction_count }} transactions. Classifying the group still applies to all of them.
+                  </td>
+                </tr>
+              @endif
               @foreach($group->lines as $line)
                 <tr class="{{ $line->is_transaction_fee ? 'table-light' : '' }}">
                   <td class="text-nowrap">{{ optional($line->completed_at)->format('Y-m-d H:i') ?? '—' }}</td>

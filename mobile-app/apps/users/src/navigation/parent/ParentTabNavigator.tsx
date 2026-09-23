@@ -147,10 +147,10 @@ const ParentAcademicStack = () => (
 );
 
 const parentTabBar = createUsersTabBar({
-  ParentHomeTab: { label: 'Home', icon: 'home-outline', iconFocused: 'home', tone: 'blue' },
-  ParentChildrenTab: { label: 'Children', icon: 'people-outline', iconFocused: 'people', tone: 'indigo' },
-  ParentFeesTab: { label: 'Fees', icon: 'cash-outline', iconFocused: 'cash', tone: 'emerald' },
-  ParentAcademicTab: { label: 'Academic', icon: 'school-outline', iconFocused: 'school', tone: 'violet' },
+  ParentHomeTab: { label: 'Home', icon: 'home', iconFocused: 'home', tone: 'blue' },
+  ParentChildrenTab: { label: 'Children', icon: 'students', iconFocused: 'students', tone: 'indigo' },
+  ParentFeesTab: { label: 'Fees', icon: 'finance', iconFocused: 'finance', tone: 'emerald' },
+  ParentAcademicTab: { label: 'Academic', icon: 'academics', iconFocused: 'academics', tone: 'violet' },
 });
 
 export const ParentTabNavigator: React.FC = () => {

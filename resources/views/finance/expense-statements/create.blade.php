@@ -28,6 +28,7 @@
               <div class="mb-4">
                 <label class="finance-form-label">PDF Password <span class="text-muted">(if protected)</span></label>
                 <input type="password" name="pdf_password" value="{{ old('pdf_password') }}" class="finance-form-control @error('pdf_password') is-invalid @enderror" placeholder="Enter statement password" autocomplete="off">
+                <small class="text-muted d-block mt-1">This code is saved and shown again before you view or download the PDF. For M-Pesa it is usually the national ID number.</small>
                 @error('pdf_password')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 @if($errors->has('password_required'))
                   <small class="text-warning">This file appears to be password protected. Enter the password and upload again.</small>

@@ -34,18 +34,27 @@ function expandWildcard(set: Set<string>): Set<string> {
 
 /**
  * Resolve effective permissions: server claims when present, else preset fallback (§7.6).
+ *
+ * Super Admin always receives the mobile `*` grant. Laravel typically returns a
+ * long Spatie list without that wildcard, which left `hasFullAccess` false and
+ * could filter the Admin drawer down to zero screens (blank grey shell).
  */
 export function resolveEffectivePermissions(user: User | null): Set<string> {
   if (!user) {
     return new Set();
   }
 
+  const preset = resolveRolePreset(user.role, user.roleName);
   const server = user.permissions ?? [];
+
+  if (preset === RolePreset.SUPER_ADMIN) {
+    return expandWildcard(normalizePermissionSet([AdminPermission.ALL, ...server]));
+  }
+
   if (server.length > 0) {
     return expandWildcard(normalizePermissionSet(server));
   }
 
-  const preset = resolveRolePreset(user.role, user.roleName);
   if (!preset) {
     return new Set();
   }

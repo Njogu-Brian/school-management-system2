@@ -65,6 +65,12 @@ export const StaffClockScreen: React.FC<Props> = ({ navigation }) => {
           subtitle="Live records from BioTime fingerprint and card machines"
           onBack={() => navigation.goBack()}
         />
+        <Button
+          label="Staff calendar"
+          variant="secondary"
+          onPress={() => navigation.navigate('StaffAttendanceCalendar')}
+          style={{ marginBottom: spacing.sm }}
+        />
         {canViewTeam ? (
           <>
             <Button

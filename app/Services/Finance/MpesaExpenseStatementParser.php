@@ -98,6 +98,17 @@ class MpesaExpenseStatementParser
     }
 
     /**
+     * Encryption flag, whether the given password opens the file, and any
+     * verification code printed on the first pages.
+     *
+     * @return array{success?: bool, encrypted?: bool, password_ok?: bool, verification_code?: ?string, error?: string, message?: string}
+     */
+    public function inspect(string $absolutePath, ?string $password = null): array
+    {
+        return $this->runScript($absolutePath, $password, ['--inspect'], 120);
+    }
+
+    /**
      * Parse only a slice of pages (1-based, inclusive). Keeps peak memory bounded
      * so a large statement can be processed a few pages at a time.
      *

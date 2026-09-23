@@ -11,6 +11,8 @@ export interface AttendanceCalendarDayView {
   is_excused?: boolean;
   is_school_day?: boolean;
   weekday?: number;
+  check_in_time?: string | null;
+  check_out_time?: string | null;
 }
 
 export interface AttendanceMonthCalendarProps {
@@ -36,11 +38,17 @@ function statusColor(
   return 'transparent';
 }
 
+function formatClockTime(value: string | null | undefined): string {
+  if (!value) return '—';
+  return value.slice(0, 5);
+}
+
 function statusLabel(status: string | null | undefined): string {
   const s = (status ?? '').toLowerCase();
   if (s === 'present') return 'Present';
   if (s === 'absent') return 'Absent';
   if (s === 'late') return 'Late';
+  if (s === 'half_day') return 'Half day';
   return '';
 }
 
@@ -205,6 +213,12 @@ export const AttendanceMonthCalendar: React.FC<AttendanceMonthCalendarProps> = (
                 ? `${statusLabel(selected.status)}${selected.is_excused ? ' (excused)' : ''}`
                 : 'School day — attendance not marked yet.'}
           </Text>
+          {selected.is_school_day && (selected.check_in_time || selected.check_out_time) ? (
+            <Text style={{ color: palette.textPrimary, marginTop: 8, fontWeight: '600' }}>
+              Sign in {formatClockTime(selected.check_in_time)} → Sign out{' '}
+              {formatClockTime(selected.check_out_time)}
+            </Text>
+          ) : null}
         </View>
       ) : null}
     </View>

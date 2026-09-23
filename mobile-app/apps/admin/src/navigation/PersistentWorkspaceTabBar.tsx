@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import type { AdminAreaKey } from '@erp/core';
 import { useRbac } from '@erp/core';
 import { PremiumTabBar } from '@erp/ui';
@@ -7,18 +6,18 @@ import React, { useCallback, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { TabsParamList } from './types';
 
-const TAB_ICON: Record<keyof TabsParamList, keyof typeof Ionicons.glyphMap> = {
-  Dashboard: 'grid-outline',
-  Students: 'people-outline',
-  Finance: 'cash-outline',
-  People: 'briefcase-outline',
+const TAB_ICON: Record<keyof TabsParamList, string> = {
+  Dashboard: 'dashboard',
+  Students: 'students',
+  Finance: 'finance',
+  People: 'hr',
 };
 
-const TAB_ICON_FOCUSED: Record<keyof TabsParamList, keyof typeof Ionicons.glyphMap> = {
-  Dashboard: 'grid',
-  Students: 'people',
-  Finance: 'cash',
-  People: 'briefcase',
+const TAB_ICON_FOCUSED: Record<keyof TabsParamList, string> = {
+  Dashboard: 'dashboard',
+  Students: 'students',
+  Finance: 'finance',
+  People: 'hr',
 };
 
 const TAB_BAR_LABEL: Record<keyof TabsParamList, string> = {

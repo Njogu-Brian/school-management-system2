@@ -6,6 +6,7 @@ export * from './screens/PerformanceReviewDetailScreen';
 export * from './screens/TrainingRecordDetailScreen';
 export * from './screens/StaffClockScreen';
 export * from './screens/StaffClockTeamScreen';
+export * from './screens/StaffAttendanceCalendarScreen';
 export * from './screens/StaffEditScreen';
 export * from './screens/LeaveApplyScreen';
 export * from './screens/LeaveManagementScreen';

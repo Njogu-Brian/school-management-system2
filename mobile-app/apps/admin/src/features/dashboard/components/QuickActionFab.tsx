@@ -1,17 +1,17 @@
 import { useCan } from '@erp/core';
-import { AccentIcon, useFloatingTabBarClearance, useTheme } from '@erp/ui';
-import { Ionicons } from '@expo/vector-icons';
+import { AccentIcon, AppIcon, useFloatingTabBarClearance, useTheme } from '@erp/ui';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import React, { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { navigateToDrawer, navigateToTab } from '../../../navigation/navigateWorkspace';
+import { AttendanceActionSheet } from '../../shared/AttendanceActionSheet';
 
 type Action = {
   id: string;
   label: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: string;
   onPress: () => void;
   visible: boolean;
 };
@@ -24,6 +24,7 @@ export const QuickActionFab: React.FC = () => {
   const insets = useSafeAreaInsets();
   const tabClearance = useFloatingTabBarClearance(true);
   const [open, setOpen] = useState(false);
+  const [attendanceOpen, setAttendanceOpen] = useState(false);
 
   const canAdmissions = useCan('admissions.view');
   const canFinance = useCan('finance.view');
@@ -37,91 +38,77 @@ export const QuickActionFab: React.FC = () => {
     {
       id: 'admit',
       label: 'Admissions workspace',
-      icon: 'school-outline',
+      icon: 'admissions-workspace',
       visible: canAdmissions,
       onPress: () => navigateToDrawer(navigation, 'Admissions', 'AdmissionsWorkspace'),
     },
     {
       id: 'payment',
       label: 'Record payment',
-      icon: 'cash-outline',
+      icon: 'record-payment',
       visible: canFinance,
       onPress: () => navigateToTab(navigation, 'Finance', 'CollectionsList'),
     },
     {
       id: 'sms',
       label: 'Send SMS',
-      icon: 'chatbubble-outline',
+      icon: 'send-sms',
       visible: canComm,
       onPress: () => navigateToDrawer(navigation, 'Communication', 'SmsCompose'),
     },
     {
       id: 'announcement',
       label: 'Create announcement',
-      icon: 'megaphone-outline',
+      icon: 'create-announcement',
       visible: canComm,
       onPress: () => navigateToDrawer(navigation, 'Communication', 'AnnouncementForm'),
     },
     {
       id: 'visitor',
       label: 'Visitor check-in',
-      icon: 'person-add-outline',
+      icon: 'visitor-check-in',
       visible: canOps,
       onPress: () => navigateToDrawer(navigation, 'Operations', 'VisitorCheckIn'),
     },
     {
       id: 'concern',
       label: 'Report concern',
-      icon: 'alert-circle-outline',
+      icon: 'report-concern',
       visible: canOps,
       onPress: () => navigateToDrawer(navigation, 'Operations', 'ConcernCreate'),
     },
     {
       id: 'requisition',
       label: 'Requisitions',
-      icon: 'clipboard-outline',
+      icon: 'requisitions',
       visible: canOps,
       onPress: () => navigateToDrawer(navigation, 'Operations', 'RequisitionsList'),
     },
     {
-      id: 'parents',
-      label: 'Parent contacts',
-      icon: 'call-outline',
-      visible: canStudents,
-      onPress: () => navigateToTab(navigation, 'Students', 'ParentsContact'),
-    },
-    {
-      id: 'attendance_report',
-      label: 'Attendance report',
-      icon: 'calendar-outline',
-      visible: canStudents || canAcademics,
-      onPress: () => navigateToTab(navigation, 'Students', 'AttendanceReport'),
-    },
-    {
       id: 'attendance',
-      label: 'Mark attendance',
-      icon: 'clipboard-outline',
-      visible: canAcademics,
-      onPress: () => navigateToDrawer(navigation, 'Academics', 'MarkAttendance'),
-    },
-    {
-      id: 'mark_absent',
-      label: 'Mark as absent',
-      icon: 'close-circle-outline',
-      visible: canAcademics,
-      onPress: () => navigateToDrawer(navigation, 'Academics', 'MarkAbsent'),
+      label: 'Attendance',
+      icon: 'attendance',
+      visible: canStudents || canAcademics,
+      onPress: () => setAttendanceOpen(true),
     },
     {
       id: 'staff_clock',
       label: 'Staff attendance',
-      icon: 'time-outline',
+      icon: 'staff-attendance',
       visible: canPeople,
       onPress: () => navigateToTab(navigation, 'People', 'StaffClock'),
     },
     {
+      id: 'staff_calendar',
+      label: 'Staff calendar',
+      icon: 'calendar',
+      visible: canPeople,
+      onPress: () => navigateToTab(navigation, 'People', 'StaffAttendanceCalendar'),
+    },
+    {
       id: 'staff',
       label: 'Staff registry',
-      icon: 'briefcase-outline',
+      icon: 'staff-registry',
       visible: canPeople,
       onPress: () => navigateToTab(navigation, 'People', 'StaffRegistry'),
     },
@@ -154,7 +141,7 @@ export const QuickActionFab: React.FC = () => {
         accessibilityLabel="Quick actions"
       >
         <LinearGradient colors={[palette.primary, '#1a6bc4']} style={styles.fabFill}>
-          <Ionicons name="add" size={28} color="#fff" />
+          <AppIcon name="add" size={28} color="#fff" />
         </LinearGradient>
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
@@ -227,13 +214,14 @@ export const QuickActionFab: React.FC = () => {
                   >
                     {action.label}
                   </Text>
-                  <Ionicons name="chevron-forward" size={16} color={palette.textMuted} />
+                  <AppIcon name="navigation" size={16} color={palette.textMuted} />
                 </Pressable>
               ))}
             </ScrollView>
           </View>
         </View>
       </Modal>
+      <AttendanceActionSheet visible={attendanceOpen} onClose={() => setAttendanceOpen(false)} />
     </>
   );
 };

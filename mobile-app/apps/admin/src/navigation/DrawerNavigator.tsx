@@ -1,13 +1,6 @@
 import { AppHeaderChrome } from './AppHeaderChrome';
-import {
-  createDrawerNavigator,
-  DrawerNavigationOptions,
-  DrawerNavigationProp,
-} from '@react-navigation/drawer';
-import { DrawerActions } from '@react-navigation/native';
+import { createStackNavigator, StackNavigationOptions } from '@react-navigation/stack';
 import React from 'react';
-import { useAdaptiveLayout } from '@erp/ui';
-import { StyleSheet, useWindowDimensions } from 'react-native';
 import { AcademicsStackNavigator } from './AcademicsStackNavigator';
 import { AdmissionsStackNavigator } from './AdmissionsStackNavigator';
 import { ApprovalsStackNavigator } from './ApprovalsStackNavigator';
@@ -17,31 +10,25 @@ import { ReportsStackNavigator } from './ReportsStackNavigator';
 import { SettingsStackNavigator } from './SettingsStackNavigator';
 import { AREA_TO_DRAWER_ROUTE } from './areaRoutes';
 import { BottomTabsNavigator } from './BottomTabsNavigator';
-import { DrawerContent } from './DrawerContent';
 import { withWorkspaceTabBar } from './PersistentWorkspaceTabBar';
 import { withAreaGuard } from './guards/ProtectedAreaScreen';
 import type { DrawerParamList } from './types';
 import { useRbac } from '@erp/core';
 
-const Drawer = createDrawerNavigator<DrawerParamList>();
+/**
+ * Root workspace shell — formerly a drawer. Side nav was removed; modules open
+ * from the Home screen. Kept as a stack so secondary areas stay navigable.
+ */
+const Stack = createStackNavigator<DrawerParamList>();
 
-function headerOptions(title: string) {
-  return ({
-    navigation,
-  }: {
-    navigation: DrawerNavigationProp<DrawerParamList>;
-  }): DrawerNavigationOptions => ({
+function headerOptions(title: string): StackNavigationOptions {
+  return {
     headerShown: true,
-    header: () => (
-      <AppHeaderChrome
-        title={title}
-        onMenuPress={() => navigation.dispatch(DrawerActions.openDrawer())}
-      />
-    ),
-  });
+    header: () => <AppHeaderChrome title={title} />,
+  };
 }
 
-const DRAWER_SCREENS: Array<{
+const MODULE_SCREENS: Array<{
   areaKey: keyof typeof AREA_TO_DRAWER_ROUTE;
   component: React.ComponentType;
   title: string;
@@ -57,57 +44,36 @@ const DRAWER_SCREENS: Array<{
 
 export const DrawerNavigator: React.FC = () => {
   const { drawerAreas, tabAreas } = useRbac();
-  const { width: windowWidth } = useWindowDimensions();
-  const { isTablet } = useAdaptiveLayout();
 
   const allowedDrawerKeys = new Set(drawerAreas.map((a) => a.key));
 
-  const firstDrawerScreen = DRAWER_SCREENS.find(({ areaKey }) =>
-    allowedDrawerKeys.has(areaKey),
-  );
+  const visibleModuleScreens = MODULE_SCREENS.filter(({ areaKey }) => {
+    const routeName = AREA_TO_DRAWER_ROUTE[areaKey];
+    return Boolean(routeName) && allowedDrawerKeys.has(areaKey);
+  });
+  const firstModule = visibleModuleScreens[0];
   const initialRoute =
     tabAreas.length > 0
       ? 'Workspace'
-      : firstDrawerScreen
-        ? AREA_TO_DRAWER_ROUTE[firstDrawerScreen.areaKey]
+      : firstModule
+        ? AREA_TO_DRAWER_ROUTE[firstModule.areaKey]
         : 'Workspace';
 
-  const drawerWidth = isTablet ? 280 : Math.min(280, Math.round(windowWidth * 0.72));
-
   return (
-    <Drawer.Navigator
+    <Stack.Navigator
       initialRouteName={initialRoute}
-      drawerContent={(props) => <DrawerContent {...props} />}
       screenOptions={{
         headerShown: false,
-        drawerType: isTablet ? 'permanent' : 'front',
-        overlayColor: isTablet ? 'transparent' : 'rgba(0,0,0,0.45)',
-        drawerStyle: {
-          width: drawerWidth,
-          backgroundColor: 'transparent',
-          borderTopRightRadius: isTablet ? 0 : 24,
-          borderBottomRightRadius: isTablet ? 0 : 24,
-          overflow: 'hidden',
-          borderRightWidth: isTablet ? StyleSheet.hairlineWidth : 0,
-          borderRightColor: 'rgba(128,128,128,0.25)',
-        },
+        animationEnabled: true,
       }}
     >
-      {tabAreas.length > 0 ? (
-        <Drawer.Screen
-          name="Workspace"
-          component={BottomTabsNavigator}
-          options={{ headerShown: false }}
-        />
-      ) : null}
+      <Stack.Screen name="Workspace" component={BottomTabsNavigator} options={{ headerShown: false }} />
 
-      {DRAWER_SCREENS.map(({ areaKey, component, title }) => {
+      {visibleModuleScreens.map(({ areaKey, component, title }) => {
         const routeName = AREA_TO_DRAWER_ROUTE[areaKey];
-        if (!routeName || !allowedDrawerKeys.has(areaKey)) {
-          return null;
-        }
+        if (!routeName) return null;
         return (
-          <Drawer.Screen
+          <Stack.Screen
             key={routeName}
             name={routeName}
             component={withAreaGuard(areaKey, withWorkspaceTabBar(component))}
@@ -115,6 +81,6 @@ export const DrawerNavigator: React.FC = () => {
           />
         );
       })}
-    </Drawer.Navigator>
+    </Stack.Navigator>
   );
 };

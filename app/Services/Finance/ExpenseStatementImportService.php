@@ -15,6 +15,8 @@ use App\Models\User;
 use App\Models\Vendor;
 use App\Services\ExpenseWorkflowService;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -125,6 +127,7 @@ class ExpenseStatementImportService
                 'period_end' => $metadata['period_end'] ?? null,
                 'account_name' => $metadata['customer_name'] ?? null,
                 'account_number' => $metadata['mobile_number'] ?? null,
+                'verification_code' => $metadata['verification_code'] ?? null,
                 'status' => ExpenseStatementImport::STATUS_PARSED,
                 'summary' => $metadata,
             ]);
@@ -195,12 +198,18 @@ class ExpenseStatementImportService
     public function persistParsedTransactions(ExpenseStatementImport $import, array $transactions, array $metadata): array
     {
         return DB::transaction(function () use ($import, $transactions, $metadata) {
+            $summary = array_merge(is_array($import->summary) ? $import->summary : [], $metadata);
+            if (is_string($import->pdf_password) && $import->pdf_password !== '') {
+                $summary['pdf_encrypted'] = true;
+            }
+
             $import->update([
                 'period_start' => $metadata['period_start'] ?? null,
                 'period_end' => $metadata['period_end'] ?? null,
                 'account_name' => $metadata['customer_name'] ?? null,
                 'account_number' => $metadata['mobile_number'] ?? null,
-                'summary' => $metadata,
+                'verification_code' => $metadata['verification_code'] ?? $import->verification_code,
+                'summary' => $summary,
             ]);
 
             $stats = $this->persistTransactions($import, $transactions);
@@ -434,35 +443,48 @@ class ExpenseStatementImportService
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, object>
+     * One page of recipient groups for a single statement.
+     * Aggregates in SQL, then loads only a short sample of lines for the groups on this page.
      */
-    public function groupedLines(ExpenseStatementImport $import, ?string $filter = null, ?string $search = null)
-    {
+    public function paginateGroupedLines(
+        ExpenseStatementImport $import,
+        ?string $filter,
+        ?string $search,
+        int $perPage,
+        int $page,
+    ): LengthAwarePaginator {
         $query = $import->lines()
             ->where('direction', 'out')
             ->with('category');
 
         $this->applyLineFilters($query, $filter, $search);
 
-        return $this->buildGroups($query->orderByDesc('completed_at')->get());
+        return $this->paginateGroups($query, $perPage, $page, false);
     }
 
     /**
-     * Grouped outgoing transactions across EVERY parsed statement (combined review).
-     * Lines from different imports that share a group_key (same recipient/paybill)
-     * are merged into a single group so the user can classify a payee once.
-     *
-     * @return \Illuminate\Support\Collection<int, object>
+     * One page of recipient groups across every statement.
+     * When $highlightGroup is set and the user did not pick a page, open the page that contains it.
      */
-    public function groupedLinesAcrossImports(?string $filter = null, ?string $search = null)
-    {
+    public function paginateGroupedLinesAcrossImports(
+        ?string $filter,
+        ?string $search,
+        int $perPage,
+        int $page,
+        ?string $highlightGroup = null,
+        bool $pageWasExplicit = false,
+    ): LengthAwarePaginator {
         $query = ExpenseStatementLine::query()
             ->where('direction', 'out')
             ->with(['category', 'import']);
 
         $this->applyLineFilters($query, $filter, $search);
 
-        return $this->buildGroups($query->orderByDesc('completed_at')->get(), true);
+        if ($highlightGroup && ! $pageWasExplicit) {
+            $page = $this->pageForGroup($query, $highlightGroup, $perPage);
+        }
+
+        return $this->paginateGroups($query, $perPage, $page, true);
     }
 
     /**
@@ -502,104 +524,167 @@ class ExpenseStatementImportService
     }
 
     /**
-     * Build display groups (keyed by group_key) from a flat line collection.
-     *
-     * @param  \Illuminate\Support\Collection<int, ExpenseStatementLine>  $lines
-     * @param  bool  $withStatements  Track which statements each group spans (combined view).
-     * @return \Illuminate\Support\Collection<int, object>
+     * How many individual lines to render inside one recipient card.
+     * The group totals still cover every transaction; the card classifies the whole group.
      */
-    protected function buildGroups($lines, bool $withStatements = false)
+    protected const GROUP_LINE_SAMPLE = 40;
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder<ExpenseStatementLine>  $query
+     */
+    protected function paginateGroups($query, int $perPage, int $page, bool $withStatements): LengthAwarePaginator
     {
-        return $lines->groupBy('group_key')->map(function ($groupLines) use ($withStatements) {
-            $first = $groupLines->first();
+        $page = max(1, $page);
+        $aggregate = $this->groupAggregateQuery($query);
+        $total = (int) DB::query()->fromSub(clone $aggregate, 'expense_groups')->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $page = min($page, $lastPage);
 
-            $vendorName = $this->resolveGroupVendorName($groupLines);
+        $rows = (clone $aggregate)
+            ->orderByDesc('total_amount')
+            ->orderBy('group_key')
+            ->forPage($page, $perPage)
+            ->get();
 
-            $statements = collect();
-            if ($withStatements) {
-                $statements = $groupLines
-                    ->map(fn ($line) => $line->import)
-                    ->filter()
-                    ->unique('id')
-                    ->map(fn ($import) => (object) [
-                        'id' => $import->id,
-                        'label' => $import->account_name ?: ($import->original_filename ?: ('Statement #' . $import->id)),
-                    ])
-                    ->values();
-            }
+        $keys = $rows->pluck('group_key')->filter()->values();
+        $samples = collect();
+        foreach ($keys as $key) {
+            $samples[$key] = (clone $query)
+                ->where('group_key', $key)
+                ->orderByDesc('completed_at')
+                ->limit(self::GROUP_LINE_SAMPLE)
+                ->get();
+        }
+
+        $statementsByGroup = collect();
+        if ($withStatements && $keys->isNotEmpty()) {
+            $statementsByGroup = (clone $query)->reorder()->setEagerLoads([])
+                ->whereIn('group_key', $keys->all())
+                ->join('expense_statement_imports as stmt_imports', 'stmt_imports.id', '=', 'expense_statement_lines.import_id')
+                ->toBase()
+                ->select('expense_statement_lines.group_key', 'stmt_imports.id', 'stmt_imports.account_name', 'stmt_imports.original_filename')
+                ->distinct()
+                ->get()
+                ->groupBy('group_key');
+        }
+
+        $groups = $rows->map(function ($row) use ($samples, $statementsByGroup) {
+            $lines = $samples->get($row->group_key, collect());
+            $first = $lines->first();
+            $vendorName = $row->vendor_name ?: null;
+
+            $statements = collect($statementsByGroup->get($row->group_key, []))
+                ->map(fn ($import) => (object) [
+                    'id' => $import->id,
+                    'label' => $import->account_name ?: ($import->original_filename ?: ('Statement #' . $import->id)),
+                ])
+                ->values();
+
+            $count = (int) $row->transaction_count;
 
             return (object) [
-                'group_key' => $first->group_key,
+                'group_key' => $row->group_key,
                 'vendor_name' => $vendorName,
                 'display_name' => $vendorName
-                    ?: $first->recipient_name
-                    ?: ($first->paybill_number ? 'Paybill ' . $first->paybill_number : null)
-                    ?: $first->narration,
-                'recipient_name' => $first->recipient_name,
-                'transaction_type' => $first->transaction_type,
-                'transaction_type_label' => $first->transaction_type_label,
-                'recipient_phone' => $first->recipient_phone,
-                'paybill_number' => $first->paybill_number,
-                'account_reference' => $first->account_reference,
-                'transaction_count' => $groupLines->count(),
-                'total_amount' => round((float) $groupLines->sum('withdrawn_amount'), 2),
-                'fee_amount' => round((float) $groupLines->where('is_transaction_fee', true)->sum('withdrawn_amount'), 2),
-                'pending_count' => $groupLines->where('review_status', ExpenseStatementLine::REVIEW_PENDING)->count(),
-                'confirmed_count' => $groupLines->where('review_status', ExpenseStatementLine::REVIEW_CONFIRMED)->count(),
-                'review_status' => $this->resolveGroupReviewStatus($groupLines),
-                'expense_category_id' => $this->resolveGroupCategoryId($groupLines),
-                'expense_description' => $this->resolveGroupDescription($groupLines),
+                    ?: ($first->recipient_name ?? null)
+                    ?: (($first->paybill_number ?? null) ? 'Paybill ' . $first->paybill_number : null)
+                    ?: ($first->narration ?? $row->group_key),
+                'recipient_name' => $first->recipient_name ?? null,
+                'transaction_type' => $first->transaction_type ?? ExpenseStatementLine::TYPE_OTHER,
+                'transaction_type_label' => $first->transaction_type_label ?? 'Other',
+                'recipient_phone' => $first->recipient_phone ?? null,
+                'paybill_number' => $first->paybill_number ?? null,
+                'account_reference' => $first->account_reference ?? null,
+                'transaction_count' => $count,
+                'total_amount' => round((float) $row->total_amount, 2),
+                'fee_amount' => round((float) $row->fee_amount, 2),
+                'pending_count' => (int) $row->pending_count,
+                'confirmed_count' => (int) $row->confirmed_count,
+                'review_status' => (string) $row->review_status,
+                'expense_category_id' => $row->expense_category_id !== null ? (int) $row->expense_category_id : null,
+                'expense_description' => $row->expense_description ?: null,
                 'statements' => $statements,
-                'lines' => $groupLines,
+                'lines' => $lines,
+                'lines_truncated' => $count > $lines->count(),
             ];
-        })->sortByDesc('total_amount')->values();
+        })->values();
+
+        return new LengthAwarePaginator(
+            $groups,
+            $total,
+            $perPage,
+            $page,
+            ['path' => Paginator::resolveCurrentPath(), 'query' => request()->query()]
+        );
     }
 
-    protected function resolveGroupReviewStatus($groupLines): string
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder<ExpenseStatementLine>  $query
+     */
+    protected function groupAggregateQuery($query)
     {
-        $statuses = $groupLines->pluck('review_status')->unique()->values();
+        $pending = ExpenseStatementLine::REVIEW_PENDING;
+        $confirmed = ExpenseStatementLine::REVIEW_CONFIRMED;
+        $personal = ExpenseStatementLine::REVIEW_PERSONAL;
+        $ignored = ExpenseStatementLine::REVIEW_IGNORED;
 
-        if ($statuses->count() === 1) {
-            return (string) $statuses->first();
+        $base = (clone $query)->reorder()->setEagerLoads([])->toBase();
+        $base->columns = [];
+        $base->orders = null;
+
+        return $base
+            ->select('group_key')
+            ->selectRaw('COUNT(*) as transaction_count')
+            ->selectRaw('SUM(withdrawn_amount) as total_amount')
+            ->selectRaw('SUM(CASE WHEN is_transaction_fee = 1 THEN withdrawn_amount ELSE 0 END) as fee_amount')
+            ->selectRaw('SUM(CASE WHEN review_status = ? THEN 1 ELSE 0 END) as pending_count', [$pending])
+            ->selectRaw('SUM(CASE WHEN review_status = ? THEN 1 ELSE 0 END) as confirmed_count', [$confirmed])
+            ->selectRaw(
+                'CASE
+                    WHEN COUNT(DISTINCT review_status) <= 1 THEN MIN(review_status)
+                    WHEN SUM(review_status = ?) = COUNT(*) THEN ?
+                    WHEN SUM(review_status IN (?, ?)) = COUNT(*) THEN ?
+                    ELSE ?
+                END as review_status',
+                [$confirmed, $confirmed, $personal, $ignored, $personal, 'mixed']
+            )
+            ->selectRaw(
+                'CASE WHEN COUNT(DISTINCT expense_category_id) = 1 THEN MIN(expense_category_id) ELSE NULL END as expense_category_id'
+            )
+            ->selectRaw(
+                'CASE WHEN COUNT(DISTINCT NULLIF(vendor_name, "")) = 1 THEN MAX(NULLIF(vendor_name, "")) ELSE MAX(NULLIF(vendor_name, "")) END as vendor_name'
+            )
+            ->selectRaw(
+                'CASE WHEN COUNT(DISTINCT NULLIF(expense_description, "")) = 1 THEN MAX(NULLIF(expense_description, "")) ELSE NULL END as expense_description'
+            )
+            ->groupBy('group_key');
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder<ExpenseStatementLine>  $query
+     */
+    protected function pageForGroup($query, string $groupKey, int $perPage): int
+    {
+        $target = (clone $this->groupAggregateQuery($query))
+            ->where('group_key', $groupKey)
+            ->first();
+
+        if (! $target) {
+            return 1;
         }
 
-        if ($groupLines->every(fn ($line) => $line->review_status === ExpenseStatementLine::REVIEW_CONFIRMED)) {
-            return ExpenseStatementLine::REVIEW_CONFIRMED;
-        }
+        $higher = (int) DB::query()
+            ->fromSub($this->groupAggregateQuery($query), 'expense_groups')
+            ->where(function ($q) use ($target) {
+                $q->where('total_amount', '>', $target->total_amount)
+                    ->orWhere(function ($q2) use ($target) {
+                        $q2->where('total_amount', '=', $target->total_amount)
+                            ->where('group_key', '<', $target->group_key);
+                    });
+            })
+            ->count();
 
-        if ($groupLines->every(fn ($line) => in_array($line->review_status, [
-            ExpenseStatementLine::REVIEW_PERSONAL,
-            ExpenseStatementLine::REVIEW_IGNORED,
-        ], true))) {
-            return ExpenseStatementLine::REVIEW_PERSONAL;
-        }
-
-        return 'mixed';
-    }
-
-    protected function resolveGroupCategoryId($groupLines): ?int
-    {
-        $categories = $groupLines->pluck('expense_category_id')->filter()->unique()->values();
-
-        return $categories->count() === 1 ? (int) $categories->first() : null;
-    }
-
-    protected function resolveGroupVendorName($groupLines): ?string
-    {
-        $names = $groupLines->pluck('vendor_name')
-            ->map(fn ($name) => trim((string) $name))
-            ->filter()
-            ->unique()
-            ->values();
-
-        return $names->count() >= 1 ? (string) $names->first() : null;
-    }
-
-    protected function resolveGroupDescription($groupLines): ?string
-    {
-        $descriptions = $groupLines->pluck('expense_description')->filter()->unique()->values();
-
-        return $descriptions->count() === 1 ? (string) $descriptions->first() : null;
+        return (int) floor($higher / $perPage) + 1;
     }
 
     public function applyGroupReview(

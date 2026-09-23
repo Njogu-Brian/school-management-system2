@@ -10,11 +10,10 @@ const controlPlaneBase =
   process.env.EXPO_PUBLIC_CONTROL_PLANE_BASE_URL || apiBase;
 const requireSchoolCode = process.env.EXPO_PUBLIC_REQUIRE_SCHOOL_CODE !== 'false';
 const productWebsite = process.env.EXPO_PUBLIC_PRODUCT_WEBSITE_URL || 'https://edulynk.co.ke';
-const primaryColor = '#1769FF';
-const splashBackground = '#071A3D';
+const splashBackground = '#000000';
 /** Linked EAS project — filled by `eas init` / extra.eas.projectId. */
 const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID ?? '53f1ee05-d923-4583-b2d2-f38b118c1341';
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.0.1';
 
 const updatesUrl = `https://u.expo.dev/${EAS_PROJECT_ID}`;
 
@@ -59,11 +58,11 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'com.edulynk.app',
-    versionCode: 1,
+    versionCode: 4,
     softwareKeyboardLayoutMode: 'resize',
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
-      backgroundColor: primaryColor,
+      backgroundColor: '#000000',
     },
     permissions: [
       'USE_BIOMETRIC',

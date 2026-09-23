@@ -1,4 +1,4 @@
-import type { Ionicons } from '@expo/vector-icons';
+import type { AppIconName } from '@erp/ui';
 import { PremiumTabBar, type PremiumTabItem } from '@erp/ui';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { StackActions } from '@react-navigation/native';
@@ -8,8 +8,8 @@ export type UsersTabConfig = Record<
   string,
   {
     label: string;
-    icon: keyof typeof Ionicons.glyphMap;
-    iconFocused?: keyof typeof Ionicons.glyphMap;
+    icon: AppIconName | string;
+    iconFocused?: AppIconName | string;
     tone?: PremiumTabItem['tone'];
   }
 >;

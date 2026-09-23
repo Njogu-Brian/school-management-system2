@@ -1,15 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, View, ViewStyle } from 'react-native';
-import {
-  resolveSoft3DGlyph,
-  Soft3DGlyph,
-  type Soft3DGlyphKey,
-} from './Soft3DGlyphs';
+import { SheetIcon } from '../icons/sheetIcons';
+import { resolveAppIconName, type AppIconName } from '../icons/names';
 
-export type { Soft3DGlyphKey };
+export type { AppIconName as Soft3DGlyphKey };
 
-/** Kept for callers that still pass tone — ignored for fill; glyphs own their colors. */
+/** Kept for callers that still pass tone — color now comes from the theme. */
 export type Soft3DTone =
   | 'blue'
   | 'teal'
@@ -25,35 +22,38 @@ export type Soft3DTone =
 export type AccentTone = Soft3DTone;
 
 export interface Soft3DIconProps {
-  /** Soft-3D glyph key. If omitted, resolved from `name`. */
-  glyph?: Soft3DGlyphKey;
-  /** Ionicons name (also used for glyph resolution). */
-  name?: keyof typeof Ionicons.glyphMap;
-  /** Ignored for fill — glyphs use their own color schemes (KCB-style). Kept for API compat. */
+  /** Canonical AppIcon name. If omitted, resolved from `name`. */
+  glyph?: AppIconName | string;
+  /** Ionicons name or canonical AppIcon name. */
+  name?: keyof typeof Ionicons.glyphMap | AppIconName | string;
+  /** Ignored for fill — icons inherit the theme primary. Kept for API compat. */
   tone?: Soft3DTone;
   size?: number;
-  /** @deprecated Soft-3D glyphs size themselves; kept for API compat. */
+  /** @deprecated Icons size themselves; kept for API compat. */
   iconSize?: number;
   /** Dim inactive nav icons. */
   muted?: boolean;
   /** Active tab lift. */
   active?: boolean;
   style?: ViewStyle;
+  color?: string;
 }
 
 /**
- * Soft-3D illustration icon — colorful volumetric glyph with NO colored square/circle well.
- * Sits directly on the parent surface (flagship banking shortcut style).
+ * Themed SVG icon used by hubs, drawer, KPIs, and empty states.
+ * Delegates to the shared AppIcon registry so Admin, Users, and Edulynk match.
  */
 export const Soft3DIcon: React.FC<Soft3DIconProps> = ({
   glyph,
   name,
   size = 52,
-  muted = false,
   active = false,
   style,
 }) => {
-  const glyphKey = resolveSoft3DGlyph(name, glyph);
+  const iconName = resolveAppIconName(
+    typeof name === 'string' ? name : undefined,
+    typeof glyph === 'string' ? glyph : undefined,
+  );
   const renderSize = Math.round(size);
 
   return (
@@ -63,14 +63,12 @@ export const Soft3DIcon: React.FC<Soft3DIconProps> = ({
         {
           width: renderSize,
           height: renderSize,
-          opacity: muted ? 0.5 : 1,
-          // Always pass a concrete array — `undefined` crashes RN processTransform on Android.
           transform: active ? [{ translateY: -1 }, { scale: 1.06 }] : [{ scale: 1 }],
         },
         style,
       ]}
     >
-      <Soft3DGlyph glyph={glyphKey} size={renderSize} muted={muted} />
+      <SheetIcon name={iconName} size={renderSize} />
     </View>
   );
 };

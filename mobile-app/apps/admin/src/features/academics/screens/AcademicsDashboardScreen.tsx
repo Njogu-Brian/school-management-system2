@@ -11,24 +11,22 @@ import {
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import type { AcademicsStackParamList } from '../../../navigation/academicsStackTypes';
-import { navigateToTab } from '../../../navigation/navigateWorkspace';
+import { AttendanceActionSheet } from '../../shared/AttendanceActionSheet';
 import { ExamBreakdownChart } from '../components/ExamBreakdownChart';
 
 const SECTIONS = [
-  { route: 'Assessments' as const, label: 'Assessments', icon: 'analytics-outline' as const },
-  { route: 'ExamsList' as const, label: 'Exams', icon: 'school-outline' as const },
-  { route: 'Marks' as const, label: 'Marks', icon: 'grid-outline' as const },
-  { route: 'MarksMatrix' as const, label: 'Marks Matrix', icon: 'apps-outline' as const },
-  { route: 'ReportCards' as const, label: 'Report Cards', icon: 'ribbon-outline' as const },
-  { route: 'Moderation' as const, label: 'Moderation', icon: 'shield-checkmark-outline' as const },
-  { route: 'SpeedTests' as const, label: 'Speed tests', icon: 'flash-outline' as const },
-  { route: 'CbcCurriculum' as const, label: 'CBC Curriculum', icon: 'library-outline' as const },
-  { route: 'MarkAttendance' as const, label: 'Mark attendance', icon: 'clipboard-outline' as const },
-  { route: 'MarkAbsent' as const, label: 'Mark as absent', icon: 'close-circle-outline' as const },
-  { route: 'Timetable' as const, label: 'Timetable', icon: 'grid-outline' as const },
+  { route: 'Assessments' as const, label: 'Assessments', icon: 'assessments' },
+  { route: 'ExamsList' as const, label: 'Exams', icon: 'exams' },
+  { route: 'Marks' as const, label: 'Marks', icon: 'marks' },
+  { route: 'MarksMatrix' as const, label: 'Marks Matrix', icon: 'workspace' },
+  { route: 'ReportCards' as const, label: 'Report Cards', icon: 'report-cards' },
+  { route: 'Moderation' as const, label: 'Moderation', icon: 'moderation' },
+  { route: 'SpeedTests' as const, label: 'Speed tests', icon: 'flash' },
+  { route: 'CbcCurriculum' as const, label: 'CBC Curriculum', icon: 'subjects' },
+  { route: 'Timetable' as const, label: 'Timetable', icon: 'timetable' },
 ];
 
 export const AcademicsDashboardScreen: React.FC = () => {
@@ -36,6 +34,7 @@ export const AcademicsDashboardScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<AcademicsStackParamList>>();
   const { colors, spacing } = useTheme();
   const dashboardQuery = useAcademicDashboard({ enabled: canView });
+  const [attendanceOpen, setAttendanceOpen] = useState(false);
 
   const openSection = useCallback(
     (route: (typeof SECTIONS)[number]['route']) => {
@@ -131,13 +130,14 @@ export const AcademicsDashboardScreen: React.FC = () => {
               />
             ))}
             <QuickAction
-              label="Attendance report"
-              icon="calendar-outline"
-              onPress={() => navigateToTab(navigation, 'Students', 'AttendanceReport')}
+              label="Attendance"
+              icon="attendance"
+              onPress={() => setAttendanceOpen(true)}
             />
           </View>
         </DashboardSection>
       </ScrollView>
+      <AttendanceActionSheet visible={attendanceOpen} onClose={() => setAttendanceOpen(false)} />
     </ScreenContainer>
   );
 };

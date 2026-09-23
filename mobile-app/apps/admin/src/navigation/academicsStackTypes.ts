@@ -24,7 +24,14 @@ export type AcademicsStackParamList = {
   Marks: undefined;
   MarksMatrix: undefined;
   MarksMatrixSetup: undefined;
-  MarksMatrixEntry: { examTypeId: number; classroomId: number; streamId?: number };
+  MarksMatrixEntry: {
+    examTypeId: number;
+    classroomId: number;
+    streamId?: number;
+    examTypeName?: string;
+    classroomName?: string;
+    streamName?: string;
+  };
   ReportCards: undefined;
   ReportCardHistory: { studentId: number; studentName: string };
   ReportCardDetail: { reportCardId: number; studentName: string };

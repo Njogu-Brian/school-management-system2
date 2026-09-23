@@ -9,11 +9,21 @@ import {
   useNetworkStatus,
   useOfflineDraft,
 } from '@erp/core';
-import { AcademicScreenHeader, Button, DockedActionLayout, FooterDock, ScreenContainer, TextField, useTheme } from '@erp/ui';
+import {
+  AcademicScreenHeader,
+  Button,
+  DockedActionLayout,
+  FooterDock,
+  MarksEntryProgress,
+  MarksStudentCard,
+  ScreenContainer,
+  TextField,
+  useTheme,
+} from '@erp/ui';
 import type { RouteProp } from '@react-navigation/native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, FlatList, View } from 'react-native';
 import type { TeacherStackParamList } from '../../../navigation/teacher/teacherStackTypes';
 import { showError, showSuccess } from '../../shared/utils/feedback';
 
@@ -24,28 +34,32 @@ type MarksDraft = {
   serverSnapshot: Record<number, { marks: string; remarks: string }>;
 };
 
+type StudentRow = { id: number; full_name: string; admission_number?: string | null };
+
 export const MarksEntryScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<Route>();
   const { examId, classroomId, subjectId, classroomName, subjectName } = route.params;
-  const { colors, palette, spacing, typography } = useTheme();
+  const { colors, spacing } = useTheme();
   const networkStatus = useNetworkStatus();
   const examQuery = useExamDetail(examId);
   const marksQuery = useMarks({ exam_id: examId, subject_id: subjectId, classroom_id: classroomId });
   const enterMarks = useEnterMarks();
-  const [students, setStudents] = useState<Array<{ id: number; full_name: string }>>([]);
+  const [students, setStudents] = useState<StudentRow[]>([]);
   const [marks, setMarks] = useState<Record<number, { marks: string; remarks: string }>>({});
+  const [search, setSearch] = useState('');
   const [loadingStudents, setLoadingStudents] = useState(true);
   const [hasLocalDraft, setHasLocalDraft] = useState(false);
 
   const serverSnapshotRef = useRef<Record<number, { marks: string; remarks: string }>>({});
-  /** Guards autosave so it never fires before the first hydrate — the source of the update-depth loop. */
   const hydratedRef = useRef(false);
   const draftKey = marksDraftKey(examId, subjectId, classroomId);
   const { draft, setDraft, loaded: draftLoaded, clearDraft } = useOfflineDraft<MarksDraft>(draftKey);
-  /** Read the offline draft via a ref so it stays out of the hydrate effect deps (breaks the loop). */
   const draftRef = useRef(draft);
   draftRef.current = draft;
+
+  const maxMarks = examQuery.data?.totalMarks ?? 100;
+  const minMarks = 0;
 
   useEffect(() => {
     void (async () => {
@@ -53,7 +67,13 @@ export const MarksEntryScreen: React.FC = () => {
       try {
         const res = await studentsApi.list({ class_id: classroomId, per_page: 100 });
         if (res.success && res.data) {
-          setStudents(res.data.data.map((s) => ({ id: s.id, full_name: s.full_name })));
+          setStudents(
+            res.data.data.map((s) => ({
+              id: s.id,
+              full_name: s.full_name,
+              admission_number: s.admission_number,
+            })),
+          );
         }
       } finally {
         setLoadingStudents(false);
@@ -61,9 +81,6 @@ export const MarksEntryScreen: React.FC = () => {
     })();
   }, [classroomId]);
 
-  // Hydrate from the server when marks data arrives, and merge any offline draft once it has loaded.
-  // `draft` is intentionally excluded from the deps (read via `draftRef`) so autosaving the draft
-  // below cannot re-trigger hydration — that feedback cycle was the "Maximum update depth" loop.
   useEffect(() => {
     const rows = marksQuery.data ?? [];
     const map: Record<number, { marks: string; remarks: string }> = {};
@@ -86,8 +103,6 @@ export const MarksEntryScreen: React.FC = () => {
     hydratedRef.current = true;
   }, [marksQuery.data, draftLoaded]);
 
-  // Autosave the draft on edits, but only after the first hydrate so we never write back the
-  // freshly-hydrated state (which would loop through the hydrate effect).
   useEffect(() => {
     if (!hydratedRef.current || students.length === 0) return;
     setDraft({ marks, serverSnapshot: serverSnapshotRef.current });
@@ -104,12 +119,36 @@ export const MarksEntryScreen: React.FC = () => {
     setHasLocalDraft(true);
   };
 
+  const filteredStudents = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return students;
+    return students.filter(
+      (s) =>
+        s.full_name.toLowerCase().includes(q) ||
+        (s.admission_number ?? '').toLowerCase().includes(q),
+    );
+  }, [students, search]);
+
+  const enteredCount = useMemo(
+    () => students.filter((s) => (marks[s.id]?.marks ?? '').trim() !== '').length,
+    [students, marks],
+  );
+
   const onSave = async () => {
     const payload = students
       .map((s) => {
         const entry = marks[s.id];
         const value = Number(entry?.marks);
-        if (!entry?.marks || Number.isNaN(value)) return null;
+        if (!entry?.marks || Number.isNaN(value)) {
+          if (entry?.remarks?.trim()) {
+            return {
+              student_id: s.id,
+              marks: 0,
+              remarks: entry.remarks.trim(),
+            };
+          }
+          return null;
+        }
         return {
           student_id: s.id,
           marks: value,
@@ -161,6 +200,14 @@ export const MarksEntryScreen: React.FC = () => {
   };
 
   const loading = examQuery.isLoading || marksQuery.isLoading || loadingStudents;
+  const contextLabel = [
+    classroomName,
+    subjectName,
+    examQuery.data?.name ?? `Exam #${examId}`,
+    `Max ${maxMarks}`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }} clearFloatingTabBar={false}>
@@ -169,23 +216,36 @@ export const MarksEntryScreen: React.FC = () => {
           <View style={{ padding: spacing.md, paddingBottom: 0 }}>
             <AcademicScreenHeader
               title="Enter marks"
-              subtitle={`${classroomName} · ${subjectName}`}
+              subtitle="Full roster — score, % and remarks on every row"
               onBack={() => navigation.goBack()}
             />
-            <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize, marginBottom: spacing.md }}>
-              {examQuery.data?.name ?? `Exam #${examId}`}
-            </Text>
-            {hasLocalDraft ? (
-              <Text style={{ color: colors.primary, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
-                Draft auto-saved on this device.
-              </Text>
+            {!loading ? (
+              <>
+                <MarksEntryProgress
+                  entered={enteredCount}
+                  total={students.length}
+                  draftSaved={hasLocalDraft}
+                  offline={networkStatus === 'offline'}
+                  contextLabel={contextLabel}
+                />
+                <TextField
+                  label="Search students"
+                  value={search}
+                  onChangeText={setSearch}
+                  placeholder="Name or admission #"
+                />
+              </>
             ) : null}
           </View>
         }
         footer={
           <FooterDock>
             <Button
-              label={networkStatus === 'offline' ? 'Queue marks' : 'Save marks'}
+              label={
+                networkStatus === 'offline'
+                  ? `Queue ${enteredCount} marks`
+                  : `Save ${enteredCount} marks`
+              }
               onPress={() => void onSave()}
               loading={enterMarks.isPending}
             />
@@ -196,36 +256,39 @@ export const MarksEntryScreen: React.FC = () => {
           <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
         ) : (
           <FlatList
-            data={students}
+            data={filteredStudents}
             keyExtractor={(item) => String(item.id)}
             style={{ flex: 1, minHeight: 0 }}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ padding: spacing.md, paddingTop: spacing.sm, flexGrow: 1 }}
-            renderItem={({ item: student }) => (
-              <View
-                style={{
-                  marginBottom: spacing.md,
-                  borderBottomWidth: 1,
-                  borderBottomColor: palette.border,
-                  paddingBottom: spacing.sm,
-                }}
-              >
-                <Text style={{ color: palette.textPrimary, fontWeight: '600', marginBottom: spacing.xs }}>
-                  {student.full_name}
-                </Text>
-                <TextField
-                  label="Marks"
-                  value={marks[student.id]?.marks ?? ''}
-                  onChangeText={(v) => updateMark(student.id, 'marks', v)}
-                  keyboardType="numeric"
-                />
-                <TextField
-                  label="Remarks"
-                  value={marks[student.id]?.remarks ?? ''}
-                  onChangeText={(v) => updateMark(student.id, 'remarks', v)}
-                />
+            ListEmptyComponent={
+              <View style={{ padding: spacing.lg }}>
+                <ActivityIndicator color={colors.primary} />
               </View>
-            )}
+            }
+            renderItem={({ item: student, index }) => {
+              const entry = marks[student.id] ?? { marks: '', remarks: '' };
+              return (
+                <MarksStudentCard
+                  index={index + 1}
+                  fullName={student.full_name}
+                  admissionNumber={student.admission_number}
+                  slots={[
+                    {
+                      keyId: String(student.id),
+                      title: subjectName,
+                      subtitle: examQuery.data?.name,
+                      minMarks,
+                      maxMarks,
+                      marks: entry.marks,
+                      remarks: entry.remarks,
+                      onChangeMarks: (v) => updateMark(student.id, 'marks', v),
+                      onChangeRemarks: (v) => updateMark(student.id, 'remarks', v),
+                    },
+                  ]}
+                />
+              );
+            }}
           />
         )}
       </DockedActionLayout>

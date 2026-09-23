@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect } from 'react';
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
@@ -24,17 +23,17 @@ export type DashboardHeroVariant =
   | 'operations'
   | 'reports';
 
-const VARIANT_ICONS: Record<DashboardHeroVariant, keyof typeof Ionicons.glyphMap> = {
-  default: 'grid',
-  finance: 'wallet',
-  academics: 'school',
-  admissions: 'person-add',
-  people: 'people',
-  students: 'people-circle',
+const VARIANT_ICONS: Record<DashboardHeroVariant, string> = {
+  default: 'dashboard',
+  finance: 'finance',
+  academics: 'academics',
+  admissions: 'admissions',
+  people: 'hr',
+  students: 'students',
   settings: 'settings',
-  communication: 'megaphone',
-  operations: 'bus',
-  reports: 'bar-chart',
+  communication: 'communication',
+  operations: 'operations',
+  reports: 'reports',
 };
 
 const VARIANT_TONE: Record<DashboardHeroVariant, AccentTone> = {

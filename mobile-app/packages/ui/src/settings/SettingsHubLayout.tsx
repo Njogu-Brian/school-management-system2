@@ -1,6 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppIcon } from '../icons/AppIcon';
 import { AccentIcon, type AccentTone } from '../primitives/AccentIcon';
 import { useTheme } from '../theme/ThemeContext';
 
@@ -8,7 +8,7 @@ export interface SettingsHubRow {
   id: string;
   label: string;
   subtitle?: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: string;
   tone?: AccentTone;
   onPress: () => void;
 }
@@ -170,7 +170,7 @@ export const SettingsHubLayout: React.FC<SettingsHubLayoutProps> = ({
                       </Text>
                     ) : null}
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
+                  <AppIcon name="navigation" size={16} color={palette.textMuted} />
                 </Pressable>
               </View>
             ))}

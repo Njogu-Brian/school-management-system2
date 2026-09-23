@@ -22,6 +22,14 @@ describe('Phase 7C parent absence client', () => {
     expect(apiSrc).toMatch(/history/);
   });
 
+  it('returns apiClient ApiResponse without double-unwrapping data', () => {
+    // apiClient.get/post already yield { success, data }; re-destructuring { data }
+    // made hooks treat successful responses as failures ("Could not load history").
+    expect(apiSrc).not.toMatch(/const \{ data \} = await apiClient\.(get|post)/);
+    expect(apiSrc).toMatch(/return apiClient\.get/);
+    expect(apiSrc).toMatch(/return apiClient\.post/);
+  });
+
   it('invalidates attendance caches after report', () => {
     expect(hookSrc).toMatch(/useReportParentAbsence/);
     expect(hookSrc).toMatch(/absence-history/);

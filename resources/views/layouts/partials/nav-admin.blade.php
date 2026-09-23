@@ -491,7 +491,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     {{-- Swimming Management (Payment Related) --}}
     @php
         $swimmingActive = Request::is('swimming*');
-        $activityFeesActive = Request::is('activity-fees*');
+        $activityFeesActive = Request::is('activity-fees*') || Request::is('finance/extra-income*');
     @endphp
     <a href="#swimmingMenu" data-bs-toggle="collapse" aria-expanded="{{ $swimmingActive ? 'true' : 'false' }}" class="{{ $swimmingActive ? 'parent-active' : '' }}"><i class="bi bi-water"></i> Swimming Management</a>
     <div class="collapse {{ $swimmingActive ? 'show' : '' }}" id="swimmingMenu" style="padding-left: 20px;">
@@ -504,6 +504,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
 
     <a href="#activityFeesMenu" data-bs-toggle="collapse" aria-expanded="{{ $activityFeesActive ? 'true' : 'false' }}" class="{{ $activityFeesActive ? 'parent-active' : '' }}"><i class="bi bi-trophy"></i> Activity fees</a>
     <div class="collapse {{ $activityFeesActive ? 'show' : '' }}" id="activityFeesMenu" style="padding-left: 20px;">
+        <a href="{{ route('finance.extra-income.index') }}" class="sublink {{ Request::is('finance/extra-income*') ? 'active' : '' }}"><i class="bi bi-piggy-bank"></i> Extra income</a>
         <a href="{{ route('activity-fees.index') }}" class="sublink {{ Request::is('activity-fees') && !Request::is('activity-fees/*') ? 'active' : '' }}"><i class="bi bi-list-ul"></i> Activities & rosters</a>
         <a href="{{ route('activity-fees.parent-requests.index') }}" class="sublink {{ Request::is('activity-fees/parent-requests*') ? 'active' : '' }}"><i class="bi bi-person-check"></i> Parent join / leave</a>
     </div>

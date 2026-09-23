@@ -1,33 +1,66 @@
-import { PRODUCT } from '@erp/core';
 import React from 'react';
-import { View } from 'react-native';
-import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import { Image, StyleSheet, View, type ImageStyle, type StyleProp, type ViewStyle } from 'react-native';
+import lockup from './edulynk-logo.png';
+import mark from './edulynk-mark.png';
 
-type Variant = 'default' | 'white';
+export type EdulynkMarkVariant = 'mark' | 'lockup';
 
 /**
- * Edulynk icon from the public website favicon (rounded square, three bars, cyan node).
+ * Official Edulynk branding.
+ * - `mark`: icon only (e + graduates) — app chrome / compact slots
+ * - `lockup`: full wordmark + tagline — school code / marketing surfaces
  */
 export const EdulynkMark: React.FC<{
   size?: number;
-  variant?: Variant;
-}> = ({ size = 40, variant = 'default' }) => {
-  const fill = variant === 'white' ? '#FFFFFF' : PRODUCT.colors.brand;
-  const stroke = variant === 'white' ? PRODUCT.colors.navy : '#FFFFFF';
-  const node = PRODUCT.colors.cyan;
+  /** @deprecated ignored — logo assets are color-correct for light and dark. */
+  variant?: 'default' | 'white' | EdulynkMarkVariant;
+  style?: StyleProp<ViewStyle>;
+}> = ({ size = 40, variant = 'mark', style }) => {
+  const isLockup = variant === 'lockup';
+  const source = isLockup ? lockup : mark;
+
+  if (isLockup) {
+    const width = Math.max(size * 2.6, 200);
+    const height = Math.round(width * 0.42);
+    return (
+      <View style={[{ width, height, alignItems: 'center', justifyContent: 'center' }, style]}>
+        <Image
+          source={source}
+          style={{ width, height } as ImageStyle}
+          resizeMode="contain"
+          accessibilityIgnoresInvertColors
+          accessibilityLabel="Edulynk"
+        />
+      </View>
+    );
+  }
 
   return (
-    <View style={{ width: size, height: size }}>
-      <Svg width={size} height={size} viewBox="0 0 36 36">
-        <Rect width={36} height={36} rx={10} fill={fill} />
-        <Path
-          d="M10 13.5h16M10 18h12.5M10 22.5h16"
-          stroke={stroke}
-          strokeWidth={2.3}
-          strokeLinecap="round"
-        />
-        <Circle cx={25.2} cy={18} r={2.2} fill={node} />
-      </Svg>
+    <View
+      style={[
+        {
+          width: size,
+          height: size,
+          borderRadius: Math.round(size * 0.22),
+          overflow: 'hidden',
+          backgroundColor: '#000000',
+        },
+        style,
+      ]}
+    >
+      <Image
+        source={source}
+        style={StyleSheet.absoluteFillObject}
+        resizeMode="cover"
+        accessibilityIgnoresInvertColors
+        accessibilityLabel="Edulynk"
+      />
     </View>
   );
 };
+
+/** Alias for the full horizontal lockup. */
+export const EdulynkLogo: React.FC<{ width?: number; style?: StyleProp<ViewStyle> }> = ({
+  width = 240,
+  style,
+}) => <EdulynkMark size={Math.round(width / 2.6)} variant="lockup" style={style} />;

@@ -1,13 +1,14 @@
-import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
+import type { AppIconName } from '../icons/names';
 import { useAdaptiveLayout } from '../layout/useAdaptiveLayout';
 import { useTheme } from '../theme/ThemeContext';
 import { AccentIcon, type AccentTone } from '../primitives/AccentIcon';
 
 export interface QuickActionProps {
   label: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  /** Canonical AppIcon name or legacy Ionicons name. */
+  icon: AppIconName | string;
   onPress?: () => void;
   disabled?: boolean;
   /** @deprecated Glyphs own their colors; kept for API compat. */

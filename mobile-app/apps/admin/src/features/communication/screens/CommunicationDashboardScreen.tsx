@@ -130,13 +130,13 @@ export const CommunicationDashboardScreen: React.FC<Props> = ({ navigation }) =>
 
         <DashboardSection title="Quick actions">
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-            <QuickAction label="Send SMS" icon="chatbubble-outline" onPress={() => navigation.navigate('SmsCompose')} />
-            <QuickAction label="New announcement" icon="add-circle-outline" onPress={() => navigation.navigate('AnnouncementForm')} />
-            <QuickAction label="Announcements" icon="megaphone-outline" onPress={openAnnouncements} />
-            <QuickAction label="SMS history" icon="list-outline" onPress={() => navigation.navigate('SmsHistory')} />
-            <QuickAction label="Templates" icon="document-text-outline" onPress={() => navigation.navigate('TemplatesList')} />
-            <QuickAction label="App adoption" icon="people-outline" onPress={() => navigation.navigate('AppAdoption')} />
-            <QuickAction label="Crash logs" icon="bug-outline" onPress={() => navigation.navigate('AppIssues')} />
+            <QuickAction label="Send SMS" icon="send-sms" onPress={() => navigation.navigate('SmsCompose')} />
+            <QuickAction label="New announcement" icon="create-announcement" onPress={() => navigation.navigate('AnnouncementForm')} />
+            <QuickAction label="Announcements" icon="megaphone" onPress={openAnnouncements} />
+            <QuickAction label="SMS history" icon="list" onPress={() => navigation.navigate('SmsHistory')} />
+            <QuickAction label="Templates" icon="statements" onPress={() => navigation.navigate('TemplatesList')} />
+            <QuickAction label="App adoption" icon="people" onPress={() => navigation.navigate('AppAdoption')} />
+            <QuickAction label="Crash logs" icon="bug" onPress={() => navigation.navigate('AppIssues')} />
           </View>
         </DashboardSection>
 

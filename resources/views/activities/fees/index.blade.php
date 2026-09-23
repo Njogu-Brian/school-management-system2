@@ -3,11 +3,19 @@
 @section('content')
 <div class="finance-page">
   <div class="finance-shell">
+    @php
+        $canManageExtraIncome = auth()->user()?->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Accountant', 'Finance Officer', 'Director']);
+        $activityActions = '';
+        if ($canManageExtraIncome) {
+            $activityActions .= '<a href="' . route('finance.extra-income.index') . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-piggy-bank"></i> Extra income</a>';
+        }
+        $activityActions .= '<a href="' . route('activity-fees.parent-requests.index') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-person-check"></i> Parent join / leave</a>';
+    @endphp
     @include('finance.partials.header', [
         'title' => 'Activity fees',
         'icon' => 'bi bi-trophy',
         'subtitle' => 'Optional programmes linked to voteheads. Rosters use students with a billed optional fee for the votehead in year ' . $year . ', term ' . $term . '.',
-        'actions' => '<a href="' . route('activity-fees.parent-requests.index') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-person-check"></i> Parent join / leave</a>',
+        'actions' => $activityActions,
     ])
 
     @include('finance.invoices.partials.alerts')
@@ -15,8 +23,10 @@
     <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
       <div class="finance-card-body">
         <p class="text-muted small mb-3">
-          Mark a votehead as an <strong>activity fee</strong> under <a href="{{ route('finance.voteheads.index') }}">Finance → Voteheads</a>.
-          Assign the optional fee to students as usual; they will appear here for lists and attendance.
+          @if($canManageExtraIncome ?? false)
+            Trips, fun days, and swimming that arrive mixed with school fees are set up under <a href="{{ route('finance.extra-income.index') }}">Extra income</a>, then split from the bank or M-Pesa transaction.
+          @endif
+          Ongoing programmes use a votehead marked as an <strong>activity fee</strong> under <a href="{{ route('finance.voteheads.index') }}">Finance → Voteheads</a>.
         </p>
         <div class="table-responsive">
           <table class="table table-modern align-middle mb-0">

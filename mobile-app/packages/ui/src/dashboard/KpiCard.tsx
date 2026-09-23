@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
@@ -14,7 +13,7 @@ export interface KpiCardProps {
   value: string;
   delta?: string;
   deltaPositive?: boolean;
-  icon?: keyof typeof Ionicons.glyphMap;
+  icon?: string;
   /** Secondary breakdown chips (e.g. present / absent / unmarked). */
   stats?: KpiStatChip[];
   /** @deprecated Glyphs own their colors. */

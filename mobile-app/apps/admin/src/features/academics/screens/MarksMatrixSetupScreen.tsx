@@ -45,6 +45,9 @@ export const MarksMatrixSetupScreen: React.FC<Props> = ({ navigation }) => {
       examTypeId: selectedExamType,
       classroomId: selectedClassroom,
       streamId: selectedStream ?? undefined,
+      examTypeName: selectedExamTypeName,
+      classroomName: selectedClassroomName,
+      streamName: selectedStream ? selectedStreamName : undefined,
     });
   };
 

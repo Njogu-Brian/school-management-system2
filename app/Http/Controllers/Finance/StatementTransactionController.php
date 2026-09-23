@@ -10,8 +10,6 @@ use App\Models\Vendor;
 use App\Services\Finance\ExpenseStatementImportService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Pagination\Paginator;
 use Illuminate\View\View;
 
 /**
@@ -37,25 +35,17 @@ class StatementTransactionController extends Controller
         if (! in_array($perPage, [20, 50, 100], true)) {
             $perPage = 20;
         }
-        $page = Paginator::resolveCurrentPage();
-        $allGroups = $this->importService->groupedLinesAcrossImports($filter, $search ?: null);
 
         // Deep-link from an expense to its source recipient group: jump to the page
         // that contains it (unless the user explicitly paged) and highlight it.
         $highlightGroup = $request->string('group')->toString() ?: null;
-        if ($highlightGroup && ! $request->has('page')) {
-            $pos = $allGroups->search(fn ($g) => $g->group_key === $highlightGroup);
-            if ($pos !== false) {
-                $page = (int) (floor($pos / $perPage) + 1);
-            }
-        }
-
-        $groups = new LengthAwarePaginator(
-            $allGroups->forPage($page, $perPage)->values(),
-            $allGroups->count(),
+        $groups = $this->importService->paginateGroupedLinesAcrossImports(
+            $filter,
+            $search ?: null,
             $perPage,
-            $page,
-            ['path' => Paginator::resolveCurrentPath(), 'query' => $request->query()]
+            max(1, (int) $request->integer('page', 1)),
+            $highlightGroup,
+            $request->has('page'),
         );
 
         $activeCategories = ExpenseCategory::where('is_active', true)

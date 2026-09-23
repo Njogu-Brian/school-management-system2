@@ -319,7 +319,7 @@ class BankStatementController extends Controller
         }
 
         // When filtering by a specific statement file, only show bank transactions from that PDF (exclude C2B - they don't belong to uploaded statements)
-        $c2bKeys = collect();
+        $c2bQuery = null;
         if (!$request->filled('statement_file')) {
             $c2bQuery = $this->getC2BTransactionsQuery($request, $view);
             // Swimming wallet allocation filter for C2B uses swimming_ledger credits (source = this C2B transaction).
@@ -361,67 +361,57 @@ class BankStatementController extends Controller
                     }
                 }
             }
-            // Key-only scan: just enough columns to merge, sort and total the two
-            // sources. No model hydration and no eager loading for rows that will
-            // never be rendered.
-            $c2bKeys = $c2bQuery->toBase()
-                ->select('id', 'trans_amount', 'trans_time', 'created_at')
-                ->get();
         }
 
-        $bankKeys = $query->toBase()
-            ->select('id', 'amount', 'transaction_type', 'transaction_date', 'created_at')
-            ->get();
-
-        // Get sort parameter (amount_desc, amount_asc, or date for default)
+        // One page of ids from the database. The previous version pulled every
+        // matching bank and C2B row into PHP just to sort and slice them.
         $sort = $request->get('sort', 'date');
-
-        // Combine both sources into a uniform shape so they can be sorted together.
-        // The two date columns are not comparable as raw strings: bank
-        // transaction_date is a DATE, while c2b trans_time is a varchar that the
-        // model casts to datetime. Normalise both to Unix timestamps, running the
-        // c2b value back through the model cast so whatever format M-Pesa stored
-        // is interpreted exactly as it is everywhere else in the app.
-        $c2bCaster = new MpesaC2BTransaction();
-
-        $keys = $bankKeys
-            ->map(fn ($row) => [
-                'source' => 'bank',
-                'id' => (int) $row->id,
-                'amount' => (float) $row->amount,
-                'sort_ts' => strtotime((string) ($row->transaction_date ?: $row->created_at)) ?: 0,
-            ])
-            ->concat($c2bKeys->map(function ($row) use ($c2bCaster) {
-                $transTime = $row->trans_time === null
-                    ? null
-                    : $c2bCaster->newFromBuilder(['trans_time' => $row->trans_time])->trans_time;
-
-                return [
-                    'source' => 'c2b',
-                    'id' => (int) $row->id,
-                    'amount' => (float) $row->trans_amount,
-                    'sort_ts' => $transTime instanceof \DateTimeInterface
-                        ? $transTime->getTimestamp()
-                        : (strtotime((string) $row->created_at) ?: 0),
-                ];
-            }));
-
-        // PHP's sort is stable, so the SQL ordering still acts as the tiebreaker.
-        $keys = match ($sort) {
-            'amount_desc' => $keys->sortByDesc('amount')->values(),
-            'amount_asc' => $keys->sortBy('amount')->values(),
-            default => $keys->sortByDesc('sort_ts')->values(),
-        };
-
-        // Paginate manually with per-page option
         $perPageOptions = [20, 50, 100, 200];
         $perPage = $request->get('per_page', 25);
-        // Validate per_page value
-        if (!in_array($perPage, $perPageOptions)) {
-            $perPage = 25; // Default fallback
+        if (! in_array($perPage, $perPageOptions)) {
+            $perPage = 25;
         }
         $currentPage = max(1, (int) $request->get('page', 1));
-        $pageKeys = $keys->slice(($currentPage - 1) * $perPage, $perPage)->values();
+
+        $listing = function () use ($query, $c2bQuery) {
+            $bank = $this->transactionKeyQuery(
+                $query,
+                'bank',
+                'bank_statement_transactions.amount',
+                'UNIX_TIMESTAMP(bank_statement_transactions.transaction_date)'
+            );
+            if ($c2bQuery === null) {
+                return $bank;
+            }
+
+            $c2bTime = "CASE
+                WHEN mpesa_c2b_transactions.trans_time REGEXP '^[0-9]{14}$'
+                    THEN UNIX_TIMESTAMP(STR_TO_DATE(mpesa_c2b_transactions.trans_time, '%Y%m%d%H%i%s'))
+                ELSE UNIX_TIMESTAMP(mpesa_c2b_transactions.trans_time)
+            END";
+
+            return $bank->unionAll($this->transactionKeyQuery(
+                $c2bQuery,
+                'c2b',
+                'mpesa_c2b_transactions.trans_amount',
+                $c2bTime
+            ));
+        };
+
+        $wrapped = DB::query()->fromSub($listing(), 'txn_keys');
+        $totalCountForPage = (int) (clone $wrapped)->count();
+        $orderColumn = in_array($sort, ['amount_desc', 'amount_asc'], true) ? 'amount' : 'sort_ts';
+        $orderDirection = $sort === 'amount_asc' ? 'asc' : 'desc';
+        $pageRows = DB::query()->fromSub($listing(), 'txn_keys')
+            ->orderBy($orderColumn, $orderDirection)
+            ->orderBy('id', 'desc')
+            ->forPage($currentPage, $perPage)
+            ->get();
+
+        $pageKeys = $pageRows->map(fn ($row) => [
+            'source' => $row->source,
+            'id' => (int) $row->id,
+        ])->values();
 
         // Second pass: hydrate only the current page, now with relations.
         $bankIds = $pageKeys->where('source', 'bank')->pluck('id')->all();
@@ -455,7 +445,7 @@ class BankStatementController extends Controller
 
         $transactions = new \Illuminate\Pagination\LengthAwarePaginator(
             $items,
-            $keys->count(),
+            $totalCountForPage,
             $perPage,
             $currentPage,
             ['path' => $request->url(), 'query' => $request->query()]
@@ -463,20 +453,13 @@ class BankStatementController extends Controller
         
         $bankAccounts = BankAccount::where('is_active', true)->get();
 
-        // Calculate total amount for current filtered results
-        // Only show total for 'all' and 'swimming' views
+        // Totals for the filtered set, computed in SQL instead of summing every row in PHP.
+        // Archived and the default views are already limited to money in.
         $totalAmount = null;
         $totalCount = null;
-        if ($view === 'all' || $view === 'swimming') {
-            $totalAmount = $bankKeys->sum('amount') + $c2bKeys->sum('trans_amount');
-            $totalCount = $bankKeys->count() + $c2bKeys->count();
-        } elseif ($view === 'archived') {
-            // For archived, only calculate total for credit (money IN) transactions
-            $creditBankKeys = $bankKeys->where('transaction_type', 'credit');
-            $totalAmount = $creditBankKeys->sum('amount')
-                         + $c2bKeys->sum('trans_amount'); // C2B are always credit
-            $totalCount = $creditBankKeys->count()
-                        + $c2bKeys->count();
+        if (in_array($view, ['all', 'swimming', 'archived'], true)) {
+            $totalAmount = (float) DB::query()->fromSub($listing(), 'txn_keys')->sum('amount');
+            $totalCount = $totalCountForPage;
         }
 
         // Get counts for each view (exclude swimming and debit transactions from non-swimming views).
@@ -700,6 +683,24 @@ class BankStatementController extends Controller
             'currentPerPage',
             'c2bStatementPhones'
         ));
+    }
+
+    /**
+     * Narrow select used to page bank and C2B rows together without loading every model.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder  $eloquent
+     */
+    protected function transactionKeyQuery($eloquent, string $source, string $amountSql, string $sortSql)
+    {
+        $table = $eloquent->getModel()->getTable();
+        $base = (clone $eloquent)->reorder()->toBase();
+        $base->columns = [];
+        $base->orders = null;
+        $base->selectRaw(
+            "'{$source}' as source, {$table}.id as id, {$amountSql} as amount, COALESCE({$sortSql}, 0) as sort_ts"
+        );
+
+        return $base;
     }
 
     /**
@@ -1671,6 +1672,25 @@ class BankStatementController extends Controller
             $swimmingTotal = (float) $swimmingAllocations->sum('amount');
         }
 
+        $activityAllocations = collect();
+        $extraIncomeItems = collect();
+        if (Schema::hasTable('activity_fee_allocations')) {
+            $activityAllocations = \App\Models\ActivityFeeAllocation::with(['student', 'extraIncomeItem'])
+                ->when(
+                    $isC2B,
+                    fn ($q) => $q->where('mpesa_c2b_transaction_id', $transaction->id),
+                    fn ($q) => $q->where('bank_statement_transaction_id', $transaction->id)
+                )
+                ->where('status', '!=', \App\Models\ActivityFeeAllocation::STATUS_REVERSED)
+                ->get();
+        }
+        if (Schema::hasTable('extra_income_items')) {
+            $extraIncomeItems = \App\Models\ExtraIncomeItem::with('classroom')
+                ->active()
+                ->orderBy('name')
+                ->get();
+        }
+
         $remainingAmount = max(0, (float) $bankStatement->amount - $activeTotal - $swimmingTotal);
 
         $canCreateAdditionalPayments = $bankStatement->status === 'confirmed'
@@ -1706,7 +1726,9 @@ class BankStatementController extends Controller
             'canCreateAdditionalPayments',
             'swimmingAllocations',
             'swimmingTotal',
-            'swimmingWalletCredited'
+            'swimmingWalletCredited',
+            'activityAllocations',
+            'extraIncomeItems'
         ));
     }
 
@@ -2744,7 +2766,7 @@ class BankStatementController extends Controller
         return $code;
     }
 
-    protected function createSplitFeePaymentsForC2B(MpesaC2BTransaction $c2bTransaction, array $allocations): array
+    protected function createSplitFeePaymentsForC2B(MpesaC2BTransaction $c2bTransaction, array $allocations, bool $skipAllocation = false): array
     {
         $payments = [];
         foreach ($allocations as $index => $allocation) {
@@ -2769,8 +2791,10 @@ class BankStatementController extends Controller
             ]);
             $payments[] = $payment;
 
-            $allocationService = app(\App\Services\PaymentAllocationService::class);
-            $allocationService->autoAllocate($payment);
+            if (!$skipAllocation) {
+                $allocationService = app(\App\Services\PaymentAllocationService::class);
+                $allocationService->autoAllocate($payment);
+            }
         }
 
         if (empty($payments)) {
@@ -3192,7 +3216,8 @@ class BankStatementController extends Controller
     }
 
     /**
-     * Split a transaction into fee and swimming allocations.
+     * Split a transaction into school fees and activity-fee allocations
+     * (trips, fun days, swimming, and other extra income).
      */
     public function splitTransaction(Request $request, $bankStatement)
     {
@@ -3210,39 +3235,51 @@ class BankStatementController extends Controller
         }
 
         $data = $request->validate([
-            'fee_allocations' => 'required|array|min:1',
+            'fee_allocations' => 'nullable|array',
             'fee_allocations.*.student_id' => 'required|exists:students,id',
             'fee_allocations.*.amount' => 'required|numeric|min:0.01',
-            'swimming_allocations' => 'required|array|min:1',
-            'swimming_allocations.*.student_id' => 'required|exists:students,id',
-            'swimming_allocations.*.amount' => 'required|numeric|min:0.01',
+            'activity_allocations' => 'required|array|min:1',
+            'activity_allocations.*.student_id' => 'required|exists:students,id',
+            'activity_allocations.*.extra_income_item_id' => 'required|exists:extra_income_items,id',
+            'activity_allocations.*.amount' => 'required|numeric|min:0.01',
         ]);
 
-        $feeAllocations = collect($data['fee_allocations'])
+        $feeAllocations = collect($data['fee_allocations'] ?? [])
             ->map(fn($a) => ['student_id' => (int) $a['student_id'], 'amount' => (float) $a['amount']])
             ->filter(fn($a) => $a['student_id'] > 0 && $a['amount'] > 0)
             ->values()
             ->all();
 
-        $swimAllocations = collect($data['swimming_allocations'])
-            ->map(fn($a) => ['student_id' => (int) $a['student_id'], 'amount' => (float) $a['amount']])
-            ->filter(fn($a) => $a['student_id'] > 0 && $a['amount'] > 0)
+        $activityAllocations = collect($data['activity_allocations'])
+            ->map(fn($a) => [
+                'student_id' => (int) $a['student_id'],
+                'extra_income_item_id' => (int) $a['extra_income_item_id'],
+                'amount' => (float) $a['amount'],
+            ])
+            ->filter(fn($a) => $a['student_id'] > 0 && $a['extra_income_item_id'] > 0 && $a['amount'] > 0)
             ->values()
             ->all();
 
-        if (empty($feeAllocations) || empty($swimAllocations)) {
+        if (empty($activityAllocations)) {
             return redirect()->back()
-                ->withErrors(['error' => 'Both fee and swimming allocations are required.']);
+                ->withErrors(['error' => 'Add at least one activity fee allocation.']);
+        }
+
+        $keys = collect($activityAllocations)
+            ->map(fn ($a) => $a['student_id'] . ':' . $a['extra_income_item_id']);
+        if ($keys->count() !== $keys->unique()->count()) {
+            return redirect()->back()
+                ->withErrors(['error' => 'Each student can only be split once onto the same activity. Combine the amounts on one row.']);
         }
 
         $feeTotal = (float) collect($feeAllocations)->sum('amount');
-        $swimTotal = (float) collect($swimAllocations)->sum('amount');
-        $total = $feeTotal + $swimTotal;
+        $activityTotal = (float) collect($activityAllocations)->sum('amount');
+        $total = $feeTotal + $activityTotal;
         $txnAmount = (float) $bankStatement->amount;
 
         if (abs($total - $txnAmount) > 0.01) {
             return redirect()->back()
-                ->withErrors(['error' => 'Fee + swimming allocations must equal the transaction amount.']);
+                ->withErrors(['error' => 'Fee and activity allocations must equal the transaction amount.']);
         }
 
         $activePayments = collect();
@@ -3260,9 +3297,14 @@ class BankStatementController extends Controller
                       ->orWhere('transaction_code', 'LIKE', $ref . '-%');
                 })
                 ->orderBy('created_at')
-                ->get();
+                ->get()
+                ->reject(function ($payment) {
+                    $code = (string) $payment->transaction_code;
+                    return str_contains($code, '-ACT-') || str_contains($code, '-SWIM-');
+                })
+                ->values();
         }
-        if (Schema::hasTable('swimming_transaction_allocations')) {
+        if (Schema::hasTable('swimming_transaction_allocations') && !$isC2B) {
             $hasSwim = \App\Models\SwimmingTransactionAllocation::where('bank_statement_transaction_id', $transaction->id)
                 ->where('status', '!=', \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED)
                 ->exists();
@@ -3272,8 +3314,14 @@ class BankStatementController extends Controller
             }
         }
 
+        $activitySplit = app(\App\Services\ActivityFeeSplitService::class);
+        if ($activitySplit->alreadySplit($transaction, $isC2B)) {
+            return redirect()->back()
+                ->withErrors(['error' => 'Split not allowed: activity fee allocations already exist for this transaction.']);
+        }
+
         try {
-            DB::transaction(function () use ($transaction, $isC2B, $feeAllocations, $swimAllocations, $feeTotal, $swimTotal, $activePayments) {
+            DB::transaction(function () use ($transaction, $isC2B, $feeAllocations, $activityAllocations, $feeTotal, $activityTotal, $activePayments, $activitySplit) {
                 if (!$isC2B && $transaction->status === 'draft') {
                     $transaction->confirm();
                 }
@@ -3308,7 +3356,7 @@ class BankStatementController extends Controller
                             'allocated_amount' => 0,
                             'unallocated_amount' => $amount,
                         ]);
-                        $allocationService->autoAllocate($payment);
+                        $allocationService->autoAllocate($payment, null, null, ['extra_income']);
                         $feePayments[] = $payment->fresh();
                     } else {
                         $allocationsToCreate[] = $allocation;
@@ -3316,43 +3364,38 @@ class BankStatementController extends Controller
                 }
 
                 if ($availablePayments->isNotEmpty()) {
-                    throw new \Exception('Split allocations do not cover existing fee payments. Reverse extra payments before splitting.');
+                    throw new \Exception('Split allocations do not cover existing fee payments. Put the school-fees portion on the fee side, or reject the transaction and split again.');
                 }
 
                 if (!empty($allocationsToCreate)) {
                     if ($isC2B) {
-                        $newPayments = $this->createSplitFeePaymentsForC2B($transaction, $allocationsToCreate);
+                        $newPayments = $this->createSplitFeePaymentsForC2B($transaction, $allocationsToCreate, true);
                     } else {
-                        $newPayments = $this->parser->createSplitFeePayments($transaction, $allocationsToCreate, false);
+                        $newPayments = $this->parser->createSplitFeePayments($transaction, $allocationsToCreate, true);
+                    }
+                    foreach ($newPayments as $newPayment) {
+                        $allocationService->autoAllocate($newPayment, null, null, ['extra_income']);
                     }
                     $feePayments = array_merge($feePayments, $newPayments);
                 }
 
-                if ($isC2B) {
-                    $walletService = app(\App\Services\SwimmingWalletService::class);
-                    foreach ($swimAllocations as $alloc) {
-                        $sid = (int) ($alloc['student_id'] ?? 0);
-                        $amt = (float) ($alloc['amount'] ?? 0);
-                        if ($sid > 0 && $amt > 0 && ($s = Student::find($sid))) {
-                            $walletService->creditFromBankTransaction($s, $transaction, $amt, "Swimming split from M-PESA #{$transaction->trans_id}");
-                        }
-                    }
-                    $transaction->update([
-                        'payment_id' => $feePayments[0]->id ?? null,
-                        'status' => 'processed',
-                        'allocation_status' => 'manually_allocated',
-                        'allocated_amount' => $feeTotal + $swimTotal,
-                        'unallocated_amount' => max(0, (float) $transaction->trans_amount - ($feeTotal + $swimTotal)),
-                    ]);
-                } else {
-                    $this->swimmingTransactionService->allocateSplitAndProcess($transaction, $swimAllocations);
+                $activitySplit->apply($transaction, $isC2B, $activityAllocations);
 
+                if ($isC2B) {
                     $transaction->update([
                         'payment_id' => $feePayments[0]->id ?? $transaction->payment_id,
-                        'payment_created' => !empty($feePayments),
+                        'status' => 'processed',
+                        'allocation_status' => 'manually_allocated',
+                        'allocated_amount' => $feeTotal + $activityTotal,
+                        'unallocated_amount' => max(0, (float) $transaction->trans_amount - ($feeTotal + $activityTotal)),
+                    ]);
+                } else {
+                    $transaction->update([
+                        'payment_id' => $feePayments[0]->id ?? $transaction->payment_id,
+                        'payment_created' => !empty($feePayments) || $activityTotal > 0,
                         'status' => 'confirmed',
                         'match_status' => 'manual',
-                        'match_notes' => trim(($transaction->match_notes ?? '') . "\nSplit into fees + swimming."),
+                        'match_notes' => trim(($transaction->match_notes ?? '') . "\nSplit into fees + activity fees."),
                     ]);
                 }
             });
@@ -3367,7 +3410,7 @@ class BankStatementController extends Controller
 
         return redirect()
             ->route('finance.bank-statements.show', ['bankStatement' => $id, 'type' => $isC2B ? 'c2b' : 'bank'])
-            ->with('success', 'Transaction split into fees and swimming successfully.');
+            ->with('success', 'Transaction split into school fees and activity fees.');
     }
 
     /**

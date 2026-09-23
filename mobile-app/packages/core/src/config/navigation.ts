@@ -5,7 +5,7 @@
  * In a later batch this same data drives permission-first menu rendering
  * (`computeMenu`, build plan §7.3); for the shell it drives the drawer + tab bar.
  *
- * `icon` values are Ionicons glyph names (resolved by @erp/ui / @expo/vector-icons).
+ * `icon` values are canonical AppIcon names (shared SVG registry in @erp/ui).
  */
 
 export type AdminAreaKey =
@@ -24,7 +24,7 @@ export type AdminAreaKey =
 export interface AdminNavArea {
   key: AdminAreaKey;
   label: string;
-  /** Ionicons glyph name. */
+  /** Canonical AppIcon name. */
   icon: string;
   /** Short description shown on the module placeholder. */
   description: string;
@@ -38,7 +38,7 @@ export const ADMIN_NAV_AREAS: readonly AdminNavArea[] = [
   {
     key: 'dashboard',
     label: 'Dashboard',
-    icon: 'grid-outline',
+    icon: 'dashboard',
     description: 'Role-aware command center: population, attendance, and finance.',
     sections: ['Overview', 'Population', 'Attendance'],
     inTabs: true,
@@ -46,7 +46,7 @@ export const ADMIN_NAV_AREAS: readonly AdminNavArea[] = [
   {
     key: 'admissions',
     label: 'Admissions',
-    icon: 'school-outline',
+    icon: 'admissions',
     description: 'Applications pipeline, enrollment, and transfers.',
     sections: ['Applications', 'Enrollment', 'Transfers'],
     inTabs: false,
@@ -54,7 +54,7 @@ export const ADMIN_NAV_AREAS: readonly AdminNavArea[] = [
   {
     key: 'students',
     label: 'Students',
-    icon: 'people-outline',
+    icon: 'students',
     description: 'Student 360, parent contacts, archived students, and attendance.',
     sections: ['Student 360', 'Parent contacts', 'Archived', 'Attendance report'],
     inTabs: true,
@@ -62,7 +62,7 @@ export const ADMIN_NAV_AREAS: readonly AdminNavArea[] = [
   {
     key: 'academics',
     label: 'Academics',
-    icon: 'book-outline',
+    icon: 'academics',
     description: 'Structure, timetable, CBC, assessments, and report cards.',
     sections: ['Structure', 'Timetable', 'CBC', 'Assessments', 'Report Cards'],
     inTabs: false,
@@ -70,7 +70,7 @@ export const ADMIN_NAV_AREAS: readonly AdminNavArea[] = [
   {
     key: 'finance',
     label: 'Finance',
-    icon: 'cash-outline',
+    icon: 'finance',
     description: 'Billing, collections, reconciliation, accounting, and payroll.',
     sections: ['Dashboard', 'Billing', 'Collections', 'Reconciliation', 'Accounting', 'Payroll'],
     inTabs: true,
@@ -78,7 +78,7 @@ export const ADMIN_NAV_AREAS: readonly AdminNavArea[] = [
   {
     key: 'people',
     label: 'Human Resource',
-    icon: 'briefcase-outline',
+    icon: 'hr',
     description: 'Staff directory, leave, attendance, performance, and roles.',
     sections: ['Staff', 'Leave', 'Attendance', 'Performance', 'Roles & Permissions'],
     inTabs: true,
@@ -86,7 +86,7 @@ export const ADMIN_NAV_AREAS: readonly AdminNavArea[] = [
   {
     key: 'operations',
     label: 'Operations',
-    icon: 'bus-outline',
+    icon: 'operations',
     description: 'Transport, inventory, procurement, library, clinic, visitors, security.',
     sections: [
       'Transport',
@@ -102,7 +102,7 @@ export const ADMIN_NAV_AREAS: readonly AdminNavArea[] = [
   {
     key: 'communication',
     label: 'Communication',
-    icon: 'chatbubbles-outline',
+    icon: 'communication',
     description: 'Messages, announcements, circulars, and templates.',
     sections: ['Messages', 'Announcements', 'Templates'],
     inTabs: false,
@@ -110,7 +110,7 @@ export const ADMIN_NAV_AREAS: readonly AdminNavArea[] = [
   {
     key: 'reports',
     label: 'Reports',
-    icon: 'bar-chart-outline',
+    icon: 'reports',
     description: 'Academic, finance, operations, and executive board pack.',
     sections: ['Academic', 'Finance', 'Operations', 'Executive'],
     inTabs: false,
@@ -118,7 +118,7 @@ export const ADMIN_NAV_AREAS: readonly AdminNavArea[] = [
   {
     key: 'settings',
     label: 'Settings',
-    icon: 'settings-outline',
+    icon: 'settings',
     description: 'School identity, academic, finance, communication, integrations.',
     sections: ['School', 'Academic', 'Finance', 'Communication', 'Integrations'],
     inTabs: false,

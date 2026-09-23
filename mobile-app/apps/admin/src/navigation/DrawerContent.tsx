@@ -8,13 +8,12 @@ import {
   useRbac,
 } from '@erp/core';
 import { Soft3DIcon, useAdaptiveLayout, useTheme, type Soft3DTone } from '@erp/ui';
-import { BlurView } from 'expo-blur';
 import {
   DrawerContentComponentProps,
   DrawerContentScrollView,
 } from '@react-navigation/drawer';
 import React, { useState } from 'react';
-import { Image, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { confirmAction } from '../features/shared/utils/feedback';
 import { AppModeSwitch } from '../features/shared/components/AppModeSwitch';
@@ -67,7 +66,7 @@ const AREA_TONE: Record<string, Soft3DTone> = {
  * with optional compact mode that fades labels (matches collapsible menu pattern).
  */
 export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
-  const { palette, colors, spacing, typography, radius, isDark } = useTheme();
+  const { colors, spacing, typography, radius, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const { isTablet } = useAdaptiveLayout();
@@ -79,6 +78,11 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
   const isWide = isTablet;
   const [compact, setCompact] = useState(false);
   const showLabels = !isWide || !compact;
+  const panelBg = isDark ? '#12161E' : '#FFFFFF';
+  const ink = isDark ? '#F8FAFC' : '#111827';
+  const mutedInk = isDark ? '#CBD5E1' : '#374151';
+  const line = isDark ? '#2A3140' : '#E5E7EB';
+  const activeBg = isDark ? '#1E293B' : '#E8EEF7';
 
   const confirmLogout = (): void => {
     confirmAction('Sign out', 'Are you sure you want to sign out?', 'Sign out', () => void logout(), true);
@@ -89,26 +93,8 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
     if (!isWide) props.navigation.closeDrawer();
   };
 
-  const frosted = (
-    <BlurView
-      intensity={Platform.OS === 'ios' ? 64 : 80}
-      tint={isDark ? 'dark' : 'light'}
-      blurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
-      style={StyleSheet.absoluteFill}
-    />
-  );
-
   return (
-    <View style={[styles.root, { width: Math.min(280, windowWidth * 0.72) }]}>
-      {frosted}
-      <View
-        style={[
-          StyleSheet.absoluteFill,
-          {
-            backgroundColor: isDark ? 'rgba(12,16,24,0.55)' : 'rgba(0,74,153,0.08)',
-          },
-        ]}
-      />
+    <View style={[styles.root, { width: Math.min(280, windowWidth * 0.72), backgroundColor: panelBg }]}>
       <DrawerContentScrollView
         {...props}
         contentContainerStyle={[
@@ -120,7 +106,7 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
         ]}
         style={{ backgroundColor: 'transparent' }}
       >
-        <View style={[styles.header, { borderBottomColor: palette.borderSubtle }]}>
+        <View style={[styles.header, { borderBottomColor: line }]}>
           {logoUrl ? (
             <Image source={{ uri: logoUrl }} style={styles.logoImage} />
           ) : (
@@ -140,7 +126,7 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
           >
             <Text
               style={{
-                color: palette.textPrimary,
+                color: ink,
                 fontSize: typography.titleSmall.fontSize,
                 fontWeight: '700',
               }}
@@ -150,7 +136,7 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
             </Text>
             <Text
               style={{
-                color: palette.textSecondary,
+                color: mutedInk,
                 fontSize: typography.caption.fontSize,
                 fontWeight: '600',
                 marginTop: 2,
@@ -170,7 +156,7 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
               <Ionicons
                 name={compact ? 'menu' : 'menu-outline'}
                 size={22}
-                color={palette.textSecondary}
+                color={mutedInk}
               />
             </Pressable>
           ) : null}
@@ -191,25 +177,20 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
                   styles.item,
                   {
                     borderRadius: radius.control,
-                    backgroundColor: active
-                      ? isDark
-                        ? 'rgba(255,255,255,0.1)'
-                        : palette.primaryMuted
-                      : 'transparent',
+                    backgroundColor: active ? activeBg : 'transparent',
                   },
                 ]}
               >
                 <Soft3DIcon
                   name={area.icon as keyof typeof Ionicons.glyphMap}
-                  tone={active ? tone : 'muted'}
-                  muted={!active}
+                  tone={tone}
                   active={active}
                   size={36}
                 />
                 <Text
                   style={{
                     marginLeft: spacing.mdSm,
-                    color: active ? palette.primary : palette.textPrimary,
+                    color: active ? ink : mutedInk,
                     fontSize: typography.body.fontSize,
                     fontWeight: active ? '700' : '500',
                     flex: 1,
@@ -224,26 +205,26 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
           })}
         </View>
 
-        <View style={[styles.footer, { borderTopColor: palette.borderSubtle }]}>
+        <View style={[styles.footer, { borderTopColor: line }]}>
           {showLabels ? <AppModeSwitch style={{ marginBottom: spacing.md }} /> : null}
           {user && showLabels ? (
             <View style={styles.userRow}>
-              <View style={[styles.avatar, { backgroundColor: palette.primaryMuted }]}>
-                <Text style={[styles.avatarText, { color: colors.primary }]}>
+              <View style={[styles.avatar, { backgroundColor: activeBg }]}>
+                <Text style={[styles.avatarText, { color: ink }]}>
                   {user.name?.trim()?.charAt(0)?.toUpperCase() ?? '?'}
                 </Text>
               </View>
               <View style={styles.userText}>
                 <Text
                   numberOfLines={1}
-                  style={{ color: palette.textPrimary, fontSize: typography.body.fontSize, fontWeight: '700' }}
+                  style={{ color: ink, fontSize: typography.body.fontSize, fontWeight: '700' }}
                 >
                   {user.name}
                 </Text>
                 {user.roleName ? (
                   <Text
                     numberOfLines={1}
-                    style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 1 }}
+                    style={{ color: mutedInk, fontSize: typography.caption.fontSize, marginTop: 1 }}
                   >
                     {user.roleName}
                   </Text>

@@ -83,14 +83,14 @@ const StudentResultsStack = () => (
 );
 
 const studentTabBar = createUsersTabBar({
-  StudentHomeTab: { label: 'Home', icon: 'home-outline', iconFocused: 'home', tone: 'blue' },
+  StudentHomeTab: { label: 'Home', icon: 'home', iconFocused: 'home', tone: 'blue' },
   StudentHomeworkTab: {
     label: 'Homework',
-    icon: 'document-text-outline',
-    iconFocused: 'document-text',
+    icon: 'book',
+    iconFocused: 'book',
     tone: 'indigo',
   },
-  StudentResultsTab: { label: 'Results', icon: 'ribbon-outline', iconFocused: 'ribbon', tone: 'emerald' },
+  StudentResultsTab: { label: 'Results', icon: 'results', iconFocused: 'results', tone: 'emerald' },
 });
 
 export const StudentTabNavigator: React.FC = () => {

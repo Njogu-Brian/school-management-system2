@@ -1,7 +1,8 @@
-import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Soft3DIcon } from '../primitives/AccentIcon';
+import type { AppIconName } from '../icons/names';
 import type { Soft3DTone } from '../primitives/AccentIcon';
 import { useTheme } from '../theme/ThemeContext';
 import { TABLET_TAB_BAR_MAX_WIDTH, useAdaptiveLayout } from './useAdaptiveLayout';
@@ -9,8 +10,8 @@ import { TABLET_TAB_BAR_MAX_WIDTH, useAdaptiveLayout } from './useAdaptiveLayout
 export interface PremiumTabItem {
   key: string;
   label: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  iconFocused?: keyof typeof Ionicons.glyphMap;
+  icon: AppIconName | string;
+  iconFocused?: AppIconName | string;
   tone?: Soft3DTone;
 }
 
@@ -81,9 +82,7 @@ export const PremiumTabBar: React.FC<PremiumTabBarProps> = ({ items, activeKey, 
       >
         {items.map((item) => {
           const focused = item.key === activeKey;
-          const iconName = (focused
-            ? item.iconFocused ?? item.icon
-            : item.icon) as keyof typeof Ionicons.glyphMap;
+          const iconName = focused ? item.iconFocused ?? item.icon : item.icon;
 
           return (
             <Pressable
@@ -100,7 +99,7 @@ export const PremiumTabBar: React.FC<PremiumTabBarProps> = ({ items, activeKey, 
                   focused ? { backgroundColor: activePill } : null,
                 ]}
               >
-                <Ionicons name={iconName} size={20} color={focused ? activeIcon : idleIcon} />
+                <Soft3DIcon name={iconName} size={28} active={focused} />
                 <Text
                   numberOfLines={1}
                   style={[styles.label, { color: focused ? activeIcon : idleIcon, fontWeight: focused ? '700' : '600' }]}

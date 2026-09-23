@@ -54,7 +54,7 @@ export const SchoolCodeScreen: React.FC = () => {
             autoCorrect={false}
             value={code}
             onChangeText={setCode}
-            placeholder="e.g. RKS001"
+            placeholder="School code"
             placeholderTextColor={palette.textSecondary}
             style={[
               styles.input,

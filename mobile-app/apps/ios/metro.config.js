@@ -29,6 +29,8 @@ config.resolver.nodeModulesPaths = [
 config.resolver.extraNodeModules = {
   semver: path.resolve(workspaceRoot, 'node_modules/semver'),
   'webidl-conversions': path.resolve(workspaceRoot, 'node_modules/webidl-conversions'),
+  'expo-notifications': path.resolve(workspaceRoot, 'node_modules/expo-notifications'),
+  'expo-device': path.resolve(workspaceRoot, 'node_modules/expo-device'),
   '@admin': path.resolve(adminRoot, 'src'),
   '@users': path.resolve(usersRoot, 'src'),
 };

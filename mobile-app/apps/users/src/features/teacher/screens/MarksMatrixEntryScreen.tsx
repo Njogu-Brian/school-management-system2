@@ -7,11 +7,23 @@ import {
   useNetworkStatus,
   useOfflineDraft,
 } from '@erp/core';
-import { AcademicScreenHeader, Button, DockedActionLayout, FooterDock, ScreenContainer, TextField, useTheme } from '@erp/ui';
+import {
+  AcademicScreenHeader,
+  Button,
+  DockedActionLayout,
+  FilterChip,
+  FilterChipRow,
+  FooterDock,
+  MarksEntryProgress,
+  MarksStudentCard,
+  ScreenContainer,
+  TextField,
+  useTheme,
+} from '@erp/ui';
 import type { RouteProp } from '@react-navigation/native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Text, View } from 'react-native';
 import type { TeacherStackParamList } from '../../../navigation/teacher/teacherStackTypes';
 import { showError, showSuccess } from '../../shared/utils/feedback';
 
@@ -24,22 +36,24 @@ type MatrixDraft = {
   serverSnapshot: Record<string, EntryValue>;
 };
 
+type FocusId = 'all' | number;
+
 export const MarksMatrixEntryScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<Route>();
-  const { examTypeId, classroomId, streamId } = route.params;
-  const { colors, palette, spacing, typography, radius } = useTheme();
+  const { examTypeId, classroomId, streamId, examTypeName, classroomName, streamName } = route.params;
+  const { colors, palette, spacing, typography } = useTheme();
   const networkStatus = useNetworkStatus();
   const [values, setValues] = useState<Record<string, EntryValue>>({});
   const [search, setSearch] = useState('');
   const [hasLocalDraft, setHasLocalDraft] = useState(false);
+  const [focusId, setFocusId] = useState<FocusId>('all');
+  const didInitFocus = useRef(false);
 
   const serverSnapshotRef = useRef<Record<string, EntryValue>>({});
-  /** Guards autosave so it never fires before the first hydrate — the source of the update-depth loop. */
   const hydratedRef = useRef(false);
   const draftKey = marksMatrixDraftKey(examTypeId, classroomId, streamId);
   const { draft, setDraft, loaded: draftLoaded, clearDraft } = useOfflineDraft<MatrixDraft>(draftKey);
-  /** Read the offline draft via a ref so it stays out of the hydrate effect deps (breaks the loop). */
   const draftRef = useRef(draft);
   draftRef.current = draft;
 
@@ -54,9 +68,6 @@ export const MarksMatrixEntryScreen: React.FC = () => {
 
   const keyOf = (studentId: number, examId: number) => `${studentId}-${examId}`;
 
-  // Hydrate from the server when matrix data arrives, and merge any offline draft once it has loaded.
-  // `draft` is intentionally excluded from the deps (read via `draftRef`) so autosaving the draft
-  // below cannot re-trigger hydration — that feedback cycle was the "Maximum update depth" loop.
   useEffect(() => {
     if (!matrixQuery.data) return;
     const next: Record<string, EntryValue> = {};
@@ -83,12 +94,22 @@ export const MarksMatrixEntryScreen: React.FC = () => {
     hydratedRef.current = true;
   }, [matrixQuery.data, draftLoaded]);
 
-  // Autosave the draft on edits, but only after the first hydrate so we never write back the
-  // freshly-hydrated state (which would loop through the hydrate effect).
   useEffect(() => {
     if (!hydratedRef.current || students.length === 0) return;
     setDraft({ values, serverSnapshot: serverSnapshotRef.current });
   }, [values, students.length, setDraft]);
+
+  // Start on the first subject for easiest bulk entry; user can still pick All.
+  useEffect(() => {
+    if (didInitFocus.current || exams.length === 0) return;
+    didInitFocus.current = true;
+    setFocusId(exams[0].id);
+  }, [exams]);
+
+  const visibleExams = useMemo(() => {
+    if (focusId === 'all') return exams;
+    return exams.filter((e) => e.id === focusId);
+  }, [exams, focusId]);
 
   const filteredStudents = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -108,6 +129,19 @@ export const MarksMatrixEntryScreen: React.FC = () => {
     }));
     setHasLocalDraft(true);
   };
+
+  const enteredCount = useMemo(() => {
+    let n = 0;
+    for (const s of students) {
+      for (const e of visibleExams) {
+        const v = values[keyOf(s.id, e.id)];
+        if (v?.marks.trim()) n += 1;
+      }
+    }
+    return n;
+  }, [students, visibleExams, values]);
+
+  const totalCells = students.length * Math.max(visibleExams.length, 0);
 
   const nonEmptyEntries = useMemo(() => {
     const entries: { student_id: number; exam_id: number; marks?: number; remarks?: string }[] = [];
@@ -131,6 +165,14 @@ export const MarksMatrixEntryScreen: React.FC = () => {
     return entries;
   }, [students, exams, values]);
 
+  const contextLabel = [
+    classroomName ?? `Class #${classroomId}`,
+    examTypeName ?? `Exam type #${examTypeId}`,
+    streamName,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
   const save = async () => {
     if (nonEmptyEntries.length === 0) {
       showError('Nothing to save', 'Enter at least one score or remark.');
@@ -141,7 +183,7 @@ export const MarksMatrixEntryScreen: React.FC = () => {
       exam_type_id: examTypeId,
       classroom_id: classroomId,
       stream_id: streamId,
-      label: `Marks matrix · class #${classroomId}`,
+      label: `Marks matrix · ${contextLabel}`,
       entries: nonEmptyEntries,
       baseSnapshot: serverSnapshotRef.current,
     };
@@ -184,25 +226,51 @@ export const MarksMatrixEntryScreen: React.FC = () => {
         header={
           <View style={{ padding: spacing.md, paddingBottom: 0 }}>
             <AcademicScreenHeader
-              title="Marks matrix entry"
-              subtitle="Students × exams"
+              title="Bulk marks entry"
+              subtitle="One subject at a time, or all subjects — nothing hidden"
               onBack={() => navigation.goBack()}
             />
-            {hasLocalDraft ? (
-              <Text style={{ color: colors.primary, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
-                Draft auto-saved on this device.
-              </Text>
-            ) : null}
             {matrixQuery.isLoading || exams.length === 0 ? null : (
               <>
+                <MarksEntryProgress
+                  entered={enteredCount}
+                  total={totalCells}
+                  draftSaved={hasLocalDraft}
+                  offline={networkStatus === 'offline'}
+                  contextLabel={contextLabel}
+                />
                 <TextField
                   label="Search students"
                   value={search}
                   onChangeText={setSearch}
                   placeholder="Name or admission #"
                 />
-                <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
+                <FilterChipRow label="Subject focus" wrap>
+                  <FilterChip
+                    label={`All (${exams.length})`}
+                    active={focusId === 'all'}
+                    onPress={() => setFocusId('all')}
+                  />
+                  {exams.map((e) => (
+                    <FilterChip
+                      key={e.id}
+                      label={e.subject_name || e.name}
+                      active={focusId === e.id}
+                      onPress={() => setFocusId(e.id)}
+                    />
+                  ))}
+                </FilterChipRow>
+                <Text
+                  style={{
+                    color: palette.textSecondary,
+                    fontSize: typography.caption.fontSize,
+                    marginBottom: spacing.sm,
+                  }}
+                >
                   {filteredStudents.length} student{filteredStudents.length === 1 ? '' : 's'}
+                  {focusId === 'all'
+                    ? ` · showing all ${exams.length} subjects`
+                    : ` · focused on ${visibleExams[0]?.subject_name ?? 'subject'}`}
                 </Text>
               </>
             )}
@@ -212,7 +280,11 @@ export const MarksMatrixEntryScreen: React.FC = () => {
           !matrixQuery.isLoading && exams.length > 0 ? (
             <FooterDock>
               <Button
-                label={networkStatus === 'offline' ? 'Queue marks' : 'Submit marks'}
+                label={
+                  networkStatus === 'offline'
+                    ? `Queue ${nonEmptyEntries.length} entries`
+                    : `Save ${nonEmptyEntries.length} entries`
+                }
                 onPress={() => void save()}
                 loading={saveMutation.isPending}
               />
@@ -223,7 +295,14 @@ export const MarksMatrixEntryScreen: React.FC = () => {
         {matrixQuery.isLoading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
         ) : exams.length === 0 ? (
-          <Text style={{ color: palette.textSecondary, textAlign: 'center', marginTop: 24, paddingHorizontal: spacing.md }}>
+          <Text
+            style={{
+              color: palette.textSecondary,
+              textAlign: 'center',
+              marginTop: 24,
+              paddingHorizontal: spacing.md,
+            }}
+          >
             No open exams in marking status for this class and exam type.
           </Text>
         ) : (
@@ -234,61 +313,26 @@ export const MarksMatrixEntryScreen: React.FC = () => {
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ padding: spacing.md, paddingTop: spacing.sm, flexGrow: 1 }}
             renderItem={({ item: s, index: idx }) => (
-              <View style={[styles.card, { borderColor: palette.border, marginBottom: spacing.md }]}>
-                <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>
-                  {idx + 1}. {s.full_name}
-                </Text>
-                <Text
-                  style={{
-                    color: palette.textSecondary,
-                    fontSize: typography.caption.fontSize,
-                    marginBottom: spacing.sm,
-                  }}
-                >
-                  Adm: {s.admission_number ?? '—'}
-                </Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  {exams.map((e) => {
-                    const k = keyOf(s.id, e.id);
-                    const v = values[k] ?? { marks: '', remarks: '' };
-                    return (
-                      <View
-                        key={k}
-                        style={[
-                          styles.cell,
-                          {
-                            borderColor: palette.border,
-                            backgroundColor: palette.surface,
-                            borderRadius: radius.md,
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={{ color: palette.textPrimary, fontSize: typography.caption.fontSize, fontWeight: '700' }}
-                          numberOfLines={2}
-                        >
-                          {e.subject_name ? `${e.subject_name} · ` : ''}
-                          {e.name}
-                        </Text>
-                        <Text style={{ color: palette.textSecondary, fontSize: 10, marginBottom: 4 }}>
-                          {e.min_marks}–{e.max_marks}
-                        </Text>
-                        <TextField
-                          label="Score"
-                          value={v.marks}
-                          onChangeText={(t) => setCell(s.id, e.id, 'marks', t)}
-                          keyboardType="numeric"
-                        />
-                        <TextField
-                          label="Remark"
-                          value={v.remarks}
-                          onChangeText={(t) => setCell(s.id, e.id, 'remarks', t)}
-                        />
-                      </View>
-                    );
-                  })}
-                </ScrollView>
-              </View>
+              <MarksStudentCard
+                index={idx + 1}
+                fullName={s.full_name}
+                admissionNumber={s.admission_number}
+                slots={visibleExams.map((e) => {
+                  const k = keyOf(s.id, e.id);
+                  const v = values[k] ?? { marks: '', remarks: '' };
+                  return {
+                    keyId: k,
+                    title: e.subject_name || e.name,
+                    subtitle: e.subject_name ? e.name : undefined,
+                    minMarks: e.min_marks,
+                    maxMarks: e.max_marks,
+                    marks: v.marks,
+                    remarks: v.remarks,
+                    onChangeMarks: (t) => setCell(s.id, e.id, 'marks', t),
+                    onChangeRemarks: (t) => setCell(s.id, e.id, 'remarks', t),
+                  };
+                })}
+              />
             )}
           />
         )}
@@ -296,8 +340,3 @@ export const MarksMatrixEntryScreen: React.FC = () => {
     </ScreenContainer>
   );
 };
-
-const styles = StyleSheet.create({
-  card: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, padding: 12 },
-  cell: { width: 160, borderWidth: StyleSheet.hairlineWidth, padding: 8, marginRight: 8 },
-});

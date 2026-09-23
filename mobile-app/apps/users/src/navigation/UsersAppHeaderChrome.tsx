@@ -1,4 +1,4 @@
-import { useAppMode, useUnreadNotificationCount } from '@erp/core';
+import { useAppMode, useBranding, useUnreadNotificationCount } from '@erp/core';
 import { GlobalAppHeader, useTheme } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import React, { useCallback } from 'react';
@@ -42,6 +42,7 @@ export const UsersAppHeaderChrome: React.FC<UsersAppHeaderChromeProps> = ({
   const { toggleTheme } = useTheme();
   const unreadQuery = useUnreadNotificationCount();
   const { canSwitch } = useAppMode();
+  const { logoUrl, schoolName } = useBranding();
 
   const onNotifications = useCallback(
     () => navigation.navigate(notificationsRoute as never),
@@ -55,7 +56,8 @@ export const UsersAppHeaderChrome: React.FC<UsersAppHeaderChromeProps> = ({
   return (
     <View>
       <GlobalAppHeader
-        title={title}
+        title={schoolName || title}
+        logoUrl={logoUrl}
         onMenuPress={onMenuPress}
         onSearchPress={onSearchPress}
         searchPrompt={searchPrompt}

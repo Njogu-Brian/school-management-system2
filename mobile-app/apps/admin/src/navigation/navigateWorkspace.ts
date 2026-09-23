@@ -39,10 +39,10 @@ export function navigateToTab(
           ? {
               screen,
               params: params ?? {},
+              initial: false,
             }
           : undefined,
       },
-      merge: true,
     } as Parameters<typeof CommonActions.navigate>[0]),
   );
 }
@@ -62,9 +62,9 @@ export function navigateToDrawer(
         ? {
             screen,
             params,
+            initial: false,
           }
         : undefined,
-      merge: true,
     } as Parameters<typeof CommonActions.navigate>[0]),
   );
 }

@@ -20,6 +20,8 @@ class ExpenseStatementImport extends Model
         'source',
         'original_filename',
         'file_path',
+        'pdf_password',
+        'verification_code',
         'period_start',
         'period_end',
         'account_name',
@@ -33,7 +35,12 @@ class ExpenseStatementImport extends Model
         'summary',
     ];
 
+    protected $hidden = [
+        'pdf_password',
+    ];
+
     protected $casts = [
+        'pdf_password' => 'encrypted',
         'period_start' => 'date',
         'period_end' => 'date',
         'line_count' => 'integer',

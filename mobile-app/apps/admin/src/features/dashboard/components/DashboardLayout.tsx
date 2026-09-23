@@ -9,7 +9,12 @@ import {
 import React, { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { confirmAction } from '../../shared/utils/feedback';
-import { CriticalKpisSection, OperationalStatusSection, QuickActionsSection } from '../sections';
+import {
+  CriticalKpisSection,
+  ModulesSection,
+  OperationalStatusSection,
+  QuickActionsSection,
+} from '../sections';
 import { QuickActionFab } from './QuickActionFab';
 
 export const DashboardLayout: React.FC = () => {
@@ -56,6 +61,7 @@ export const DashboardLayout: React.FC = () => {
         />
 
         <CriticalKpisSection />
+        <ModulesSection />
         <QuickActionsSection />
         <OperationalStatusSection />
 

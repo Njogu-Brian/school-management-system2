@@ -7,15 +7,10 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  UIManager,
   View,
   ViewStyle,
 } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 export interface SearchBarProps {
   value: string;

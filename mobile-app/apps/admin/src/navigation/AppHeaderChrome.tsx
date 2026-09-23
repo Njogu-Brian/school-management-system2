@@ -1,4 +1,4 @@
-import { useAppMode, useUnreadNotificationCount } from '@erp/core';
+import { useAppMode, useBranding, useUnreadNotificationCount } from '@erp/core';
 import { GlobalAppHeader, useTheme } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import React, { useCallback } from 'react';
@@ -48,6 +48,7 @@ export const AppHeaderChrome: React.FC<AppHeaderChromeProps> = ({
   const { toggleTheme } = useTheme();
   const unreadQuery = useUnreadNotificationCount();
   const { canSwitch } = useAppMode();
+  const { logoUrl, schoolName } = useBranding();
 
   const onSearch = useCallback(
     () => navigateDashboardNested(navigation as unknown as NavLike, 'GlobalSearch'),
@@ -65,7 +66,8 @@ export const AppHeaderChrome: React.FC<AppHeaderChromeProps> = ({
   return (
     <View>
       <GlobalAppHeader
-        title={title}
+        title={schoolName || title}
+        logoUrl={logoUrl}
         onMenuPress={onMenuPress}
         onSearchPress={showGlobalSearch ? onSearch : undefined}
         onNotificationsPress={onNotifications}

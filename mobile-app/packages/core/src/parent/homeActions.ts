@@ -31,21 +31,7 @@ export type ParentHomeJump = {
 export type ParentHomeActionDef = {
   id: ParentHomeActionId;
   label: string;
-  icon:
-    | 'calendar-outline'
-    | 'bus-outline'
-    | 'chatbubbles-outline'
-    | 'book-outline'
-    | 'school-outline'
-    | 'cash-outline'
-    | 'notifications-outline'
-    | 'settings-outline'
-    | 'person-outline'
-    | 'people-outline'
-    | 'megaphone-outline'
-    | 'alert-circle-outline'
-    | 'sparkles-outline'
-    | 'clipboard-outline';
+  icon: string;
   jump: ParentHomeJump;
 };
 
@@ -54,7 +40,7 @@ export const PARENT_HOME_CORE_ACTIONS: ParentHomeActionDef[] = [
   {
     id: 'attendance',
     label: 'Attendance',
-    icon: 'calendar-outline',
+    icon: 'attendance',
     jump: {
       tab: 'ParentHomeTab',
       screen: 'ChildAttendance',
@@ -65,7 +51,7 @@ export const PARENT_HOME_CORE_ACTIONS: ParentHomeActionDef[] = [
   {
     id: 'academic',
     label: 'Results',
-    icon: 'school-outline',
+    icon: 'results',
     jump: {
       tab: 'ParentAcademicTab',
       screen: 'ChildResults',
@@ -76,7 +62,7 @@ export const PARENT_HOME_CORE_ACTIONS: ParentHomeActionDef[] = [
   {
     id: 'fees',
     label: 'School fees',
-    icon: 'cash-outline',
+    icon: 'finance',
     jump: {
       tab: 'ParentFeesTab',
       screen: 'FeesHome',
@@ -86,7 +72,7 @@ export const PARENT_HOME_CORE_ACTIONS: ParentHomeActionDef[] = [
   {
     id: 'transport',
     label: 'Transport',
-    icon: 'bus-outline',
+    icon: 'transport',
     jump: {
       tab: 'ParentHomeTab',
       screen: 'Transport',
@@ -97,7 +83,7 @@ export const PARENT_HOME_CORE_ACTIONS: ParentHomeActionDef[] = [
   {
     id: 'diary',
     label: 'Diary',
-    icon: 'chatbubbles-outline',
+    icon: 'messages',
     jump: {
       tab: 'ParentHomeTab',
       screen: 'DiaryChat',
@@ -108,7 +94,7 @@ export const PARENT_HOME_CORE_ACTIONS: ParentHomeActionDef[] = [
   {
     id: 'homework',
     label: 'Homework',
-    icon: 'book-outline',
+    icon: 'book',
     jump: {
       tab: 'ParentHomeTab',
       screen: 'ChildHomework',
@@ -121,7 +107,7 @@ export const PARENT_HOME_CORE_ACTIONS: ParentHomeActionDef[] = [
     // what they have to buy or bring in for the term.
     id: 'requirements',
     label: 'Requirements',
-    icon: 'clipboard-outline',
+    icon: 'clipboard',
     jump: {
       tab: 'ParentHomeTab',
       screen: 'ChildRequirements',
@@ -132,7 +118,7 @@ export const PARENT_HOME_CORE_ACTIONS: ParentHomeActionDef[] = [
   {
     id: 'notifications',
     label: 'Notifications',
-    icon: 'notifications-outline',
+    icon: 'notifications',
     jump: {
       tab: 'ParentHomeTab',
       screen: 'Notifications',
@@ -143,7 +129,7 @@ export const PARENT_HOME_CORE_ACTIONS: ParentHomeActionDef[] = [
   {
     id: 'settings',
     label: 'Settings',
-    icon: 'settings-outline',
+    icon: 'settings',
     jump: {
       tab: 'ParentHomeTab',
       screen: 'Settings',
@@ -157,7 +143,7 @@ export const PARENT_HOME_CHILD_ACTIONS: ParentHomeActionDef[] = [
   {
     id: 'child_profile',
     label: 'Child profile',
-    icon: 'person-outline',
+    icon: 'student-profile',
     jump: {
       tab: 'ParentChildrenTab',
       screen: 'ChildProfile',
@@ -168,7 +154,7 @@ export const PARENT_HOME_CHILD_ACTIONS: ParentHomeActionDef[] = [
   {
     id: 'children',
     label: 'All children',
-    icon: 'people-outline',
+    icon: 'people',
     jump: {
       tab: 'ParentChildrenTab',
       screen: 'ChildrenList',
@@ -178,7 +164,7 @@ export const PARENT_HOME_CHILD_ACTIONS: ParentHomeActionDef[] = [
   {
     id: 'my_profile',
     label: 'My profile',
-    icon: 'person-outline',
+    icon: 'profile',
     jump: {
       tab: 'ParentHomeTab',
       screen: 'MyProfile',
@@ -189,7 +175,7 @@ export const PARENT_HOME_CHILD_ACTIONS: ParentHomeActionDef[] = [
   {
     id: 'co_curricular',
     label: 'Co-curricular',
-    icon: 'sparkles-outline',
+    icon: 'activities',
     jump: {
       tab: 'ParentHomeTab',
       screen: 'CoCurricularHub',
@@ -200,7 +186,7 @@ export const PARENT_HOME_CHILD_ACTIONS: ParentHomeActionDef[] = [
   {
     id: 'announcements',
     label: 'Announcements',
-    icon: 'megaphone-outline',
+    icon: 'megaphone',
     jump: {
       tab: 'ParentHomeTab',
       screen: 'Announcements',
@@ -211,7 +197,7 @@ export const PARENT_HOME_CHILD_ACTIONS: ParentHomeActionDef[] = [
   {
     id: 'concerns',
     label: 'Concerns',
-    icon: 'alert-circle-outline',
+    icon: 'report-concern',
     jump: {
       tab: 'ParentHomeTab',
       screen: 'ConcernsList',

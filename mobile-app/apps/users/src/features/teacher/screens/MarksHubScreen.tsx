@@ -36,7 +36,7 @@ export const MarksHubScreen: React.FC = () => {
           <View style={{ marginBottom: spacing.md }}>
             <AcademicScreenHeader
               title="Marks entry"
-              subtitle="Subjects you teach — bulk matrix or per-exam entry"
+              subtitle="Bulk by subject, or open one exam — all details stay visible"
               onBack={() => goBackInStack(navigation, 'HomeMain')}
             />
             <Pressable
@@ -54,9 +54,9 @@ export const MarksHubScreen: React.FC = () => {
             >
               <Soft3DIcon name="grid-outline" tone="indigo" size={44} />
               <View style={{ flex: 1, marginLeft: spacing.sm }}>
-                <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>Bulk marks matrix</Text>
+                <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>Bulk marks (class × subjects)</Text>
                 <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
-                  Enter scores across subjects for a class and exam type
+                  Focus one subject for fast entry, or show every subject for each student
                 </Text>
               </View>
             </Pressable>
@@ -68,7 +68,7 @@ export const MarksHubScreen: React.FC = () => {
                 fontSize: typography.body.fontSize,
               }}
             >
-              Exams in marking
+              Single exam (in marking)
             </Text>
           </View>
         }

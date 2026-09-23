@@ -18,17 +18,17 @@ import { navigateToDrawer } from '../../../navigation/navigateWorkspace';
 import { FinanceSummaryChart } from '../components/FinanceSummaryChart';
 
 const KPI_CONFIG = [
-  { key: 'collectedToday' as const, label: 'Collected Today', icon: 'today-outline' as const },
-  { key: 'collectedThisMonth' as const, label: 'Collected This Month', icon: 'calendar-outline' as const },
-  { key: 'outstandingFees' as const, label: 'Outstanding Fees', icon: 'wallet-outline' as const },
-  { key: 'studentsInArrears' as const, label: 'Students In Arrears', icon: 'alert-circle-outline' as const },
+  { key: 'collectedToday' as const, label: 'Collected Today', icon: 'todays-list' },
+  { key: 'collectedThisMonth' as const, label: 'Collected This Month', icon: 'calendar' },
+  { key: 'outstandingFees' as const, label: 'Outstanding Fees', icon: 'outstanding-fees' },
+  { key: 'studentsInArrears' as const, label: 'Students In Arrears', icon: 'fee-balances' },
 ];
 
 const SECTIONS = [
-  { route: 'BillingList' as const, label: 'Billing', icon: 'receipt-outline' as const, subtitle: 'Invoices & fee structures' },
-  { route: 'FeeBalances' as const, label: 'Fee balances', icon: 'alert-circle-outline' as const, subtitle: 'Students in arrears' },
-  { route: 'CollectionsList' as const, label: 'Collections', icon: 'cash-outline' as const, subtitle: 'Payments & transactions' },
-  { route: 'Statements' as const, label: 'Statements', icon: 'document-text-outline' as const, subtitle: 'Student fee statements' },
+  { route: 'BillingList' as const, label: 'Billing', icon: 'billing', subtitle: 'Invoices & fee structures' },
+  { route: 'FeeBalances' as const, label: 'Fee balances', icon: 'fee-balances', subtitle: 'Students in arrears' },
+  { route: 'CollectionsList' as const, label: 'Collections', icon: 'collections', subtitle: 'Payments & transactions' },
+  { route: 'Statements' as const, label: 'Statements', icon: 'statements', subtitle: 'Student fee statements' },
 ];
 
 export const FinanceDashboardScreen: React.FC = () => {

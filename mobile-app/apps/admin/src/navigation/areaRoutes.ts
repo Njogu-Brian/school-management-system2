@@ -1,7 +1,7 @@
 import type { AdminAreaKey } from '@erp/core';
 import { CommonActions } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import type { DrawerNavigationProp } from '@react-navigation/drawer';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import type { DrawerParamList, TabsParamList } from './types';
 
 /** Maps IA area keys to bottom-tab route names. */
@@ -70,8 +70,8 @@ export function navigateTabHome(
 }
 
 type DrawerAreaNavigation = {
-  dispatch: DrawerNavigationProp<DrawerParamList>['dispatch'];
-  navigate: DrawerNavigationProp<DrawerParamList>['navigate'];
+  dispatch: StackNavigationProp<DrawerParamList>['dispatch'];
+  navigate: StackNavigationProp<DrawerParamList>['navigate'];
 };
 
 /** Drawer / sidebar: always land on the module home (even when re-selecting the active area). */

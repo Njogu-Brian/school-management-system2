@@ -2040,6 +2040,7 @@ class StudentController extends Controller
                     'full_name' => $full,
                     'siblings' => $siblings,
                     'admission_number' => $st->admission_number ?? '',
+                    'classroom_id' => $st->classroom_id,
                     'classroom_name' => $st->classroom ? $st->classroom->name : null,
                     'stream_name' => $st->stream ? $st->stream->name : null,
                     'class_display' => $classDisplay,

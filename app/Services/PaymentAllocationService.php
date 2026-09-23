@@ -148,7 +148,7 @@ class PaymentAllocationService
      *
      * @param int|null $preferTermId If set, invoice items belonging to this term are allocated first, then by issued_date
      */
-    public function autoAllocate(Payment $payment, ?int $studentId = null, ?int $preferTermId = null): Payment
+    public function autoAllocate(Payment $payment, ?int $studentId = null, ?int $preferTermId = null, array $excludeSources = []): Payment
     {
         // Prevent swimming payments from being auto-allocated to invoice items
         // Swimming payments should only credit wallets, not invoice items
@@ -176,6 +176,9 @@ class PaymentAllocationService
             $q->where('student_id', $studentId)->notReversed();
         })
         ->where('status', 'active')
+        ->when($excludeSources !== [], fn ($q) => $q->where(function ($q) use ($excludeSources) {
+            $q->whereNull('source')->orWhereNotIn('source', $excludeSources);
+        }))
         ->with(['invoice', 'votehead'])
         ->get()
         ->filter(function ($item) {

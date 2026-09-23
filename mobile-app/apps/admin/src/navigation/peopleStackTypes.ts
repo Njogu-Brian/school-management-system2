@@ -18,5 +18,6 @@ export type PeopleStackParamList = {
   TrainingRecordDetail: { staffId: number; recordId: number };
   StaffClock: undefined;
   StaffClockTeam: undefined;
+  StaffAttendanceCalendar: undefined;
   ForcePasswordChange: undefined;
 };

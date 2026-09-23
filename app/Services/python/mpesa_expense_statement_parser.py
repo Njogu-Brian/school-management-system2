@@ -66,6 +66,10 @@ def extract_metadata(full_text: str) -> dict:
         if match:
             meta[key] = match.group(1).strip()
 
+    code = extract_verification_code(full_text)
+    if code:
+        meta['verification_code'] = code
+
     period = meta.get('statement_period', '')
     period_match = re.search(
         r'(\d{1,2}\s+\w+\s+\d{4})\s*-\s*(\d{1,2}\s+\w+\s+\d{4})',
@@ -77,6 +81,111 @@ def extract_metadata(full_text: str) -> dict:
         meta['period_end'] = _parse_human_date(period_match.group(2))
 
     return meta
+
+
+def extract_verification_code(full_text: str) -> str | None:
+    """Printed authenticity code on some M-Pesa statements (not the PDF password)."""
+    if not full_text:
+        return None
+
+    patterns = (
+        r'(?:statement\s+)?verification\s+code\s*[:\-]\s*([A-Z0-9][A-Z0-9\-]{3,20})',
+        r'(?:security|document)\s+code\s*[:\-]\s*([A-Z0-9][A-Z0-9\-]{3,20})',
+    )
+    for pattern in patterns:
+        match = re.search(pattern, full_text, re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+    return None
+
+
+def _pdf_is_encrypted(pdf_path: str) -> bool:
+    try:
+        from pypdf import PdfReader
+        return bool(PdfReader(pdf_path).is_encrypted)
+    except Exception:
+        return False
+
+
+def _header_verification_code(pdf_path: str, password: Optional[str] = None) -> str | None:
+    open_kwargs = {}
+    if password:
+        open_kwargs['password'] = password
+
+    with pdfplumber.open(pdf_path, **open_kwargs) as pdf:
+        parts = []
+        for page in pdf.pages[:2]:
+            parts.append(page.extract_text() or '')
+            try:
+                page.flush_cache()
+            except Exception:
+                pass
+        return extract_verification_code('\n'.join(parts))
+
+
+def _is_password_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return 'password' in message or 'encrypted' in message or 'decrypt' in message
+
+
+def inspect_statement(pdf_path: str, password: Optional[str] = None) -> dict:
+    """Cheap header read: encryption, whether the password works, and any printed code.
+
+    Reads text from the first two pages only. No table extraction.
+    """
+    encrypted = _pdf_is_encrypted(pdf_path)
+    if encrypted and not password:
+        return {
+            'success': True,
+            'encrypted': True,
+            'password_ok': False,
+            'verification_code': None,
+        }
+
+    try:
+        code = _header_verification_code(pdf_path, password if encrypted else None)
+        return {
+            'success': True,
+            'encrypted': encrypted,
+            'password_ok': True,
+            'verification_code': code,
+        }
+    except MemoryError:
+        return {
+            'success': False,
+            'error': 'memory_limit',
+            'message': 'Ran out of memory reading this statement.',
+        }
+    except Exception as exc:
+        if not _is_password_error(exc):
+            return {'success': False, 'error': 'parse_failed', 'message': str(exc)}
+
+        if password:
+            try:
+                code = _header_verification_code(pdf_path, password)
+                return {
+                    'success': True,
+                    'encrypted': True,
+                    'password_ok': True,
+                    'verification_code': code,
+                }
+            except MemoryError:
+                return {
+                    'success': False,
+                    'error': 'memory_limit',
+                    'message': 'Ran out of memory reading this statement.',
+                }
+            except Exception as retry_exc:
+                if not _is_password_error(retry_exc):
+                    return {'success': False, 'error': 'parse_failed', 'message': str(retry_exc)}
+
+        return {
+            'success': False,
+            'error': 'password_required',
+            'encrypted': True,
+            'password_ok': False,
+            'message': 'That security code does not open this statement.',
+        }
 
 
 def _parse_human_date(value: str) -> str | None:
@@ -275,6 +384,8 @@ def main():
     parser.add_argument('--output', help='Optional output JSON file', default=None)
     parser.add_argument('--count-pages', action='store_true',
                         help='Only return the page count + M-Pesa detection (fast, low memory)')
+    parser.add_argument('--inspect', action='store_true',
+                        help='Return encryption status and any printed verification code')
     parser.add_argument('--start-page', type=int, default=None,
                         help='First page to parse (1-based, inclusive)')
     parser.add_argument('--end-page', type=int, default=None,
@@ -307,6 +418,11 @@ def main():
             'is_mpesa': info.get('is_mpesa', False),
         }))
         return
+
+    if args.inspect:
+        info = inspect_statement(str(pdf_path), args.password)
+        print(json.dumps(info))
+        sys.exit(0 if info.get('success') else 2)
 
     result = extract_mpesa_pages(str(pdf_path), args.password, args.start_page, args.end_page)
     if result is None:

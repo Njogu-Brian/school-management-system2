@@ -9,3 +9,4 @@ export * from './PinKeypad';
 export * from './DatePickerField';
 export * from './PhoneCountryField';
 export { resolveSoft3DGlyph } from './Soft3DGlyphs';
+export { resolveAppIconName } from '../icons/names';

@@ -791,7 +791,31 @@
                         </div>
                     @endif
 
-                    @if(($swimmingAllocations ?? collect())->isNotEmpty())
+                    @if(($activityAllocations ?? collect())->isNotEmpty())
+                        <div class="mb-0">
+                            <h6 class="text-primary mb-2">
+                                <i class="bi bi-diagram-3"></i> Activity fee split
+                            </h6>
+                            <ul class="list-unstyled mb-0">
+                                @foreach($activityAllocations as $allocation)
+                                    <li class="mb-2">
+                                        @if($allocation->student)
+                                            {{ $allocation->student->full_name }} ({{ $allocation->student->admission_number }})
+                                        @else
+                                            <em class="text-muted">Unknown student</em>
+                                        @endif
+                                        — {{ $allocation->extraIncomeItem->name ?? 'Activity' }}
+                                        · Ksh {{ number_format($allocation->amount, 2) }}
+                                        @if($allocation->extraIncomeItem?->isSwimming())
+                                            <span class="badge bg-info text-dark ms-1">Swimming wallet</span>
+                                        @else
+                                            <span class="badge bg-primary ms-1">{{ $allocation->extraIncomeItem?->kindLabel() ?? 'Activity' }}</span>
+                                        @endif
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @elseif(($swimmingAllocations ?? collect())->isNotEmpty())
                         <div class="mb-0">
                             <h6 class="text-info mb-2">
                                 <i class="bi bi-droplet-half"></i> Swimming Allocation(s)
@@ -1004,7 +1028,7 @@
 
                     @if(in_array($bankStatement->status, ['draft', 'confirmed'], true) && !($bankStatement->is_swimming_transaction ?? false))
                         <button type="button" class="btn btn-finance btn-finance-primary w-100 mb-2" data-bs-toggle="modal" data-bs-target="#splitTransactionModal">
-                            <i class="bi bi-diagram-3"></i> Split Fees + Swimming
+                            <i class="bi bi-diagram-3"></i> Split Fees + Activity
                         </button>
                     @endif
 
@@ -1135,13 +1159,13 @@
             @endif
 
             <!-- Split Transaction Modal -->
-            @if($bankStatement->status === 'confirmed' && !($bankStatement->is_swimming_transaction ?? false))
+            @if(in_array($bankStatement->status, ['draft', 'confirmed'], true) && !($bankStatement->is_swimming_transaction ?? false))
             <div class="modal fade" id="splitTransactionModal" tabindex="-1" aria-labelledby="splitTransactionModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
                 <div class="modal-dialog modal-lg modal-dialog-scrollable">
                     <div class="modal-content">
                         <div class="modal-header">
                             <h5 class="modal-title" id="splitTransactionModalLabel">
-                                Split Transaction into Fees + Swimming
+                                Split fees and activity fees
                             </h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
@@ -1149,34 +1173,48 @@
                             @csrf
                             <div class="modal-body">
                                 <p class="text-muted mb-3">
-                                    Total transaction amount: <strong>Ksh {{ number_format($bankStatement->amount ?? 0, 2) }}</strong>
+                                    Total transaction amount: <strong>Ksh {{ number_format($bankStatement->amount ?? 0, 2) }}</strong>.
+                                    Put the school-fees portion on the fee side. Put the trip, fun day, or swimming portion on the activity side for that child.
+                                    @if(\Illuminate\Support\Facades\Route::has('finance.extra-income.index'))
+                                        Activities are set up under <a href="{{ route('finance.extra-income.index') }}">Extra income</a>.
+                                    @endif
                                 </p>
 
+                                @if(($extraIncomeItems ?? collect())->isEmpty())
+                                    <div class="alert alert-warning">
+                                        No open activity fees yet.
+                                        <a href="{{ route('finance.extra-income.create') }}">Add a trip, fun day, or swimming charge</a>
+                                        before splitting.
+                                    </div>
+                                @endif
+
                                 <div class="mb-4">
-                                    <h6>Fees Allocation</h6>
+                                    <h6>School fees</h6>
+                                    <p class="small text-muted mb-2">The part that stays as school fees. Remove this section if the whole payment is an activity fee.</p>
                                     <div id="feeAllocations" class="split-allocations"></div>
                                     <button type="button" class="btn btn-sm btn-outline-primary mt-2" data-add-split="fee">
-                                        <i class="bi bi-plus-circle"></i> Add Fee Student
+                                        <i class="bi bi-plus-circle"></i> Add fee student
                                     </button>
                                 </div>
 
                                 <div class="mb-4">
-                                    <h6>Swimming Allocation</h6>
-                                    <div id="swimAllocations" class="split-allocations"></div>
-                                    <button type="button" class="btn btn-sm btn-outline-primary mt-2" data-add-split="swim">
-                                        <i class="bi bi-plus-circle"></i> Add Swimming Student
+                                    <h6>Activity fees</h6>
+                                    <p class="small text-muted mb-2">Example: Ksh 30,000 received, Ksh 20,000 is the class trip for this child.</p>
+                                    <div id="activityAllocations" class="split-allocations"></div>
+                                    <button type="button" class="btn btn-sm btn-outline-primary mt-2" data-add-split="activity" @if(($extraIncomeItems ?? collect())->isEmpty()) disabled @endif>
+                                        <i class="bi bi-plus-circle"></i> Add activity
                                     </button>
                                 </div>
 
                                 <div class="alert alert-info mb-0">
-                                    <div>Fees Total: <strong id="feeTotal">Ksh 0.00</strong></div>
-                                    <div>Swimming Total: <strong id="swimTotal">Ksh 0.00</strong></div>
+                                    <div>Fees total: <strong id="feeTotal">Ksh 0.00</strong></div>
+                                    <div>Activity total: <strong id="activityTotal">Ksh 0.00</strong></div>
                                     <div>Remaining: <strong id="splitRemaining">Ksh {{ number_format($bankStatement->amount ?? 0, 2) }}</strong></div>
                                 </div>
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                <button type="submit" class="btn btn-primary">Split Transaction</button>
+                                <button type="submit" class="btn btn-primary" @if(($extraIncomeItems ?? collect())->isEmpty()) disabled @endif>Split transaction</button>
                             </div>
                         </form>
                     </div>
@@ -2046,25 +2084,67 @@ function updateModalTotal() {
 
     const searchUrl = `{{ route('students.search') }}`;
     const txnAmount = parseFloat('{{ $bankStatement->amount ?? 0 }}');
+    @php
+        $splitActivities = ($extraIncomeItems ?? collect())->map(function ($item) {
+            return [
+                'id' => $item->id,
+                'name' => $item->name,
+                'amount' => (float) $item->amount,
+                'classroom_id' => $item->classroom_id,
+                'classroom' => optional($item->classroom)->name,
+                'kind' => $item->kindLabel(),
+            ];
+        })->values();
+    @endphp
+    const activities = @json($splitActivities);
     const feeContainer = splitModal.querySelector('#feeAllocations');
-    const swimContainer = splitModal.querySelector('#swimAllocations');
+    const activityContainer = splitModal.querySelector('#activityAllocations');
     const feeTotalEl = splitModal.querySelector('#feeTotal');
-    const swimTotalEl = splitModal.querySelector('#swimTotal');
+    const activityTotalEl = splitModal.querySelector('#activityTotal');
     const remainingEl = splitModal.querySelector('#splitRemaining');
 
     let feeIndex = 0;
-    let swimIndex = 0;
+    let activityIndex = 0;
 
     const formatMoney = (amt) => `Ksh ${amt.toFixed(2)}`;
 
     const updateTotals = () => {
         const feeTotal = Array.from(splitModal.querySelectorAll('.split-amount[data-target="fee"]'))
             .reduce((sum, input) => sum + (parseFloat(input.value) || 0), 0);
-        const swimTotal = Array.from(splitModal.querySelectorAll('.split-amount[data-target="swim"]'))
+        const activityTotal = Array.from(splitModal.querySelectorAll('.split-amount[data-target="activity"]'))
             .reduce((sum, input) => sum + (parseFloat(input.value) || 0), 0);
         feeTotalEl.textContent = formatMoney(feeTotal);
-        swimTotalEl.textContent = formatMoney(swimTotal);
-        remainingEl.textContent = formatMoney(Math.max(0, txnAmount - feeTotal - swimTotal));
+        activityTotalEl.textContent = formatMoney(activityTotal);
+        remainingEl.textContent = formatMoney(Math.max(0, txnAmount - feeTotal - activityTotal));
+    };
+
+    const matchingActivities = (classroomId) => activities.filter((item) => {
+        if (!item.classroom_id || !classroomId) return true;
+        return String(item.classroom_id) === String(classroomId);
+    });
+
+    const fillActivitySelect = (select, classroomId) => {
+        const current = select.value;
+        select.innerHTML = '';
+        const matches = matchingActivities(classroomId);
+        if (!matches.length) {
+            const empty = document.createElement('option');
+            empty.value = '';
+            empty.textContent = 'No activity for this class';
+            select.appendChild(empty);
+            return;
+        }
+        matches.forEach((item) => {
+            const option = document.createElement('option');
+            option.value = item.id;
+            option.dataset.amount = item.amount;
+            const classBit = item.classroom ? ` · ${item.classroom}` : '';
+            option.textContent = `${item.name}${classBit} (${item.kind}, Ksh ${Number(item.amount).toFixed(2)})`;
+            select.appendChild(option);
+        });
+        if (current && Array.from(select.options).some((option) => option.value === current)) {
+            select.value = current;
+        }
     };
 
     const attachSearch = (row) => {
@@ -2077,6 +2157,7 @@ function updateModalTotal() {
             clearTimeout(timer);
             const q = input.value.trim();
             hidden.value = '';
+            row.dataset.classroomId = '';
             results.innerHTML = '';
             if (q.length < 2) {
                 results.classList.add('d-none');
@@ -2088,26 +2169,35 @@ function updateModalTotal() {
                 try {
                     const res = await fetch(`${searchUrl}?q=${encodeURIComponent(q)}`, { headers: { 'Accept': 'application/json' } });
                     const data = await res.json();
+                    results.innerHTML = '';
                     if (!data.length) {
                         results.innerHTML = '<div class="list-group-item text-muted">No students found</div>';
                         return;
                     }
-                    results.innerHTML = data.map(stu => {
+                    data.forEach((stu) => {
                         const classPart = (stu.class_display && stu.class_display.trim()) ? stu.class_display : (stu.classroom_name || '');
                         const label = stu.label || `${stu.full_name} (${stu.admission_number})${classPart ? ' – ' + classPart : ''}`;
-                        return `
-                            <button type="button" class="list-group-item list-group-item-action split-pick"
-                                data-id="${stu.id}" data-label="${label}">
-                                ${label}
-                            </button>
-                        `;
-                    }).join('');
-                    results.querySelectorAll('.split-pick').forEach(btn => {
+                        const btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = 'list-group-item list-group-item-action split-pick';
+                        btn.textContent = label;
                         btn.addEventListener('click', () => {
-                            hidden.value = btn.dataset.id;
-                            input.value = btn.dataset.label;
+                            hidden.value = stu.id;
+                            input.value = label;
+                            row.dataset.classroomId = stu.classroom_id || '';
                             results.classList.add('d-none');
+                            const activitySelect = row.querySelector('.split-activity');
+                            if (activitySelect) {
+                                fillActivitySelect(activitySelect, row.dataset.classroomId);
+                                const selected = activitySelect.selectedOptions[0];
+                                const amountInput = row.querySelector('.split-amount');
+                                if (selected && selected.dataset.amount && !amountInput.value) {
+                                    amountInput.value = selected.dataset.amount;
+                                    updateTotals();
+                                }
+                            }
                         });
+                        results.appendChild(btn);
                     });
                 } catch (e) {
                     results.innerHTML = '<div class="list-group-item text-danger">Search failed</div>';
@@ -2119,24 +2209,49 @@ function updateModalTotal() {
     const createRow = (target, index) => {
         const row = document.createElement('div');
         row.className = 'split-row mb-2';
+        const studentName = target === 'fee'
+            ? `fee_allocations[${index}][student_id]`
+            : `activity_allocations[${index}][student_id]`;
+        const amountName = target === 'fee'
+            ? `fee_allocations[${index}][amount]`
+            : `activity_allocations[${index}][amount]`;
+        const studentCol = target === 'fee' ? 'col-md-6' : 'col-md-4';
+        const amountCol = target === 'fee' ? 'col-md-4' : 'col-md-3';
+
         row.innerHTML = `
             <div class="row g-2 align-items-end">
-                <div class="col-md-6">
+                <div class="${studentCol}">
                     <label class="form-label">Student</label>
                     <input type="text" class="form-control split-student-search" placeholder="Search student...">
-                    <input type="hidden" class="split-student-id" name="${target === 'fee' ? `fee_allocations[${index}][student_id]` : `swimming_allocations[${index}][student_id]`}">
+                    <input type="hidden" class="split-student-id" name="${studentName}">
                     <div class="list-group split-results d-none"></div>
                 </div>
-                <div class="col-md-4">
+                ${target === 'activity' ? `
+                <div class="col-md-3">
+                    <label class="form-label">Activity</label>
+                    <select class="form-select split-activity" name="activity_allocations[${index}][extra_income_item_id]" required></select>
+                </div>` : ''}
+                <div class="${amountCol}">
                     <label class="form-label">Amount</label>
-                    <input type="number" step="0.01" min="0" class="form-control split-amount" data-target="${target}"
-                        name="${target === 'fee' ? `fee_allocations[${index}][amount]` : `swimming_allocations[${index}][amount]`}">
+                    <input type="number" step="0.01" min="0.01" class="form-control split-amount" data-target="${target}" name="${amountName}" required>
                 </div>
                 <div class="col-md-2">
                     <button type="button" class="btn btn-outline-danger remove-split-row w-100">Remove</button>
                 </div>
             </div>
         `;
+        if (target === 'activity') {
+            const activitySelect = row.querySelector('.split-activity');
+            fillActivitySelect(activitySelect, '');
+            activitySelect.addEventListener('change', () => {
+                const selected = activitySelect.selectedOptions[0];
+                const amountInput = row.querySelector('.split-amount');
+                if (selected && selected.dataset.amount) {
+                    amountInput.value = selected.dataset.amount;
+                    updateTotals();
+                }
+            });
+        }
         row.querySelector('.split-amount').addEventListener('input', updateTotals);
         row.querySelector('.remove-split-row').addEventListener('click', () => {
             row.remove();
@@ -2149,8 +2264,8 @@ function updateModalTotal() {
     const addRow = (target) => {
         if (target === 'fee') {
             feeContainer.appendChild(createRow('fee', feeIndex++));
-        } else {
-            swimContainer.appendChild(createRow('swim', swimIndex++));
+        } else if (activities.length) {
+            activityContainer.appendChild(createRow('activity', activityIndex++));
         }
         updateTotals();
     };
@@ -2161,7 +2276,7 @@ function updateModalTotal() {
 
     splitModal.addEventListener('shown.bs.modal', () => {
         if (!feeContainer.children.length) addRow('fee');
-        if (!swimContainer.children.length) addRow('swim');
+        if (activityContainer && !activityContainer.children.length) addRow('activity');
         updateTotals();
     });
 })();

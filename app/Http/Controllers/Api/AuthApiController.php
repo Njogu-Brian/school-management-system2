@@ -521,7 +521,10 @@ class AuthApiController extends Controller
         $permissions = $user->getAllPermissions()->pluck('name')->values()->toArray();
 
         $displayName = trim((string) $user->name);
-        if (empty($user->parent_id)) {
+        if (empty($user->parent_id) && ! $user->hasAnyRole([
+            'Super Admin', 'Admin', 'Director', 'Academic Administrator',
+            'Secretary', 'Accountant', 'Finance Officer',
+        ])) {
             $this->attachParentIdFromContact($user);
         }
         $identityGate = null;

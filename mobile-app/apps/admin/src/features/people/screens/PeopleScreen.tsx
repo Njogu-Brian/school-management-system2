@@ -32,42 +32,47 @@ export const PeopleScreen: React.FC = () => {
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
           <QuickAction
             label="Staff registry"
-            icon="people-outline"
+            icon="staff-registry"
             onPress={() => navigation.navigate('StaffRegistry')}
           />
           <QuickAction
             label="Leave approvals"
-            icon="calendar-outline"
+            icon="leave-approvals"
             onPress={() => navigation.navigate('LeaveManagement')}
           />
           <QuickAction
             label="Leave types"
-            icon="list-outline"
+            icon="leave-types"
             onPress={() => navigation.navigate('LeaveTypes')}
           />
           <QuickAction
             label="Apply leave"
-            icon="add-circle-outline"
+            icon="apply-leave"
             onPress={() => navigation.navigate('LeaveApply')}
           />
           <QuickAction
             label="Staff advances"
-            icon="wallet-outline"
+            icon="staff-advances"
             onPress={() => navigation.navigate('StaffAdvances')}
           />
           <QuickAction
             label="Payroll"
-            icon="cash-outline"
+            icon="payroll"
             onPress={() => navigation.navigate('PayrollRecords')}
           />
           <QuickAction
             label="Staff attendance"
-            icon="time-outline"
+            icon="staff-attendance"
             onPress={() => navigation.navigate('StaffClock')}
           />
           <QuickAction
+            label="Staff calendar"
+            icon="calendar"
+            onPress={() => navigation.navigate('StaffAttendanceCalendar')}
+          />
+          <QuickAction
             label="Require password change"
-            icon="key-outline"
+            icon="require-password-change"
             onPress={() => navigation.navigate('ForcePasswordChange')}
           />
         </View>

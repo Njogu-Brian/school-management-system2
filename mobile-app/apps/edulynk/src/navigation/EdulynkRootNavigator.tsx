@@ -1,6 +1,7 @@
 import {
   AppModeProvider,
   canAccessApp,
+  useAppMode,
   useAuth,
   useSchool,
 } from '@erp/core';
@@ -47,6 +48,7 @@ const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
     forcePasswordChangePending,
   } = useAuth();
   const school = useSchool();
+  const { ready } = useAppMode();
 
   if (school.status === 'initializing') {
     return <AuthLoadingScreen />;
@@ -72,13 +74,14 @@ const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
   if (pinEnrollmentPending) {
     return <PinEnableScreen />;
   }
+  if (!ready) {
+    return <AuthLoadingScreen />;
+  }
   return (
     <OfflineShell>
-      <AppModeProvider>
-        <NavigationContainer theme={navTheme}>
-          <CombinedRoleNavigator />
-        </NavigationContainer>
-      </AppModeProvider>
+      <NavigationContainer theme={navTheme}>
+        <CombinedRoleNavigator />
+      </NavigationContainer>
     </OfflineShell>
   );
 };
@@ -101,5 +104,9 @@ export const EdulynkRootNavigator: React.FC = () => {
     };
   }, [isDark, palette, colors]);
 
-  return <RootGate navTheme={navTheme} />;
+  return (
+    <AppModeProvider>
+      <RootGate navTheme={navTheme} />
+    </AppModeProvider>
+  );
 };

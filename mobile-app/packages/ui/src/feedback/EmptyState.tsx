@@ -8,7 +8,7 @@ import { useTheme } from '../theme/ThemeContext';
 export interface EmptyStateProps {
   title: string;
   message?: string;
-  icon?: keyof typeof Ionicons.glyphMap;
+  icon?: string;
   actionLabel?: string;
   onAction?: () => void;
 }

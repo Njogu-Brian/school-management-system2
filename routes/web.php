@@ -1502,6 +1502,15 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('voteheads/import', [VoteheadController::class, 'processImport'])->name('voteheads.process-import');
         Route::get('voteheads/template/download', [VoteheadController::class, 'downloadTemplate'])->name('voteheads.download-template');
 
+        Route::get('extra-income', [\App\Http\Controllers\Finance\ExtraIncomeController::class, 'index'])->name('extra-income.index');
+        Route::get('extra-income/create', [\App\Http\Controllers\Finance\ExtraIncomeController::class, 'create'])->name('extra-income.create');
+        Route::post('extra-income', [\App\Http\Controllers\Finance\ExtraIncomeController::class, 'store'])->name('extra-income.store');
+        Route::get('extra-income/{extraIncome}', [\App\Http\Controllers\Finance\ExtraIncomeController::class, 'show'])->name('extra-income.show');
+        Route::get('extra-income/{extraIncome}/edit', [\App\Http\Controllers\Finance\ExtraIncomeController::class, 'edit'])->name('extra-income.edit');
+        Route::put('extra-income/{extraIncome}', [\App\Http\Controllers\Finance\ExtraIncomeController::class, 'update'])->name('extra-income.update');
+        Route::delete('extra-income/{extraIncome}', [\App\Http\Controllers\Finance\ExtraIncomeController::class, 'destroy'])->name('extra-income.destroy');
+        Route::post('extra-income/{extraIncome}/charge', [\App\Http\Controllers\Finance\ExtraIncomeController::class, 'charge'])->name('extra-income.charge');
+
         // Fee Structures
         Route::get('fee-structures/manage',   [FeeStructureController::class, 'manage'])->name('fee-structures.manage');
         Route::post('fee-structures/manage',  [FeeStructureController::class, 'save'])->name('fee-structures.save');
@@ -1674,6 +1683,11 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('expense-statements/create', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'create'])->name('expense-statements.create');
         Route::post('expense-statements', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'store'])->name('expense-statements.store');
         Route::get('expense-statements/{expenseStatement}/parse-progress', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'parseProgress'])->name('expense-statements.parse-progress');
+        Route::get('expense-statements/{expenseStatement}/document', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'document'])->name('expense-statements.document');
+        Route::post('expense-statements/{expenseStatement}/security-code', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'saveSecurityCode'])->name('expense-statements.security-code');
+        Route::post('expense-statements/{expenseStatement}/document', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'attachDocument'])->name('expense-statements.document.attach');
+        Route::get('expense-statements/{expenseStatement}/document/view', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'viewDocument'])->name('expense-statements.document.view');
+        Route::get('expense-statements/{expenseStatement}/document/download', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'downloadDocument'])->name('expense-statements.document.download');
         Route::get('expense-statements/{expenseStatement}', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'show'])->name('expense-statements.show');
         Route::post('expense-statements/{expenseStatement}/groups', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'updateGroup'])->name('expense-statements.groups.update');
         Route::post('expense-statements/{expenseStatement}/lines', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'updateLine'])->name('expense-statements.lines.update');

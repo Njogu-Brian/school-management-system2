@@ -9,8 +9,11 @@
 
 ## 0. Document index
 
+> **Live file inventory (22 Sep 2026):** counts in this PRD pack (235 controllers / 242 models) are stale. Use [`00-LIVE-INVENTORY.md`](./00-LIVE-INVENTORY.md) plus catalogs `11`–`15` for every current Blade, controller, model, and markdown file.
+
 | Phase | Document | Question answered |
 |-------|----------|-------------------|
+| 0 | [`00-LIVE-INVENTORY.md`](./00-LIVE-INVENTORY.md) | Live file inventory, redundancy, dead code |
 | 1 | [`01-system-overview.md`](./01-system-overview.md) | Purpose, architecture, strengths, weaknesses, tech debt |
 | 2 | [`02-module-inventory.md`](./02-module-inventory.md) | Every module: features, screens, APIs, tables, roles, gaps |
 | 3 | [`03-database-audit.md`](./03-database-audit.md) | Schema, relationships, normalization, performance |

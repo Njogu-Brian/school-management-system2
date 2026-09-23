@@ -44,10 +44,21 @@ export function usePushNotifications(
     let cancelled = false;
     let receivedSub: { remove: () => void } | undefined;
 
-    void (async () => {
-      const Notifications = await import('expo-notifications');
-      const Device = await import('expo-device');
+    if (isExpoGo) {
+      return;
+    }
 
+    void (async () => {
+      let Notifications: typeof import('expo-notifications');
+      let Device: typeof import('expo-device');
+      try {
+        Notifications = await import('expo-notifications');
+        Device = await import('expo-device');
+      } catch {
+        return;
+      }
+
+      try {
       Notifications.setNotificationHandler({
         handleNotification: async () => ({
           shouldShowAlert: true,
@@ -115,6 +126,9 @@ export function usePushNotifications(
         registered.current = true;
       } catch {
         /* EAS project / FCM not configured */
+      }
+      } catch {
+        return;
       }
     })();
 

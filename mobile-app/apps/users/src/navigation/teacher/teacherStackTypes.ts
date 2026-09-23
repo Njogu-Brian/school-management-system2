@@ -13,7 +13,14 @@ export type TeacherStackParamList = {
   };
   MarksHub: undefined;
   MarksMatrixSetup: undefined;
-  MarksMatrixEntry: { examTypeId: number; classroomId: number; streamId?: number };
+  MarksMatrixEntry: {
+    examTypeId: number;
+    classroomId: number;
+    streamId?: number;
+    examTypeName?: string;
+    classroomName?: string;
+    streamName?: string;
+  };
   MarksExamSetup: { examId: number; examName: string };
   MarksEntry: {
     examId: number;

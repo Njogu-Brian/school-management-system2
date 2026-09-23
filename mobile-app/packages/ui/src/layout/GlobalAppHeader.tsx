@@ -1,12 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Soft3DIcon } from '../primitives/AccentIcon';
 import { useTheme } from '../theme/ThemeContext';
 
 export interface GlobalAppHeaderProps {
+  /** School logo shown beside the title after sign-in. */
+  logoUrl?: string | null;
   title: string;
   /** Opens the drawer. When omitted the menu button is hidden (e.g. nested stacks). */
   onMenuPress?: () => void;
@@ -29,6 +31,7 @@ export interface GlobalAppHeaderProps {
  * Persistent top chrome — brand gradient strip, soft surface, soft-3D action icons.
  */
 export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
+  logoUrl,
   title,
   onMenuPress,
   branchLabel,
@@ -80,6 +83,13 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
               >
                 <Ionicons name="menu" size={22} color={palette.primary} />
               </Pressable>
+            ) : null}
+            {logoUrl ? (
+              <Image
+                source={{ uri: logoUrl }}
+                style={[styles.schoolLogo, { borderRadius: radius.sm, marginLeft: onMenuPress ? spacing.sm : 0 }]}
+                accessibilityIgnoresInvertColors
+              />
             ) : null}
             <View style={[styles.titleBlock, { marginLeft: spacing.sm }]}>
               <Text
@@ -251,6 +261,11 @@ const styles = StyleSheet.create({
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  schoolLogo: {
+    width: 36,
+    height: 36,
+    backgroundColor: '#fff',
   },
   iconWell: {
     width: 40,

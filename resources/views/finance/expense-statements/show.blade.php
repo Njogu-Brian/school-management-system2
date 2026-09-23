@@ -7,7 +7,7 @@
       'title' => 'Review Statement',
       'icon' => 'bi bi-list-check',
       'subtitle' => ($expenseStatement->account_name ?? 'M-Pesa') . ' · ' . ($expenseStatement->original_filename ?? ''),
-      'actions' => '<a href="' . route('finance.statement-transactions.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-collection"></i> All Transactions</a> <a href="' . route('finance.expense-statements.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-arrow-left"></i> All Imports</a>'
+      'actions' => '<a href="' . route('finance.expense-statements.document', $expenseStatement) . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-file-earmark-pdf"></i> Statement PDF</a> <a href="' . route('finance.statement-transactions.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-collection"></i> All Transactions</a> <a href="' . route('finance.expense-statements.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-arrow-left"></i> All Imports</a>'
     ])
 
     @if(session('success'))

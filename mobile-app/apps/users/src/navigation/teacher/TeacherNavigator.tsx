@@ -57,10 +57,10 @@ const Stack = createStackNavigator<TeacherStackParamList>();
 const Tab = createBottomTabNavigator();
 
 const teacherTabBar = createUsersTabBar({
-  Home: { label: 'Home', icon: 'home-outline', iconFocused: 'home', tone: 'blue' },
-  Classes: { label: 'Classes', icon: 'school-outline', iconFocused: 'school', tone: 'indigo' },
-  Attendance: { label: 'Attendance', icon: 'checkbox-outline', iconFocused: 'checkbox', tone: 'emerald' },
-  Activities: { label: 'Activities', icon: 'sparkles-outline', iconFocused: 'sparkles', tone: 'cyan' },
+  Home: { label: 'Home', icon: 'home', iconFocused: 'home', tone: 'blue' },
+  Classes: { label: 'Classes', icon: 'classrooms', iconFocused: 'classrooms', tone: 'indigo' },
+  Attendance: { label: 'Attendance', icon: 'attendance', iconFocused: 'attendance', tone: 'emerald' },
+  Activities: { label: 'Activities', icon: 'activities', iconFocused: 'activities', tone: 'cyan' },
 });
 
 function teacherSharedScreens() {

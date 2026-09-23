@@ -11,7 +11,7 @@ export interface ListRowCardProps {
   title: string;
   subtitle?: string;
   meta?: string;
-  icon?: keyof typeof Ionicons.glyphMap;
+  icon?: string;
   glyph?: Soft3DGlyphKey;
   tone?: Soft3DTone;
   badge?: string;

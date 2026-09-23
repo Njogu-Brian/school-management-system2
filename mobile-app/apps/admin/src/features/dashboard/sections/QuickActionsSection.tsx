@@ -1,19 +1,20 @@
 import { useRbac } from '@erp/core';
 import { DashboardSection, QuickAction } from '@erp/ui';
-import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useTheme } from '@erp/ui';
 import type { DashboardStackParamList } from '../../../navigation/dashboardStackTypes';
 import { navigateToDrawer, navigateToTab } from '../../../navigation/navigateWorkspace';
+import { AttendanceActionSheet } from '../../shared/AttendanceActionSheet';
 import { QUICK_ACTION_PLACEHOLDERS } from '../data/placeholders';
 
 export const QuickActionsSection: React.FC = () => {
   const { can } = useRbac();
   const { spacing } = useTheme();
   const navigation = useNavigation<StackNavigationProp<DashboardStackParamList>>();
+  const [attendanceOpen, setAttendanceOpen] = useState(false);
 
   const actions = useMemo(
     () =>
@@ -27,26 +28,17 @@ export const QuickActionsSection: React.FC = () => {
         case 'qa_students':
           navigateToTab(navigation, 'Students', 'StudentRegistry');
           break;
-        case 'qa_parents':
-          navigateToTab(navigation, 'Students', 'ParentsContact');
-          break;
-        case 'qa_archived':
-          navigateToTab(navigation, 'Students', 'ArchivedStudents');
-          break;
         case 'qa_admissions':
           navigateToDrawer(navigation, 'Admissions', 'AdmissionsWorkspace');
           break;
-        case 'qa_attendance_report':
-          navigateToTab(navigation, 'Students', 'AttendanceReport');
-          break;
         case 'qa_attendance':
-          navigateToDrawer(navigation, 'Academics', 'MarkAttendance');
-          break;
-        case 'qa_mark_absent':
-          navigateToDrawer(navigation, 'Academics', 'MarkAbsent');
+          setAttendanceOpen(true);
           break;
         case 'qa_clock':
           navigateToTab(navigation, 'People', 'StaffClock');
+          break;
+        case 'qa_staff_calendar':
+          navigateToTab(navigation, 'People', 'StaffAttendanceCalendar');
           break;
         case 'qa_concerns':
           navigateToDrawer(navigation, 'Operations', 'ConcernCreate');
@@ -69,11 +61,12 @@ export const QuickActionsSection: React.FC = () => {
           <QuickAction
             key={action.id}
             label={action.label}
-            icon={action.icon as keyof typeof Ionicons.glyphMap}
+            icon={action.icon}
             onPress={() => onActionPress(action.id)}
           />
         ))}
       </View>
+      <AttendanceActionSheet visible={attendanceOpen} onClose={() => setAttendanceOpen(false)} />
     </DashboardSection>
   );
 };

@@ -52,6 +52,7 @@
             <td>{{ ucfirst($import->status) }}</td>
             <td class="text-nowrap">
               <a href="{{ route('finance.expense-statements.show', $import) }}" class="btn btn-sm btn-info">Review</a>
+              <a href="{{ route('finance.expense-statements.document', $import) }}" class="btn btn-sm btn-outline-secondary">PDF</a>
               <form method="POST" action="{{ route('finance.expense-statements.destroy', $import) }}" class="d-inline"
                     onsubmit="return confirm('Delete this statement and all its transactions? This cannot be undone. (Blocked if any transactions are already confirmed/recorded.)');">
                 @csrf

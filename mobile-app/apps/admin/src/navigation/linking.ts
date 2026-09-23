@@ -89,6 +89,7 @@ export const linking: LinkingOptions<DrawerParamList> = {
               },
               StaffClock: 'clock',
               StaffClockTeam: 'clock/team',
+              StaffAttendanceCalendar: 'clock/calendar',
               LeaveManagement: 'leave',
               LeaveTypes: 'leave-types',
               LeaveApply: 'leave-apply',
