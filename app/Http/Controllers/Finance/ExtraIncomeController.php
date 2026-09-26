@@ -25,7 +25,7 @@ class ExtraIncomeController extends Controller
     public function index()
     {
         $items = ExtraIncomeItem::query()
-            ->with(['classroom', 'votehead', 'academicYear'])
+            ->with(['classroom', 'classrooms', 'votehead', 'academicYear'])
             ->withCount('allocations')
             ->orderByDesc('is_active')
             ->orderByDesc('year')
@@ -43,10 +43,11 @@ class ExtraIncomeController extends Controller
 
     public function store(Request $request)
     {
-        $data = $this->validated($request);
+        [$data, $classroomIds] = $this->validated($request);
         $chargeClass = $request->boolean('charge_class');
 
         $item = ExtraIncomeItem::create($data);
+        $item->syncClassrooms($classroomIds);
 
         if (!$item->isSwimming() && !$item->votehead_id) {
             $this->extraIncome->ensureVotehead($item);
@@ -54,7 +55,7 @@ class ExtraIncomeController extends Controller
 
         if ($chargeClass && !$item->isSwimming()) {
             try {
-                $count = $this->extraIncome->chargeClass($item->fresh(['classroom', 'votehead']));
+                $count = $this->extraIncome->chargeClass($item->fresh(['classroom', 'classrooms', 'votehead']));
             } catch (\Throwable $e) {
                 return redirect()
                     ->route('finance.extra-income.show', $item)
@@ -64,7 +65,7 @@ class ExtraIncomeController extends Controller
 
             return redirect()
                 ->route('finance.extra-income.show', $item)
-                ->with('success', "Extra income saved and charged to {$count} student(s) in the class.");
+                ->with('success', "Extra income saved and charged to {$count} student(s) in the selected class(es).");
         }
 
         return redirect()
@@ -74,18 +75,20 @@ class ExtraIncomeController extends Controller
 
     public function show(ExtraIncomeItem $extraIncome)
     {
-        $extraIncome->load(['classroom', 'votehead', 'academicYear']);
+        $extraIncome->load(['classroom', 'classrooms', 'votehead', 'academicYear']);
 
         $students = collect();
         $optionalFees = collect();
         $invoiceItems = collect();
+        $classroomIds = $extraIncome->classroomIds();
 
-        if ($extraIncome->classroom_id) {
+        if ($classroomIds !== []) {
             $students = Student::query()
-                ->with('stream')
-                ->where('classroom_id', $extraIncome->classroom_id)
+                ->with(['stream', 'classroom'])
+                ->whereIn('classroom_id', $classroomIds)
                 ->where('archive', 0)
                 ->where('is_alumni', false)
+                ->orderBy('classroom_id')
                 ->orderBy('first_name')
                 ->orderBy('last_name')
                 ->get();
@@ -133,6 +136,8 @@ class ExtraIncomeController extends Controller
 
     public function edit(ExtraIncomeItem $extraIncome)
     {
+        $extraIncome->load('classrooms');
+
         return view('finance.extra-income.edit', array_merge(
             $this->formData(),
             ['item' => $extraIncome]
@@ -141,10 +146,11 @@ class ExtraIncomeController extends Controller
 
     public function update(Request $request, ExtraIncomeItem $extraIncome)
     {
-        $data = $this->validated($request, $extraIncome);
+        [$data, $classroomIds] = $this->validated($request, $extraIncome);
         $chargeClass = $request->boolean('charge_class');
 
         $extraIncome->update($data);
+        $extraIncome->syncClassrooms($classroomIds);
 
         if (!$extraIncome->isSwimming() && !$extraIncome->votehead_id) {
             $this->extraIncome->ensureVotehead($extraIncome);
@@ -152,7 +158,7 @@ class ExtraIncomeController extends Controller
 
         if ($chargeClass && !$extraIncome->isSwimming()) {
             try {
-                $count = $this->extraIncome->chargeClass($extraIncome->fresh(['classroom', 'votehead']));
+                $count = $this->extraIncome->chargeClass($extraIncome->fresh(['classroom', 'classrooms', 'votehead']));
             } catch (\Throwable $e) {
                 return redirect()
                     ->route('finance.extra-income.show', $extraIncome)
@@ -162,7 +168,7 @@ class ExtraIncomeController extends Controller
 
             return redirect()
                 ->route('finance.extra-income.show', $extraIncome)
-                ->with('success', "Extra income updated and charged to {$count} student(s) in the class.");
+                ->with('success', "Extra income updated and charged to {$count} student(s) in the selected class(es).");
         }
 
         return redirect()
@@ -173,7 +179,7 @@ class ExtraIncomeController extends Controller
     public function charge(ExtraIncomeItem $extraIncome)
     {
         try {
-            $count = $this->extraIncome->chargeClass($extraIncome);
+            $count = $this->extraIncome->chargeClass($extraIncome->loadMissing(['classroom', 'classrooms', 'votehead']));
         } catch (\Throwable $e) {
             return redirect()
                 ->route('finance.extra-income.show', $extraIncome)
@@ -230,6 +236,9 @@ class ExtraIncomeController extends Controller
         ];
     }
 
+    /**
+     * @return array{0: array<string, mixed>, 1: list<int>}
+     */
     protected function validated(Request $request, ?ExtraIncomeItem $existing = null): array
     {
         $kind = (string) $request->input('kind');
@@ -237,11 +246,12 @@ class ExtraIncomeController extends Controller
         $data = $request->validate([
             'name' => 'required|string|max:150',
             'kind' => ['required', Rule::in(array_keys(ExtraIncomeItem::KINDS))],
-            'classroom_id' => [
+            'classroom_ids' => [
                 Rule::requiredIf($kind !== ExtraIncomeItem::KIND_SWIMMING),
                 'nullable',
-                'exists:classrooms,id',
+                'array',
             ],
+            'classroom_ids.*' => 'integer|exists:classrooms,id',
             'votehead_id' => [
                 'nullable',
                 'exists:voteheads,id',
@@ -264,24 +274,31 @@ class ExtraIncomeController extends Controller
         ]);
 
         $year = AcademicYear::findOrFail($data['academic_year_id']);
+        $classroomIds = collect($data['classroom_ids'] ?? [])
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
 
         return [
-            'name' => $data['name'],
-            'kind' => $data['kind'],
-            'classroom_id' => $data['kind'] === ExtraIncomeItem::KIND_SWIMMING
-                ? ($data['classroom_id'] ?? null)
-                : $data['classroom_id'],
-            'votehead_id' => $data['kind'] === ExtraIncomeItem::KIND_SWIMMING
-                ? null
-                : ($data['votehead_id'] ?? $existing?->votehead_id),
-            'academic_year_id' => $year->id,
-            'year' => (int) $year->year,
-            'term' => (int) $data['term'],
-            'amount' => round((float) $data['amount'], 2),
-            'event_date' => $data['event_date'] ?? null,
-            'description' => $data['description'] ?? null,
-            'is_active' => $request->boolean('is_active', true),
-            'created_by' => $existing?->created_by ?? Auth::id(),
+            [
+                'name' => $data['name'],
+                'kind' => $data['kind'],
+                'classroom_id' => $classroomIds[0] ?? null,
+                'votehead_id' => $data['kind'] === ExtraIncomeItem::KIND_SWIMMING
+                    ? null
+                    : ($data['votehead_id'] ?? $existing?->votehead_id),
+                'academic_year_id' => $year->id,
+                'year' => (int) $year->year,
+                'term' => (int) $data['term'],
+                'amount' => round((float) $data['amount'], 2),
+                'event_date' => $data['event_date'] ?? null,
+                'description' => $data['description'] ?? null,
+                'is_active' => $request->boolean('is_active', true),
+                'created_by' => $existing?->created_by ?? Auth::id(),
+            ],
+            $classroomIds,
         ];
     }
 }

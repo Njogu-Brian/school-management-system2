@@ -37,7 +37,7 @@
                                         @endif
                                     </td>
                                     <td>{{ $item->kindLabel() }}</td>
-                                    <td>{{ $item->classroom->name ?? 'Any class' }}</td>
+                                    <td>{{ $item->classroomNames() }}</td>
                                     <td>Term {{ $item->term }} {{ $item->year }}</td>
                                     <td class="text-end">Ksh {{ number_format($item->amount, 2) }}</td>
                                     <td>

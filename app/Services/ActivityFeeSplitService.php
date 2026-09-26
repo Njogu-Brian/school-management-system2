@@ -46,7 +46,7 @@ class ActivityFeeSplitService
         $charges = [];
 
         foreach ($allocations as $row) {
-            $item = ExtraIncomeItem::with('classroom')->findOrFail($row['extra_income_item_id']);
+            $item = ExtraIncomeItem::with(['classroom', 'classrooms'])->findOrFail($row['extra_income_item_id']);
             if (!$item->is_active) {
                 throw new \RuntimeException("{$item->name} is not active.");
             }
@@ -57,8 +57,8 @@ class ActivityFeeSplitService
                 continue;
             }
 
-            if ($item->classroom_id && (int) $student->classroom_id !== (int) $item->classroom_id) {
-                $className = $item->classroom?->name ?? 'the scheduled class';
+            if ($item->hasClassRestriction() && !$item->allowsClassroom((int) $student->classroom_id)) {
+                $className = $item->classroomNames();
                 throw new \RuntimeException("{$student->full_name} is not in {$className}, so this payment cannot go to {$item->name}.");
             }
 

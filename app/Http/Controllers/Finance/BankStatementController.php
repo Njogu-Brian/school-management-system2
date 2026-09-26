@@ -1685,7 +1685,7 @@ class BankStatementController extends Controller
                 ->get();
         }
         if (Schema::hasTable('extra_income_items')) {
-            $extraIncomeItems = \App\Models\ExtraIncomeItem::with('classroom')
+            $extraIncomeItems = \App\Models\ExtraIncomeItem::with(['classroom', 'classrooms'])
                 ->active()
                 ->orderBy('name')
                 ->get();

@@ -76,28 +76,23 @@
   </div>
 @endif
 
-{{-- Swimming --}}
-<a href="#swimmingMenu" data-bs-toggle="collapse"
-   aria-expanded="{{ $swimmingActive ? 'true' : 'false' }}"
-   class="{{ $swimmingActive ? 'parent-active' : '' }}">
-  <i class="bi bi-water"></i> Swimming
+{{-- Extra income / swimming (teacher) --}}
+@php
+  $extraIncomeNavActive = ($swimmingActive ?? false) || ($activityFeesActive ?? false);
+@endphp
+<a href="#extraIncomeMenu" data-bs-toggle="collapse"
+   aria-expanded="{{ $extraIncomeNavActive ? 'true' : 'false' }}"
+   class="{{ $extraIncomeNavActive ? 'parent-active' : '' }}">
+  <i class="bi bi-piggy-bank"></i> Extra income
 </a>
-<div class="collapse {{ $swimmingActive ? 'show' : '' }}" id="swimmingMenu">
+<div class="collapse {{ $extraIncomeNavActive ? 'show' : '' }}" id="extraIncomeMenu">
   <a href="{{ route('swimming.attendance.create') }}"
      class="sublink {{ Request::is('swimming/attendance') && !Request::is('swimming/attendance/records*') ? 'active' : '' }}">
-    <i class="bi bi-calendar-check"></i> Mark Attendance
+    <i class="bi bi-calendar-check"></i> Swimming attendance
   </a>
-</div>
-
-<a href="#activityFeesMenu" data-bs-toggle="collapse"
-   aria-expanded="{{ $activityFeesActive ? 'true' : 'false' }}"
-   class="{{ $activityFeesActive ? 'parent-active' : '' }}">
-  <i class="bi bi-trophy"></i> Activity fees
-</a>
-<div class="collapse {{ $activityFeesActive ? 'show' : '' }}" id="activityFeesMenu">
   <a href="{{ route('activity-fees.index') }}"
      class="sublink {{ Request::is('activity-fees*') ? 'active' : '' }}">
-    <i class="bi bi-people"></i> Rosters & attendance
+    <i class="bi bi-people"></i> Activities &amp; rosters
   </a>
 </div>
 

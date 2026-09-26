@@ -2086,12 +2086,13 @@ function updateModalTotal() {
     const txnAmount = parseFloat('{{ $bankStatement->amount ?? 0 }}');
     @php
         $splitActivities = ($extraIncomeItems ?? collect())->map(function ($item) {
+            $classroomIds = method_exists($item, 'classroomIds') ? $item->classroomIds() : array_filter([(int) $item->classroom_id]);
             return [
                 'id' => $item->id,
                 'name' => $item->name,
                 'amount' => (float) $item->amount,
-                'classroom_id' => $item->classroom_id,
-                'classroom' => optional($item->classroom)->name,
+                'classroom_ids' => $classroomIds,
+                'classroom' => method_exists($item, 'classroomNames') ? $item->classroomNames() : optional($item->classroom)->name,
                 'kind' => $item->kindLabel(),
             ];
         })->values();
@@ -2119,8 +2120,9 @@ function updateModalTotal() {
     };
 
     const matchingActivities = (classroomId) => activities.filter((item) => {
-        if (!item.classroom_id || !classroomId) return true;
-        return String(item.classroom_id) === String(classroomId);
+        const ids = item.classroom_ids || [];
+        if (!ids.length || !classroomId) return true;
+        return ids.map(String).includes(String(classroomId));
     });
 
     const fillActivitySelect = (select, classroomId) => {

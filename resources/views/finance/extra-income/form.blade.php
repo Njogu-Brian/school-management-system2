@@ -1,6 +1,9 @@
 @php
     $item = $item ?? null;
     $selectedKind = old('kind', $item->kind ?? 'trip');
+    $selectedClassroomIds = collect(old('classroom_ids', $item?->classroomIds() ?? []))
+        ->map(fn ($id) => (string) $id)
+        ->all();
 @endphp
 
 <div class="row g-4">
@@ -19,16 +22,15 @@
     </div>
 
     <div class="col-md-6">
-        <label class="finance-form-label" for="classroom_id">Class <span class="text-danger" id="classRequiredMark">*</span></label>
-        <select name="classroom_id" id="classroom_id" class="finance-form-select">
-            <option value="">Any class</option>
+        <label class="finance-form-label" for="classroom_ids">Classes <span class="text-danger" id="classRequiredMark">*</span></label>
+        <select name="classroom_ids[]" id="classroom_ids" class="finance-form-select" multiple size="8">
             @foreach($classrooms as $classroom)
-                <option value="{{ $classroom->id }}" {{ (string) old('classroom_id', $item->classroom_id ?? '') === (string) $classroom->id ? 'selected' : '' }}>
+                <option value="{{ $classroom->id }}" {{ in_array((string) $classroom->id, $selectedClassroomIds, true) ? 'selected' : '' }}>
                     {{ $classroom->name }}
                 </option>
             @endforeach
         </select>
-        <small class="text-muted" id="classHelp">Only students in this class can have the payment applied to this activity.</small>
+        <small class="text-muted" id="classHelp">Hold Ctrl (Windows) or Cmd (Mac) to select more than one class. Only students in the selected classes can be charged or split onto this activity.</small>
     </div>
     <div class="col-md-6">
         <label class="finance-form-label" for="amount">Amount per student <span class="text-danger">*</span></label>
@@ -92,7 +94,7 @@
     <div class="col-md-12" id="chargeWrap">
         <div class="form-check">
             <input class="form-check-input" type="checkbox" name="charge_class" id="charge_class" value="1" {{ old('charge_class') ? 'checked' : '' }}>
-            <label class="form-check-label" for="charge_class">Charge every student in this class now</label>
+            <label class="form-check-label" for="charge_class">Charge every student in the selected classes now</label>
         </div>
         <small class="text-muted">Adds the amount to each student's invoice for this term. You can also do this later from the activity page. Splitting a payment charges that child even if you skip this.</small>
     </div>
@@ -112,17 +114,17 @@
         const chargeWrap = document.getElementById('chargeWrap');
         const classMark = document.getElementById('classRequiredMark');
         const classHelp = document.getElementById('classHelp');
-        const classroom = document.getElementById('classroom_id');
+        const classrooms = document.getElementById('classroom_ids');
 
         function syncKind() {
             const swimming = kind.value === 'swimming';
             voteheadWrap.style.display = swimming ? 'none' : '';
             chargeWrap.style.display = swimming ? 'none' : '';
             classMark.style.display = swimming ? 'none' : '';
-            classroom.required = !swimming;
+            classrooms.required = !swimming;
             classHelp.textContent = swimming
-                ? 'Leave as any class to accept swimming money for every student, or pick one class.'
-                : 'Only students in this class can have the payment applied to this activity.';
+                ? 'Optional for swimming. Leave empty to accept swimming money for every student, or select one or more classes.'
+                : 'Hold Ctrl (Windows) or Cmd (Mac) to select more than one class. Only students in the selected classes can be charged or split onto this activity.';
         }
 
         kind.addEventListener('change', syncKind);

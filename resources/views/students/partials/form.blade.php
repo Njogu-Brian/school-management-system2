@@ -3,12 +3,19 @@
   // expects: $classrooms, $streams, $categories, $trips, $dropOffPoints
   // optional: $student, $familyMembers (only on edit)
   $s = $student ?? null;
+  $siblingDisplay = '';
+  if ($mode === 'edit' && isset($familyMembers) && count($familyMembers)) {
+      $sib = collect($familyMembers)->first();
+      if ($sib) {
+          $siblingDisplay = trim(($sib->admission_number ?? '') . ' — ' . ($sib->full_name ?? ''));
+      }
+  }
 @endphp
 
 @csrf
 @if($mode === 'edit') @method('PUT') @endif
 
-<div class="card-body">
+<div class="card-body student-form-body">
 
   @if($mode === 'create')
     @php $sessionMatches = session('duplicate_matches', []); @endphp
@@ -26,36 +33,36 @@
   @endif
 
   {{-- IDENTIFIERS --}}
-  <h6 class="text-uppercase text-muted mb-3">Identifiers</h6>
+  <h6 class="text-uppercase text-muted mb-3"><i class="bi bi-upc-scan me-1"></i> Identifiers</h6>
   <div class="row g-3">
     <div class="col-md-3">
       <label class="form-label">Admission Number</label>
       <input type="text" name="admission_number"
              value="{{ old('admission_number', $s->admission_number ?? '') }}"
-             class="form-control"
+             class="form-control @error('admission_number') is-invalid @enderror"
              placeholder="{{ $mode==='create' ? 'Leave blank to auto-generate' : '' }}">
+      @error('admission_number')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
 
-    <div class="col-md-6">
-      <label class="form-label">Link to Sibling Family <span class="badge bg-info">Optional</span></label>
+    <div class="col-md-9">
+      <label class="form-label">Link to sibling family <span class="badge bg-info">Optional</span></label>
       <div class="input-group">
         <input type="text" id="family_link_display"
-               value=""
+               value="{{ $siblingDisplay }}"
                class="form-control" placeholder="No sibling selected" readonly>
         <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#familySearchModal">
-          <i class="bi bi-search"></i> Search Sibling
+          <i class="bi bi-search"></i> Search sibling
         </button>
-        <button class="btn btn-outline-danger" type="button" id="familyClear"><i class="bi bi-x"></i></button>
+        <button class="btn btn-outline-danger" type="button" id="familyClear" title="Clear sibling link"><i class="bi bi-x"></i></button>
       </div>
       <div class="form-text">
-        <i class="bi bi-info-circle"></i> Search for an existing student to link this new student as their sibling. 
-        This will automatically:
-        (1) link the new child into the sibling's family,
-        (2) reuse the same parent record, and
-        (3) auto-fill parent details below (editable).
+        Search an existing student to join their family. Parent details are copied into this form (you can still edit them). On save, both children share the same family and parent record.
       </div>
+      <div id="siblingLinkBanner" class="student-sibling-banner" role="status" aria-live="polite"></div>
       <input type="hidden" name="family_id" id="family_id" value="{{ old('family_id', $s->family_id ?? '') }}">
-      <input type="hidden" name="copy_family_from_student_id" id="copy_family_from_student_id">
+      <input type="hidden" name="copy_family_from_student_id" id="copy_family_from_student_id" value="{{ old('copy_family_from_student_id') }}">
+      @error('family_id')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+      @error('copy_family_from_student_id')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
     </div>
   </div>
 
@@ -66,30 +73,35 @@
   <div class="row g-3">
     <div class="col-md-4">
       <label class="form-label">First Name <span class="text-danger">*</span></label>
-      <input type="text" name="first_name" value="{{ old('first_name', $s->first_name ?? '') }}" class="form-control" required>
+      <input type="text" name="first_name" value="{{ old('first_name', $s->first_name ?? '') }}" class="form-control @error('first_name') is-invalid @enderror" required>
+      @error('first_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
     <div class="col-md-4">
       <label class="form-label">Middle Name</label>
-      <input type="text" name="middle_name" value="{{ old('middle_name', $s->middle_name ?? '') }}" class="form-control">
+      <input type="text" name="middle_name" value="{{ old('middle_name', $s->middle_name ?? '') }}" class="form-control @error('middle_name') is-invalid @enderror">
+      @error('middle_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
     <div class="col-md-4">
       <label class="form-label">Last Name <span class="text-danger">*</span></label>
-      <input type="text" name="last_name" value="{{ old('last_name', $s->last_name ?? '') }}" class="form-control" required>
+      <input type="text" name="last_name" value="{{ old('last_name', $s->last_name ?? '') }}" class="form-control @error('last_name') is-invalid @enderror" required>
+      @error('last_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
 
     <div class="col-md-3">
       <label class="form-label">Gender <span class="text-danger">*</span></label>
-      <select name="gender" class="form-select" required>
+      <select name="gender" class="form-select @error('gender') is-invalid @enderror" required>
         @php $g = old('gender', $s->gender ?? ''); @endphp
         <option value="">Select</option>
     <option value="male"   @selected($g==='male')>Male</option>
     <option value="female" @selected($g==='female')>Female</option>
     <option value="other"  @selected($g==='other')>Other</option>
       </select>
+      @error('gender')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
   <div class="col-md-3">
     <label class="form-label">Date of Birth <span class="text-danger">*</span></label>
-    <input type="date" name="dob" value="{{ old('dob', $s && $s->dob ? (\Carbon\Carbon::parse($s->dob)->format('Y-m-d')) : '') }}" class="form-control" required>
+    <input type="date" name="dob" value="{{ old('dob', $s && $s->dob ? (\Carbon\Carbon::parse($s->dob)->format('Y-m-d')) : '') }}" class="form-control @error('dob') is-invalid @enderror" required>
+    @error('dob')<div class="invalid-feedback">{{ $message }}</div>@enderror
   </div>
     <div class="col-md-3">
       <label class="form-label">NEMIS Number</label>
@@ -125,28 +137,31 @@
 <div class="row g-3">
 <div class="col-md-4">
   <label class="form-label">Classroom <span class="text-danger">*</span></label>
-  <select name="classroom_id" class="form-select" required id="classroom_id">
+  <select name="classroom_id" class="form-select @error('classroom_id') is-invalid @enderror" required id="classroom_id">
     <option value="">Select</option>
     @foreach($classrooms as $c)
       <option value="{{ $c->id }}" @selected(old('classroom_id', $s->classroom_id ?? '') == $c->id)>{{ $c->name }}</option>
     @endforeach
   </select>
+  @error('classroom_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
 </div>
 <div class="col-md-4" id="stream-field-wrapper">
   <label class="form-label">Stream</label>
-    <select name="stream_id" class="form-select" id="stream_id">
+    <select name="stream_id" class="form-select @error('stream_id') is-invalid @enderror" id="stream_id">
     <option value="">Select Stream</option>
   </select>
+  @error('stream_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
   <div class="form-text text-muted" id="stream-hint"></div>
 </div>
   <div class="col-md-4">
     <label class="form-label">Category <span class="text-danger">*</span></label>
-    <select name="category_id" class="form-select" required>
+    <select name="category_id" class="form-select @error('category_id') is-invalid @enderror" required>
       <option value="">Select</option>
       @foreach($categories as $cat)
         <option value="{{ $cat->id }}" @selected(old('category_id', $s->category_id ?? '') == $cat->id)>{{ $cat->name }}</option>
       @endforeach
     </select>
+    @error('category_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
   </div>
 </div>
 
@@ -552,23 +567,17 @@
 
 </div>
 
-<div class="card-footer d-flex justify-content-end gap-2">
-  <button type="button" class="btn btn-ghost-strong me-auto" data-wizard-previous hidden>
-    <i class="bi bi-arrow-left" aria-hidden="true"></i> Previous
-  </button>
+<div class="student-form-footer">
   <a href="{{ $mode==='edit' && $s ? route('students.show',$s->id) : route('students.index') }}" class="btn btn-outline-secondary">Cancel</a>
   @if($mode==='create')
-    <x-button type="submit" name="save_add_another" value="1" variant="secondary" data-wizard-save-another hidden>
-      <i class="bi bi-plus-circle" aria-hidden="true"></i> Save &amp; Add Another
-    </x-button>
+    <button type="submit" name="save_add_another" value="1" class="btn btn-outline-primary">
+      <i class="bi bi-plus-circle" aria-hidden="true"></i> Save &amp; add another
+    </button>
   @endif
-  <x-button type="button" variant="secondary" data-wizard-next>
-    Continue <i class="bi bi-arrow-right" aria-hidden="true"></i>
-  </x-button>
-  <x-button type="submit" variant="primary" data-wizard-submit hidden>
+  <button type="submit" class="btn btn-primary" id="studentFormSubmit">
     <i class="bi bi-{{ $mode==='edit' ? 'save' : 'check-lg' }}" aria-hidden="true"></i>
-    {{ $mode==='edit' ? 'Update' : 'Submit Admission' }}
-  </x-button>
+    {{ $mode==='edit' ? 'Update student' : 'Submit admission' }}
+  </button>
 </div>
 
 {{-- Family search modal --}}
@@ -576,7 +585,7 @@
   <div class="modal-dialog modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Search Student to Link Family</h5>
+        <h5 class="modal-title">Search student to link family</h5>
         <button class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
@@ -595,7 +604,112 @@
 
 @push('scripts')
 <script>
-  // dependent streams (optional: if your getStreams uses classroom_id)
+(function () {
+  const form = document.getElementById('studentAdmissionForm');
+  if (!form) return;
+
+  const serverErrors = @json($errors->keys());
+  const banner = document.getElementById('studentFormErrorBanner');
+  const list = document.getElementById('studentFormErrorList');
+
+  function fieldByName(name) {
+    const escaped = (window.CSS && CSS.escape) ? CSS.escape(name) : name.replace(/"/g, '\\"');
+    return form.querySelector(`[name="${escaped}"]`);
+  }
+
+  function markInvalid(control, message) {
+    if (!control) return;
+    control.classList.add('is-invalid');
+    control.setAttribute('aria-invalid', 'true');
+    let feedback = control.parentElement?.querySelector('.invalid-feedback');
+    if (!feedback && control.closest('.input-group')) {
+      feedback = control.closest('.col-md-3, .col-md-4, .col-md-6, .col-md-8, .col-md-9, .col-md-12, .col-12')?.querySelector('.invalid-feedback');
+    }
+    if (!feedback) {
+      feedback = document.createElement('div');
+      feedback.className = 'invalid-feedback';
+      const host = control.closest('.input-group')?.parentElement || control.parentElement;
+      host?.appendChild(feedback);
+    }
+    if (message) feedback.textContent = message;
+  }
+
+  function clearInvalid(control) {
+    if (!control) return;
+    control.classList.remove('is-invalid');
+    control.removeAttribute('aria-invalid');
+  }
+
+  function showBanner(messages) {
+    if (!banner || !list) return;
+    list.innerHTML = '';
+    (messages || []).forEach((msg) => {
+      const li = document.createElement('li');
+      li.textContent = msg;
+      list.appendChild(li);
+    });
+    banner.classList.toggle('d-none', !(messages && messages.length));
+  }
+
+  function scrollToFirstInvalid() {
+    const first = form.querySelector('.is-invalid, :invalid');
+    if (!first) return;
+    first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    try { first.focus({ preventScroll: true }); } catch (e) { first.focus(); }
+  }
+
+  // Apply server-side validation highlights
+  serverErrors.forEach((name) => {
+    const base = name.replace(/\.\d+$/, '');
+    form.querySelectorAll(`[name="${base}"], [name="${base}[]"], [name="${name}"]`).forEach((el) => markInvalid(el));
+  });
+  if (serverErrors.length) {
+    showBanner(@json($errors->all()));
+    setTimeout(scrollToFirstInvalid, 80);
+  }
+
+  // Live feedback while typing / changing
+  form.addEventListener('input', (e) => {
+    const el = e.target;
+    if (!(el instanceof HTMLElement) || !('name' in el) || !el.name) return;
+    if (el.checkValidity()) clearInvalid(el);
+  });
+  form.addEventListener('change', (e) => {
+    const el = e.target;
+    if (!(el instanceof HTMLElement) || !('name' in el) || !el.name) return;
+    if (el.checkValidity()) clearInvalid(el);
+  });
+
+  form.addEventListener('submit', (event) => {
+    let valid = true;
+    const messages = [];
+    form.querySelectorAll('input, select, textarea').forEach((control) => {
+      if (control.disabled || control.type === 'hidden' || control.type === 'submit' || control.type === 'button') return;
+      clearInvalid(control);
+      if (!control.checkValidity()) {
+        valid = false;
+        markInvalid(control, control.validationMessage || 'This field is required.');
+        const label = form.querySelector(`label[for="${control.id}"]`) || control.closest('[class*="col-"]')?.querySelector('.form-label');
+        messages.push((label?.textContent || control.name).replace('*', '').trim() + ': ' + (control.validationMessage || 'Invalid'));
+      }
+    });
+    if (!valid) {
+      event.preventDefault();
+      showBanner(messages.slice(0, 12));
+      scrollToFirstInvalid();
+      return;
+    }
+    const btn = document.getElementById('studentFormSubmit');
+    if (btn && !btn.dataset.loading) {
+      btn.dataset.loading = '1';
+      btn.setAttribute('aria-busy', 'true');
+      btn.disabled = true;
+      btn.insertAdjacentHTML('afterbegin', '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>');
+    }
+  });
+})();
+
+  // dependent streams
   (function(){
     const classroomSelect = document.querySelector('select[name="classroom_id"]');
     const streamSelect = document.querySelector('select[name="stream_id"]');
@@ -630,6 +744,11 @@
     document.getElementById('copy_family_from_student_id').value = '';
     const display = document.getElementById('family_link_display');
     if (display) display.value = '';
+    const banner = document.getElementById('siblingLinkBanner');
+    if (banner) {
+      banner.classList.remove('is-visible');
+      banner.textContent = '';
+    }
   });
 
   // transport visibility + own-means trip toggle
@@ -642,7 +761,7 @@
     const morningTrip = document.getElementById('morning_trip_id');
     const eveningTrip = document.getElementById('evening_trip_id');
     const amount = document.getElementById('transport_fee_amount');
-    const ownMeansId = @json($ownMeansId);
+    const ownMeansId = @json($ownMeansId ?? null);
 
     function transportOn() {
       return !!yes?.checked;
@@ -680,7 +799,7 @@
     syncFields();
   })();
 
-  // stream required if classroom has streams (options loaded via getStreams)
+  // stream required if classroom has streams
   (function(){
     const classroomSelect = document.querySelector('select[name="classroom_id"]');
     const streamSelect = document.querySelector('select[name="stream_id"]');
@@ -688,7 +807,7 @@
     window.updateRequirement = function updateRequirement() {
       if (!classroomSelect || !streamSelect) return;
       const opts = streamSelect.querySelectorAll('option');
-      const hasStreams = opts.length > 1; // more than just "Select Stream"
+      const hasStreams = opts.length > 1;
       if (hasStreams) {
         streamSelect.setAttribute('required', 'required');
         if (hint) hint.textContent = 'Stream is required for the selected classroom.';
@@ -700,10 +819,17 @@
     classroomSelect?.addEventListener('change', ()=> window.updateRequirement && window.updateRequirement());
   })();
 
-  // family: search & select
+  // family: search & select + parent autofill
   (function(){
     const q = document.getElementById('fs_query');
     const box = document.getElementById('fs_results');
+    const banner = document.getElementById('siblingLinkBanner');
+
+    function flashField(el) {
+      if (!el) return;
+      el.classList.add('student-form-field-flash');
+      setTimeout(() => el.classList.remove('student-form-field-flash'), 1100);
+    }
 
     let t=null;
     q?.addEventListener('input', ()=>{
@@ -726,7 +852,6 @@
             const display = document.getElementById('family_link_display');
             if (display) display.value = `${r.admission_number} — ${r.full_name}${cls}`;
 
-            // Fetch parent/family data and auto-fill the form (still editable)
             fetch(`{{ route('api.students.family-link-preview', ['student' => '__ID__']) }}`.replace('__ID__', r.id), {
               headers: { 'Accept': 'application/json' }
             })
@@ -735,17 +860,16 @@
               const data = payload?.data || payload;
               if (!data) return;
 
-              // Set family_id (used on submit)
               const fam = document.getElementById('family_id');
               if (fam) fam.value = data.family_id || '';
 
-              // Parent fields
               const p = data.parent || {};
               const setVal = (name, val) => {
                 const el = document.querySelector(`[name="${name}"]`);
                 if (!el) return;
-                if (val === undefined || val === null) return;
+                if (val === undefined || val === null || val === '') return;
                 el.value = val;
+                flashField(el);
               };
               setVal('marital_status', p.marital_status || '');
               setVal('father_first_name', p.father_first_name || p.father_name || '');
@@ -781,8 +905,18 @@
               setVal('mother_whatsapp', p.mother_whatsapp_local || '');
               setVal('guardian_phone', p.guardian_phone_local || '');
               setVal('guardian_whatsapp', p.guardian_whatsapp_local || '');
+
+              if (banner) {
+                banner.textContent = `Linked to ${r.full_name}. Parent details were filled below — review them, then submit to keep both students in the same family.`;
+                banner.classList.add('is-visible');
+              }
             })
-            .catch(() => {});
+            .catch(() => {
+              if (banner) {
+                banner.textContent = `Sibling selected (${r.full_name}). Parent preview could not load — fill parent details manually before submit.`;
+                banner.classList.add('is-visible');
+              }
+            });
 
             const modal = bootstrap.Modal.getInstance(document.getElementById('familySearchModal'));
             modal?.hide();
@@ -792,5 +926,99 @@
       }, 300);
     });
   })();
+
+@if($mode === 'create')
+(function () {
+  const wrap = document.getElementById('duplicate-confirm-wrap');
+  const list = document.getElementById('duplicate-match-list');
+  const message = document.getElementById('duplicate-confirm-message');
+  if (!wrap || !list) return;
+
+  const checkUrl = @json(route('students.duplicate-check'));
+  const form = document.getElementById('studentAdmissionForm');
+  let timer = null;
+
+  const field = (name) => form?.querySelector(`[name="${name}"]`);
+
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[ch]));
+  }
+
+  function renderMatches(matches) {
+    if (!matches.length) {
+      list.innerHTML = '';
+      wrap.classList.add('d-none');
+      return;
+    }
+    wrap.classList.remove('d-none');
+    list.innerHTML = '<ul class="list-unstyled mb-0">' + matches.map((match) => {
+      const extra = match.admission_number
+        ? ` (${escapeHtml(match.admission_number)})`
+        : (match.application_no ? ` (${escapeHtml(match.application_no)})` : '');
+      const badgeClass = match.confidence === 'high' ? 'bg-danger' : 'bg-warning text-dark';
+      const open = match.url
+        ? `<a href="${escapeHtml(match.url)}" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">Open</a>`
+        : '';
+      return `<li class="d-flex flex-wrap align-items-start justify-content-between gap-2 py-2 border-bottom">
+        <div>
+          <div class="fw-semibold">${escapeHtml(match.full_name)}${extra}</div>
+          <div class="small text-muted">${escapeHtml(match.source_label || '')}${match.status ? ' · ' + escapeHtml(match.status) : ''}${match.classroom ? ' · ' + escapeHtml(match.classroom) : ''}</div>
+          <div class="small"><span class="badge ${badgeClass}">${escapeHtml(match.reason_label || '')}</span></div>
+        </div>
+        ${open}
+      </li>`;
+    }).join('') + '</ul>';
+  }
+
+  function runCheck() {
+    const first = (field('first_name')?.value || '').trim();
+    const last = (field('last_name')?.value || '').trim();
+    const dob = (field('dob')?.value || '').trim();
+    const nemis = (field('nemis_number')?.value || '').trim();
+    const knec = (field('knec_assessment_number')?.value || '').trim();
+    if ((!first || !last || !dob) && !nemis && !knec) {
+      if (!@json(!empty(session('duplicate_matches')))) {
+        renderMatches([]);
+      }
+      return;
+    }
+    const params = new URLSearchParams({
+      first_name: first,
+      middle_name: field('middle_name')?.value || '',
+      last_name: last,
+      dob,
+      gender: field('gender')?.value || '',
+      nemis_number: nemis,
+      knec_assessment_number: knec,
+      admission_number: field('admission_number')?.value || '',
+    });
+    fetch(checkUrl + '?' + params.toString(), {
+      headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.message) message.textContent = data.message;
+        renderMatches(data.matches || []);
+      })
+      .catch(() => {});
+  }
+
+  ['first_name', 'middle_name', 'last_name', 'dob', 'gender', 'nemis_number', 'knec_assessment_number', 'admission_number']
+    .forEach((name) => {
+      const el = field(name);
+      if (!el) return;
+      el.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(runCheck, 450);
+      });
+      el.addEventListener('change', () => {
+        clearTimeout(timer);
+        timer = setTimeout(runCheck, 150);
+      });
+    });
+})();
+@endif
 </script>
 @endpush

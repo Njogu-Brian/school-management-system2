@@ -9,7 +9,7 @@
             'subtitle' => $extraIncome->kindLabel()
                 . ' · Term ' . $extraIncome->term . ' ' . $extraIncome->year
                 . ' · Ksh ' . number_format($extraIncome->amount, 2)
-                . ($extraIncome->classroom ? ' · ' . $extraIncome->classroom->name : ''),
+                . ' · ' . $extraIncome->classroomNames(),
             'actions' => '<a href="' . route('finance.extra-income.edit', $extraIncome) . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-pencil"></i> Edit</a>'
                 . '<a href="' . route('finance.extra-income.index') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-arrow-left"></i> All extra income</a>',
         ])
@@ -21,22 +21,22 @@
                 @if($extraIncome->isSwimming())
                     <p class="mb-0">
                         When you split a fees payment, the amount you assign to this swimming charge is credited to that child's swimming wallet.
-                        @if($extraIncome->classroom)
-                            Only {{ $extraIncome->classroom->name }} can use it.
+                        @if($extraIncome->hasClassRestriction())
+                            Only {{ $extraIncome->classroomNames() }} can use it.
                         @else
                             Any student can use it.
                         @endif
                     </p>
                 @else
                     <p class="mb-3">
-                        Students in {{ $extraIncome->classroom->name ?? 'the class' }} can have part of a fees payment applied to this {{ strtolower($extraIncome->kindLabel()) }}.
+                        Students in {{ $extraIncome->classroomNames() }} can have part of a fees payment applied to this {{ strtolower($extraIncome->kindLabel()) }}.
                         The amount is posted on their term invoice as <strong>{{ $extraIncome->votehead->name ?? $extraIncome->name }}</strong>, separate from school fees.
                     </p>
-                    @if($extraIncome->classroom_id)
+                    @if($extraIncome->hasClassRestriction())
                         <form method="POST" action="{{ route('finance.extra-income.charge', $extraIncome) }}" class="d-inline">
                             @csrf
                             <button type="submit" class="btn btn-finance btn-finance-primary">
-                                <i class="bi bi-receipt"></i> Charge this class
+                                <i class="bi bi-receipt"></i> Charge selected classes
                             </button>
                         </form>
                     @endif
@@ -47,7 +47,7 @@
         @if($students->isNotEmpty())
             <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4">
                 <div class="finance-card-header">
-                    <h5 class="mb-0">{{ $extraIncome->classroom->name }}</h5>
+                    <h5 class="mb-0">{{ $extraIncome->classroomNames() }}</h5>
                 </div>
                 <div class="finance-card-body p-0">
                     <div class="table-responsive">
@@ -55,6 +55,7 @@
                             <thead class="table-light">
                                 <tr>
                                     <th>Student</th>
+                                    <th>Class</th>
                                     <th class="text-end">Charged</th>
                                     <th class="text-end">Paid</th>
                                     <th class="text-end">Balance</th>
@@ -77,6 +78,7 @@
                                             <div class="fw-semibold">{{ $student->full_name }}</div>
                                             <div class="small text-muted">{{ $student->admission_number }}</div>
                                         </td>
+                                        <td>{{ $student->classroom->name ?? '—' }}</td>
                                         <td class="text-end">{{ $charged > 0 ? 'Ksh ' . number_format($charged, 2) : '—' }}</td>
                                         <td class="text-end">Ksh {{ number_format($paid, 2) }}</td>
                                         <td class="text-end">{{ $charged > 0 ? 'Ksh ' . number_format($balance, 2) : '—' }}</td>

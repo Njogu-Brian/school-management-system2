@@ -20,8 +20,9 @@ class ExtraIncomeService
             throw new \RuntimeException('Swimming is credited to the swimming wallet when you split a payment. It is not billed as a class invoice.');
         }
 
-        if (!$item->classroom_id) {
-            throw new \RuntimeException('Choose a class before charging students.');
+        $classroomIds = $item->classroomIds();
+        if ($classroomIds === []) {
+            throw new \RuntimeException('Choose at least one class before charging students.');
         }
 
         if (!$item->votehead_id) {
@@ -29,7 +30,7 @@ class ExtraIncomeService
         }
 
         $students = Student::query()
-            ->where('classroom_id', $item->classroom_id)
+            ->whereIn('classroom_id', $classroomIds)
             ->where('archive', 0)
             ->where('is_alumni', false)
             ->get();
@@ -60,8 +61,8 @@ class ExtraIncomeService
             throw new \RuntimeException("{$item->name} uses a swimming votehead. Set the type to Swimming so the split credits the swimming wallet.");
         }
 
-        if ($item->classroom_id && (int) $student->classroom_id !== (int) $item->classroom_id) {
-            $className = $item->classroom?->name ?? 'the scheduled class';
+        if ($item->hasClassRestriction() && !$item->allowsClassroom((int) $student->classroom_id)) {
+            $className = $item->classroomNames();
             throw new \RuntimeException("{$student->full_name} is not in {$className}, so this payment cannot go to {$item->name}.");
         }
 

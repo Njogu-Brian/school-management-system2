@@ -488,25 +488,26 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     <a href="{{ route('finance.bank-accounts.index') }}" class="{{ Request::is('finance/bank-accounts*') ? 'active' : '' }}"><i class="bi bi-bank"></i> Bank Accounts</a>
     <a href="{{ route('finance.payment-methods.index') }}" class="{{ Request::is('finance/payment-methods*') ? 'active' : '' }}"><i class="bi bi-credit-card"></i> Payment Methods</a>
     
-    {{-- Swimming Management (Payment Related) --}}
+    {{-- Extra income: trips/activities, swimming, uniforms --}}
     @php
-        $swimmingActive = Request::is('swimming*');
-        $activityFeesActive = Request::is('activity-fees*') || Request::is('finance/extra-income*');
+        $extraIncomeNavActive = Request::is('finance/extra-income*')
+            || Request::is('activity-fees*')
+            || Request::is('swimming*')
+            || Request::is('pos/uniforms*');
     @endphp
-    <a href="#swimmingMenu" data-bs-toggle="collapse" aria-expanded="{{ $swimmingActive ? 'true' : 'false' }}" class="{{ $swimmingActive ? 'parent-active' : '' }}"><i class="bi bi-water"></i> Swimming Management</a>
-    <div class="collapse {{ $swimmingActive ? 'show' : '' }}" id="swimmingMenu" style="padding-left: 20px;">
-        <a href="{{ route('swimming.wallets.index') }}" class="sublink {{ Request::is('swimming/wallets*') ? 'active' : '' }}"><i class="bi bi-wallet2"></i> Wallets</a>
-        <a href="{{ route('swimming.payments.create') }}" class="sublink {{ Request::is('swimming/payments/create') ? 'active' : '' }}"><i class="bi bi-cash-stack"></i> Create Payment</a>
-        <a href="{{ route('swimming.attendance.create') }}" class="sublink {{ Request::is('swimming/attendance') && !Request::is('swimming/attendance/records*') ? 'active' : '' }}"><i class="bi bi-calendar-check"></i> Mark Attendance</a>
-        <a href="{{ route('swimming.attendance.index') }}" class="sublink {{ Request::is('swimming/attendance/records*') ? 'active' : '' }}"><i class="bi bi-journal-text"></i> View Records & Reports</a>
-        <a href="{{ route('swimming.settings.index') }}" class="sublink {{ Request::is('swimming/settings*') ? 'active' : '' }}"><i class="bi bi-gear"></i> Settings</a>
-    </div>
-
-    <a href="#activityFeesMenu" data-bs-toggle="collapse" aria-expanded="{{ $activityFeesActive ? 'true' : 'false' }}" class="{{ $activityFeesActive ? 'parent-active' : '' }}"><i class="bi bi-trophy"></i> Activity fees</a>
-    <div class="collapse {{ $activityFeesActive ? 'show' : '' }}" id="activityFeesMenu" style="padding-left: 20px;">
-        <a href="{{ route('finance.extra-income.index') }}" class="sublink {{ Request::is('finance/extra-income*') ? 'active' : '' }}"><i class="bi bi-piggy-bank"></i> Extra income</a>
-        <a href="{{ route('activity-fees.index') }}" class="sublink {{ Request::is('activity-fees') && !Request::is('activity-fees/*') ? 'active' : '' }}"><i class="bi bi-list-ul"></i> Activities & rosters</a>
+    <a href="#extraIncomeMenu" data-bs-toggle="collapse" aria-expanded="{{ $extraIncomeNavActive ? 'true' : 'false' }}" class="{{ $extraIncomeNavActive ? 'parent-active' : '' }}"><i class="bi bi-piggy-bank"></i> Extra income</a>
+    <div class="collapse {{ $extraIncomeNavActive ? 'show' : '' }}" id="extraIncomeMenu" style="padding-left: 20px;">
+        <a href="{{ route('finance.extra-income.index') }}" class="sublink {{ Request::is('finance/extra-income*') ? 'active' : '' }}"><i class="bi bi-cash-coin"></i> Trips &amp; activity fees</a>
+        <a href="{{ route('activity-fees.index') }}" class="sublink {{ Request::is('activity-fees') && !Request::is('activity-fees/*') ? 'active' : '' }}"><i class="bi bi-list-ul"></i> Activities &amp; rosters</a>
         <a href="{{ route('activity-fees.parent-requests.index') }}" class="sublink {{ Request::is('activity-fees/parent-requests*') ? 'active' : '' }}"><i class="bi bi-person-check"></i> Parent join / leave</a>
+        <a href="{{ route('swimming.wallets.index') }}" class="sublink {{ Request::is('swimming/wallets*') ? 'active' : '' }}"><i class="bi bi-wallet2"></i> Swimming wallets</a>
+        <a href="{{ route('swimming.payments.create') }}" class="sublink {{ Request::is('swimming/payments/create') ? 'active' : '' }}"><i class="bi bi-water"></i> Swimming payment</a>
+        <a href="{{ route('swimming.attendance.create') }}" class="sublink {{ Request::is('swimming/attendance') && !Request::is('swimming/attendance/records*') ? 'active' : '' }}"><i class="bi bi-calendar-check"></i> Swimming attendance</a>
+        <a href="{{ route('swimming.attendance.index') }}" class="sublink {{ Request::is('swimming/attendance/records*') ? 'active' : '' }}"><i class="bi bi-journal-text"></i> Swimming records</a>
+        <a href="{{ route('swimming.settings.index') }}" class="sublink {{ Request::is('swimming/settings*') ? 'active' : '' }}"><i class="bi bi-gear"></i> Swimming settings</a>
+        @if(Route::has('pos.uniforms.index'))
+            <a href="{{ route('pos.uniforms.index') }}" class="sublink {{ Request::is('pos/uniforms*') ? 'active' : '' }}"><i class="bi bi-person-badge"></i> Uniforms</a>
+        @endif
     </div>
     
     {{-- Legacy Imports (Payment Related) --}}
@@ -1006,10 +1007,6 @@ class="{{ $posActive ? 'parent-active' : '' }}">
     <a href="{{ route('pos.public-links.index') }}" 
     class="sublink {{ Request::is('pos/public-links*') ? 'active' : '' }}">
         <i class="bi bi-link-45deg"></i> Public Links
-    </a>
-    <a href="{{ route('pos.uniforms.index') }}" 
-    class="sublink {{ Request::is('pos/uniforms*') ? 'active' : '' }}">
-        <i class="bi bi-person-badge"></i> Uniforms
     </a>
 </div>
 @endif
