@@ -27,6 +27,8 @@
 <form method="POST" action="{{ route('communication.send.whatsapp.submit') }}" class="row g-4">
     @csrf
 
+    @include('communication.partials.name-style-field', ['nameStyleIdPrefix' => 'wa_name_style'])
+
     {{-- Template --}}
     <div class="col-12 col-lg-4 wa-mode wa-mode-template">
         <label class="form-label fw-semibold">Template</label>

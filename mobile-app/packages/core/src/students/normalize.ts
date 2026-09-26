@@ -6,6 +6,7 @@ import type {
   StudentSummary,
 } from '../types/student';
 import { mapEmergencyContact, mapGuardians, mapParentBlock, mapSiblings } from './family';
+import { resolvePersonFullName } from '../utils/personName';
 
 export function toStudentSummary(
   raw: StudentRecord,
@@ -15,7 +16,7 @@ export function toStudentSummary(
   return {
     id: raw.id,
     admissionNumber: raw.admission_number ?? '',
-    fullName: raw.full_name?.trim() || `${raw.first_name} ${raw.last_name}`.trim(),
+    fullName: resolvePersonFullName(raw),
     className: raw.class_name ?? null,
     streamName: raw.stream_name ?? null,
     classroomId,

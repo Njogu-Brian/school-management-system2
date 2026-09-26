@@ -158,7 +158,9 @@ class BulkSendEmail implements ShouldQueue
                     );
                     continue;
                 }
-                $personalized = replace_placeholders($this->message, $entity);
+                $personalized = replace_placeholders($this->message, $entity, [
+                    'name_style' => Cache::get('comm_name_style:'.$this->trackingId) ?? communication_name_style(),
+                ]);
                 Mail::to($email)->send(new GenericMail($this->subject, $personalized, $this->attachmentPath));
 
                 $sentCount++;

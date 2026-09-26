@@ -256,8 +256,7 @@ class Student extends Model
 
     public function getFullNameAttribute()
     {
-        $parts = array_filter([$this->first_name, $this->middle_name, $this->last_name]);
-        return implode(' ', $parts);
+        return format_person_name($this->first_name, $this->middle_name, $this->last_name);
     }
 
     /**
@@ -468,8 +467,7 @@ class Student extends Model
     }
     public function getNameAttribute()
     {
-        $parts = array_filter([$this->first_name, $this->middle_name, $this->last_name]);
-        return implode(' ', $parts);
+        return format_person_name($this->first_name, $this->middle_name, $this->last_name);
     }
 
     public function getPhotoUrlAttribute(): string
@@ -510,7 +508,7 @@ class Student extends Model
         }
 
         // Nice initials fallback (no "av" weirdness)
-        $name = trim($this->first_name . ' ' . $this->last_name);
+        $name = format_person_name($this->first_name, $this->middle_name, $this->last_name);
         return 'https://ui-avatars.com/api/?name=' . urlencode($name) . '&background=6c63ff&color=fff&size=128&rounded=true';
     }
 

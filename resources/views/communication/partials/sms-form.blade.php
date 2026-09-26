@@ -68,6 +68,8 @@
         <small class="text-muted d-block mt-1">Finance communications? pick Finance sender.</small>
     </div>
 
+    @include('communication.partials.name-style-field', ['nameStyleIdPrefix' => 'sms_name_style'])
+
     <div class="col-lg-4 sms-target-field sms-target-class d-none">
         <label class="form-label fw-semibold">Classroom(s)</label>
         <select name="classroom_ids[]" class="form-select" multiple size="5">

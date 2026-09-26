@@ -58,7 +58,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'com.edulynk.app',
-    versionCode: 4,
+    versionCode: 2,
     softwareKeyboardLayoutMode: 'resize',
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',

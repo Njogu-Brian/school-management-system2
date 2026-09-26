@@ -14,12 +14,25 @@
     @include('finance.invoices.partials.alerts')
 
     <div class="finance-filter-card finance-animate shadow-sm rounded-4 border-0 mb-4">
-      <form method="GET" action="{{ route('activity-fees.attendance', $votehead) }}" class="row g-3">
-        <input type="hidden" name="year" value="{{ $year }}">
-        <input type="hidden" name="term" value="{{ $term }}">
-        <div class="col-md-4">
+      <form method="GET" action="{{ route('activity-fees.attendance', $votehead) }}" class="row g-3 align-items-end">
+        <div class="col-md-3">
+          <label class="finance-form-label">Year</label>
+          <input type="number" name="year" class="finance-form-control" value="{{ $year }}" min="2000" max="2100">
+        </div>
+        <div class="col-md-3">
+          <label class="finance-form-label">Term</label>
+          <select name="term" class="finance-form-select">
+            @foreach([1,2,3] as $t)
+              <option value="{{ $t }}" {{ (int)$term === $t ? 'selected' : '' }}>Term {{ $t }}</option>
+            @endforeach
+          </select>
+        </div>
+        <div class="col-md-3">
           <label class="finance-form-label">Date</label>
-          <input type="date" name="date" class="finance-form-control" value="{{ $date }}" onchange="this.form.submit()">
+          <input type="date" name="date" class="finance-form-control" value="{{ $date }}">
+        </div>
+        <div class="col-md-3">
+          <button type="submit" class="btn btn-finance btn-finance-primary">Apply</button>
         </div>
       </form>
     </div>

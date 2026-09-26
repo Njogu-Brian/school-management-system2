@@ -40,6 +40,69 @@ if (!function_exists('setting_bool')) {
 }
 
 /**
+ * Format a person as First Middle Last, omitting blank parts.
+ */
+if (!function_exists('format_person_name')) {
+    function format_person_name(?string $first = null, ?string $middle = null, ?string $last = null): string
+    {
+        return trim(collect([$first, $middle, $last])
+            ->map(fn ($part) => is_string($part) ? trim($part) : '')
+            ->filter(fn ($part) => $part !== '')
+            ->implode(' '));
+    }
+}
+
+/**
+ * Communication default for {{student_name}} / {{staff_name}}: "full" or "first".
+ */
+if (!function_exists('communication_name_style')) {
+    function communication_name_style(?string $override = null): string
+    {
+        $style = strtolower(trim((string) ($override ?: setting('communication_name_style', 'full'))));
+
+        return in_array($style, ['full', 'first'], true) ? $style : 'full';
+    }
+}
+
+/**
+ * Display name for a Student/Staff (or array/object with name parts).
+ * $style: null = always full (UI/reports); "full"|"first" for messaging.
+ */
+if (!function_exists('person_display_name')) {
+    function person_display_name($entity, ?string $style = null): string
+    {
+        if ($entity === null) {
+            return '';
+        }
+
+        $first = is_object($entity) ? ($entity->first_name ?? null) : ($entity['first_name'] ?? null);
+        $middle = is_object($entity) ? ($entity->middle_name ?? null) : ($entity['middle_name'] ?? null);
+        $last = is_object($entity) ? ($entity->last_name ?? null) : ($entity['last_name'] ?? null);
+
+        $full = format_person_name(
+            is_string($first) ? $first : null,
+            is_string($middle) ? $middle : null,
+            is_string($last) ? $last : null
+        );
+
+        // Prefer model accessor when already First Middle Last and we need full
+        if ($full === '' && is_object($entity)) {
+            $full = (string) ($entity->full_name ?? $entity->name ?? '');
+        }
+
+        $resolved = $style === null ? 'full' : communication_name_style($style);
+        if ($resolved === 'first') {
+            $firstOnly = trim((string) ($first ?? ''));
+
+            return $firstOnly !== '' ? $firstOnly : $full;
+        }
+
+        return $full;
+    }
+}
+
+
+/**
  * Set boolean setting value
  */
 if (!function_exists('setting_set_bool')) {
@@ -739,7 +802,10 @@ if (!function_exists('replace_placeholders')) {
 
         // Student-specific placeholders
         if ($entity instanceof \App\Models\Student) {
-            $studentName = $entity->full_name ?? $entity->name ?? trim(($entity->first_name ?? '').' '.($entity->last_name ?? ''));
+            $nameStyle = communication_name_style($extra['name_style'] ?? null);
+            $studentFullName = person_display_name($entity, 'full');
+            $studentFirstName = person_display_name($entity, 'first');
+            $studentName = $nameStyle === 'first' ? $studentFirstName : $studentFullName;
             $admissionNo = $entity->admission_number ?? $entity->admission_no ?? '';
             $className = optional($entity->classroom)->name ?? '';
             $streamName = optional($entity->stream)->name ?? '';
@@ -759,6 +825,8 @@ if (!function_exists('replace_placeholders')) {
             
             $replacements += [
                 '{{student_name}}' => $studentName,
+                '{{student_full_name}}' => $studentFullName,
+                '{{student_first_name}}' => $studentFirstName,
                 '{{admission_number}}' => $admissionNo,
                 '{{admission_no}}' => $admissionNo,
                 '{{class_name}}'   => $classAndStream,
@@ -770,6 +838,8 @@ if (!function_exists('replace_placeholders')) {
                 
                 // Legacy single brace
                 '{student_name}' => $studentName,
+                '{student_full_name}' => $studentFullName,
+                '{student_first_name}' => $studentFirstName,
                 '{admission_number}' => $admissionNo,
                 '{admission_no}' => $admissionNo,
                 '{class_name}'   => $classAndStream,
@@ -873,14 +943,21 @@ if (!function_exists('replace_placeholders')) {
                 $replacements['{swimming_balance}'] = $swimBalStr;
             }
         } elseif ($entity instanceof \App\Models\Staff) {
-            $staffName = $entity->full_name ?? trim(($entity->first_name ?? '').' '.($entity->last_name ?? ''));
+            $nameStyle = communication_name_style($extra['name_style'] ?? null);
+            $staffFullName = person_display_name($entity, 'full');
+            $staffFirstName = person_display_name($entity, 'first');
+            $staffName = $nameStyle === 'first' ? $staffFirstName : $staffFullName;
             $replacements += [
                 '{{staff_name}}' => $staffName,
+                '{{staff_full_name}}' => $staffFullName,
+                '{{staff_first_name}}' => $staffFirstName,
                 '{{role}}'       => $entity->role ?? '',
                 '{{experience}}' => $entity->experience ?? '',
                 
                 // Legacy single brace
                 '{staff_name}' => $staffName,
+                '{staff_full_name}' => $staffFullName,
+                '{staff_first_name}' => $staffFirstName,
                 '{role}'       => $entity->role ?? '',
                 '{experience}' => $entity->experience ?? '',
             ];
@@ -989,7 +1066,7 @@ if (!function_exists('parent_recipient_placeholder_extra')) {
  * like "Dear Parent, {{student_name}}" still work (e.g. Dear Parent, Hailey Moraa Kamau).
  */
 if (!function_exists('personalize_message_for_parent_recipient')) {
-    function personalize_message_for_parent_recipient(string $message, $entity, ?array $parentMeta): ?string
+    function personalize_message_for_parent_recipient(string $message, $entity, ?array $parentMeta, array $extraOverrides = []): ?string
     {
         if ($entity === null) {
             return null;
@@ -1024,6 +1101,10 @@ if (!function_exists('personalize_message_for_parent_recipient')) {
                     'error' => $e->getMessage(),
                 ]);
             }
+        }
+
+        if ($extraOverrides !== []) {
+            $extra = array_merge($extra, $extraOverrides);
         }
 
         return replace_placeholders($message, $entity, $extra);

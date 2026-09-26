@@ -22,18 +22,30 @@ class ExtraIncomeController extends Controller
     {
     }
 
-    public function index()
+    public function index(\Illuminate\Http\Request $request)
     {
+        [$activeYear, $activeTerm] = $this->activeYearAndTerm();
+
+        $year = (int) $request->get('year', $activeYear);
+        $term = (int) $request->get('term', $activeTerm);
+
         $items = ExtraIncomeItem::query()
             ->with(['classroom', 'classrooms', 'votehead', 'academicYear'])
             ->withCount('allocations')
+            ->when($year > 0, fn ($q) => $q->where('year', $year))
+            ->when($term > 0, fn ($q) => $q->where('term', $term))
             ->orderByDesc('is_active')
             ->orderByDesc('year')
             ->orderByDesc('term')
             ->orderBy('name')
             ->get();
 
-        return view('finance.extra-income.index', compact('items'));
+        $years = AcademicYear::query()->orderByDesc('year')->pluck('year');
+        if ($years->isEmpty()) {
+            $years = collect([$activeYear]);
+        }
+
+        return view('finance.extra-income.index', compact('items', 'year', 'term', 'years', 'activeYear', 'activeTerm'));
     }
 
     public function create()
@@ -215,25 +227,45 @@ class ExtraIncomeController extends Controller
     protected function formData(): array
     {
         $years = AcademicYear::query()->orderByDesc('year')->get();
-        $currentYear = $years->firstWhere('is_active', true) ?? $years->first();
+        $currentYear = get_current_academic_year_model()
+            ?? $years->firstWhere('is_active', true)
+            ?? $years->first();
+        [, $currentTerm] = $this->activeYearAndTerm();
 
         return [
             'kinds' => ExtraIncomeItem::KINDS,
+            // Include every classroom (same as optional fees / posting). Alumni-only
+            // classes with no learners are still harmless; Grade 9 must not disappear
+            // when is_alumni was set incorrectly.
             'classrooms' => Classroom::query()
-                ->where(function ($q) {
-                    $q->where('is_alumni', false)->orWhereNull('is_alumni');
-                })
+                ->orderByRaw('CASE WHEN level IS NULL OR level = 0 THEN 999 ELSE level END')
                 ->orderBy('name')
                 ->get(),
             'years' => $years,
             'currentYearId' => $currentYear?->id,
-            'currentTerm' => (int) setting('current_term', 1),
+            'currentTerm' => $currentTerm,
             'voteheads' => Votehead::query()
                 ->where('is_active', true)
                 ->where('is_mandatory', false)
                 ->orderBy('name')
                 ->get(),
         ];
+    }
+
+    /**
+     * @return array{0: int, 1: int} [year, termNumber]
+     */
+    protected function activeYearAndTerm(): array
+    {
+        $year = get_current_academic_year()
+            ?? (int) (AcademicYear::query()->where('is_active', true)->value('year') ?: date('Y'));
+        $term = get_current_term_number()
+            ?? (int) setting('current_term', 1);
+        if ($term < 1 || $term > 3) {
+            $term = 1;
+        }
+
+        return [(int) $year, (int) $term];
     }
 
     /**

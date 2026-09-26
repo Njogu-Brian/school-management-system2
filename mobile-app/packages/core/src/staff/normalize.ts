@@ -6,6 +6,7 @@ import type {
   StaffRecord,
   StaffSummary,
 } from '../types/staff';
+import { resolvePersonFullName } from '../utils/personName';
 
 function normalizeEmploymentStatus(
   raw?: string | null,
@@ -22,7 +23,7 @@ export function toStaffSummary(raw: StaffRecord): StaffSummary {
   return {
     id: raw.id,
     employeeNumber: raw.staff_id ?? raw.employee_number ?? '',
-    fullName: raw.full_name?.trim() || `${raw.first_name ?? ''} ${raw.last_name ?? ''}`.trim(),
+    fullName: resolvePersonFullName(raw),
     departmentName: raw.department ?? null,
     jobTitle: raw.job_title ?? raw.designation ?? null,
     systemRole: raw.system_role ?? raw.role ?? null,

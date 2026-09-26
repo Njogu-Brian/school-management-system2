@@ -21,6 +21,7 @@ export * from './utils/downloadFile';
 export * from './utils/errors';
 export * from './utils/greeting';
 export * from './utils/passwordPolicy';
+export * from './utils/personName';
 export * from './hooks/useNetworkStatus';
 export * from './hooks/useOfflineSearch';
 export * from './hooks/useSyncQueue';

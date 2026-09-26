@@ -143,7 +143,7 @@ class ApiInvoiceController extends Controller
             'id' => $inv->id,
             'invoice_number' => $inv->invoice_number ?? (string) $inv->id,
             'student_id' => $inv->student_id,
-            'student_name' => $student ? trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')) : null,
+            'student_name' => $student ? person_display_name($student, 'full') : null,
             'student_admission_number' => $student->admission_number ?? null,
             'term_id' => $inv->term_id,
             'academic_year_id' => $inv->academic_year_id,

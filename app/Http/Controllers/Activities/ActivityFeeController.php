@@ -16,12 +16,22 @@ class ActivityFeeController extends Controller
 {
     protected function currentYear(): int
     {
-        return (int) setting('current_year', date('Y'));
+        return (int) (
+            get_current_academic_year()
+            ?? \App\Models\AcademicYear::query()->where('is_active', true)->value('year')
+            ?? setting('current_year', date('Y'))
+            ?? date('Y')
+        );
     }
 
     protected function currentTerm(): int
     {
-        return (int) setting('current_term', 1);
+        $term = get_current_term_number() ?? (int) setting('current_term', 1);
+        if ($term < 1 || $term > 3) {
+            $term = 1;
+        }
+
+        return (int) $term;
     }
 
     protected function resolveActivityVotehead(Votehead $votehead): Votehead
@@ -57,15 +67,18 @@ class ActivityFeeController extends Controller
         return $q->pluck('student_id')->unique()->values();
     }
 
-    public function index()
+    public function index(Request $request)
     {
         $voteheads = Votehead::query()
             ->activityFees()
             ->orderBy('name')
             ->get();
 
-        $year = $this->currentYear();
-        $term = $this->currentTerm();
+        $year = (int) $request->get('year', $this->currentYear());
+        $term = (int) $request->get('term', $this->currentTerm());
+        if ($term < 1 || $term > 3) {
+            $term = $this->currentTerm();
+        }
 
         $counts = OptionalFee::query()
             ->selectRaw('votehead_id, COUNT(DISTINCT student_id) as c')

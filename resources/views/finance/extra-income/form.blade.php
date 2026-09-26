@@ -23,7 +23,7 @@
 
     <div class="col-md-6">
         <label class="finance-form-label" for="classroom_ids">Classes <span class="text-danger" id="classRequiredMark">*</span></label>
-        <select name="classroom_ids[]" id="classroom_ids" class="finance-form-select" multiple size="8">
+        <select name="classroom_ids[]" id="classroom_ids" class="finance-form-select" multiple size="12">
             @foreach($classrooms as $classroom)
                 <option value="{{ $classroom->id }}" {{ in_array((string) $classroom->id, $selectedClassroomIds, true) ? 'selected' : '' }}>
                     {{ $classroom->name }}

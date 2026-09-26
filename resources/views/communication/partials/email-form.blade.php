@@ -53,6 +53,8 @@
         <small class="text-muted d-block mt-1">Tip: insert placeholders like @{{student_name}} to personalize.</small>
     </div>
 
+    @include('communication.partials.name-style-field', ['nameStyleIdPrefix' => 'email_name_style'])
+
     {{-- Common targeting --}}
     <div class="col-lg-4">
         <label class="form-label fw-semibold">Target *</label>

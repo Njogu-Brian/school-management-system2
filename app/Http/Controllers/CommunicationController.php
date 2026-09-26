@@ -120,11 +120,13 @@ class CommunicationController extends Controller
             'attachment'     => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,mp4,mov,avi,webm|max:20480',
             'schedule'       => 'nullable|string|in:now,later',
             'send_at'        => 'nullable|date',
+            'name_style'     => 'nullable|in:full,first',
         ]);
         $data['fee_balance_only'] = !empty($request->boolean('fee_balance_only'));
         $data['no_fee_balance_only'] = !empty($request->boolean('no_fee_balance_only'));
         $data['exclude_staff'] = !empty($request->boolean('exclude_staff'));
         $data = $this->normalizeClassroomIdsForRecipients($data);
+        $nameStyleExtra = ['name_style' => communication_name_style($request->input('name_style'))];
 
         if (! empty($data['template_id']) && ($data['target'] ?? '') === 'custom') {
             return back()->with('error', 'When using a template, select system recipients (parents, staff, class, or students)—not custom numbers/emails.');
@@ -174,6 +176,7 @@ class CommunicationController extends Controller
         $useQueue = count($recipients) > 10 || $request->has('use_queue');
         if ($useQueue) {
             $trackingId = 'email_bulk_' . uniqid() . '_' . time();
+            Cache::put('comm_name_style:'.$trackingId, $nameStyleExtra['name_style'], now()->addDay());
             $recipientsData = [];
             foreach ($recipients as [$email, $entity]) {
                 $recipientsData[] = [
@@ -183,6 +186,7 @@ class CommunicationController extends Controller
                         'classroom_id' => $entity->classroom_id ?? null,
                         'type' => is_object($entity) ? get_class($entity) : null,
                         'first_name' => $entity->first_name ?? null,
+                        'middle_name' => $entity->middle_name ?? null,
                         'last_name' => $entity->last_name ?? null,
                         'admission_number' => $entity->admission_number ?? null,
                     ],
@@ -224,7 +228,7 @@ class CommunicationController extends Controller
 
         foreach ($recipients as [$email, $entity]) {
             try {
-                $personalized = replace_placeholders($messageBody, $entity);
+                $personalized = replace_placeholders($messageBody, $entity, $nameStyleExtra);
                 Mail::to($email)->send(new GenericMail($subject, $personalized, $attachmentPath));
 
                 $sentCount++;
@@ -319,11 +323,13 @@ class CommunicationController extends Controller
             'schedule'       => 'nullable|string|in:now,later',
             'send_at'        => 'nullable|date',
             'sender_id'      => 'nullable|string|in:finance,default,""',
+            'name_style'     => 'nullable|in:full,first',
         ]);
         $data['fee_balance_only'] = !empty($request->boolean('fee_balance_only'));
         $data['no_fee_balance_only'] = !empty($request->boolean('no_fee_balance_only'));
         $data['exclude_staff'] = !empty($request->boolean('exclude_staff'));
         $data = $this->normalizeClassroomIdsForRecipients($data);
+        $nameStyleExtra = ['name_style' => communication_name_style($request->input('name_style'))];
 
         if (! empty($data['template_id']) && ($data['target'] ?? '') === 'custom') {
             return back()->with('error', 'When using a template, select system recipients (parents, staff, class, or students)—not custom numbers.');
@@ -391,7 +397,7 @@ class CommunicationController extends Controller
             $recipientsData = [];
             foreach ($recipients as $recipientRow) {
                 [$phone, $entity, $parentMeta] = array_pad($recipientRow, 3, null);
-                $personalized = personalize_message_for_parent_recipient($message, $entity, $parentMeta);
+                $personalized = personalize_message_for_parent_recipient($message, $entity, $parentMeta, $nameStyleExtra);
                 if ($personalized === null) {
                     continue;
                 }
@@ -405,6 +411,7 @@ class CommunicationController extends Controller
                         'classroom_id' => $entity->classroom_id ?? null,
                         'type' => is_object($entity) ? get_class($entity) : null,
                         'first_name' => $entity->first_name ?? null,
+                        'middle_name' => $entity->middle_name ?? null,
                         'last_name' => $entity->last_name ?? null,
                         'admission_number' => $entity->admission_number ?? null,
                     ],
@@ -446,7 +453,7 @@ class CommunicationController extends Controller
         foreach ($recipients as $recipientRow) {
             [$phone, $entity, $parentMeta] = array_pad($recipientRow, 3, null);
             try {
-                $personalized = personalize_message_for_parent_recipient($message, $entity, $parentMeta);
+                $personalized = personalize_message_for_parent_recipient($message, $entity, $parentMeta, $nameStyleExtra);
                 if ($personalized === null) {
                     continue;
                 }
@@ -593,11 +600,13 @@ class CommunicationController extends Controller
             'schedule'       => 'nullable|string|in:now,later',
             'send_at'        => 'nullable|date',
             'media'          => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,mp4,mov,avi,webm|max:20480',
+            'name_style'     => 'nullable|in:full,first',
         ]);
         $data['fee_balance_only'] = !empty($request->boolean('fee_balance_only'));
         $data['no_fee_balance_only'] = !empty($request->boolean('no_fee_balance_only'));
         $data['exclude_staff'] = !empty($request->boolean('exclude_staff'));
         $data = $this->normalizeClassroomIdsForRecipients($data);
+        $nameStyleExtra = ['name_style' => communication_name_style($request->input('name_style'))];
 
         if (! empty($data['template_id']) && ($data['target'] ?? '') === 'custom') {
             return back()->with('error', 'When using a template, select system recipients (parents, staff, class, or students)—not custom numbers.');
@@ -674,7 +683,7 @@ class CommunicationController extends Controller
                 if ($entity === null) {
                     $personalized = $message;
                 } else {
-                    $personalized = personalize_message_for_parent_recipient($message, $entity, $parentMeta);
+                    $personalized = personalize_message_for_parent_recipient($message, $entity, $parentMeta, $nameStyleExtra);
                     if ($personalized === null) {
                         continue;
                     }
@@ -689,6 +698,7 @@ class CommunicationController extends Controller
                         'classroom_id' => $entity->classroom_id ?? null,
                         'type' => is_object($entity) ? get_class($entity) : null,
                         'first_name' => $entity->first_name ?? null,
+                        'middle_name' => $entity->middle_name ?? null,
                         'last_name' => $entity->last_name ?? null,
                         'admission_number' => $entity->admission_number ?? null,
                     ],
@@ -770,7 +780,7 @@ class CommunicationController extends Controller
                 if ($entity === null) {
                     $personalized = $message;
                 } else {
-                    $personalized = personalize_message_for_parent_recipient($message, $entity, $parentMeta);
+                    $personalized = personalize_message_for_parent_recipient($message, $entity, $parentMeta, $nameStyleExtra);
                     if ($personalized === null) {
                         continue;
                     }
@@ -1335,11 +1345,12 @@ class CommunicationController extends Controller
                     'contact' => $contact,
                     'recipient_id' => $entity->id ?? null,
                     'recipient_type' => $scheduled->target,
-                    'name' => trim(($entity->first_name ?? '') . ' ' . ($entity->last_name ?? '')),
+                    'name' => person_display_name($entity, 'full'),
                     'entity' => [
                         'id' => $entity->id ?? null,
                         'type' => is_object($entity) ? get_class($entity) : null,
                         'first_name' => $entity->first_name ?? null,
+                        'middle_name' => $entity->middle_name ?? null,
                         'last_name' => $entity->last_name ?? null,
                     ],
                 ];
@@ -1386,7 +1397,7 @@ class CommunicationController extends Controller
             return "{$phone} (custom number)";
         }
         if ($entity instanceof \App\Models\Student) {
-            $studentName = trim(($entity->first_name ?? '') . ' ' . ($entity->last_name ?? ''));
+            $studentName = person_display_name($entity, 'full');
             $parentName = null;
             if ($entity->parent) {
                 $parentName = trim($entity->parent->father_name ?? $entity->parent->guardian_name ?? $entity->parent->mother_name ?? '');
@@ -1396,7 +1407,7 @@ class CommunicationController extends Controller
             return "{$label} ({$phone})";
         }
         if ($entity instanceof \App\Models\Staff) {
-            return trim($entity->first_name . ' ' . ($entity->last_name ?? '')) . " ({$phone})";
+            return person_display_name($entity, 'full') . " ({$phone})";
         }
         return $phone;
     }
@@ -1410,7 +1421,7 @@ class CommunicationController extends Controller
             return 'Custom / ' . $contact;
         }
         if ($entity instanceof \App\Models\Student) {
-            $studentName = trim(($entity->first_name ?? '') . ' ' . ($entity->last_name ?? ''));
+            $studentName = person_display_name($entity, 'full');
             $parentName = null;
             if ($entity->parent) {
                 $parentName = trim($entity->parent->father_name ?? $entity->parent->guardian_name ?? $entity->parent->mother_name ?? '');
@@ -1419,7 +1430,7 @@ class CommunicationController extends Controller
             return $parts ? implode(' – ', $parts) : ($studentName ?: $contact);
         }
         if ($entity instanceof \App\Models\Staff) {
-            return trim(($entity->first_name ?? '') . ' ' . ($entity->last_name ?? '')) ?: $contact;
+            return person_display_name($entity, 'full') ?: $contact;
         }
         return $contact;
     }
@@ -1622,7 +1633,9 @@ class CommunicationController extends Controller
             ['key' => 'date',         'value' => now()->format('d M Y')],
 
             // Student & Parent
-            ['key' => 'student_name', 'value' => "Student's full name"],
+            ['key' => 'student_name', 'value' => 'Student name (uses Settings → Features name style)'],
+            ['key' => 'student_full_name', 'value' => 'Student First Middle Last'],
+            ['key' => 'student_first_name', 'value' => 'Student first name only'],
             ['key' => 'admission_number', 'value' => 'Student admission number'],
             ['key' => 'class_name',   'value' => 'Class name (and stream if set)'],
             ['key' => 'class',        'value' => 'Same as class_name: class + stream when stream exists'],
@@ -1632,7 +1645,9 @@ class CommunicationController extends Controller
             ['key' => 'report_card_link', 'value' => 'Public family report-card link (published reports only)'],
 
             // Staff
-            ['key' => 'staff_name',   'value' => 'Staff full name'],
+            ['key' => 'staff_name',   'value' => 'Staff name (uses Settings → Features name style)'],
+            ['key' => 'staff_full_name', 'value' => 'Staff First Middle Last'],
+            ['key' => 'staff_first_name', 'value' => 'Staff first name only'],
 
             // Receipts
             ['key' => 'receipt_number', 'value' => 'Receipt number (e.g., RCPT-2024-001)'],

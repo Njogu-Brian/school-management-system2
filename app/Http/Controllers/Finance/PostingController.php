@@ -21,17 +21,39 @@ class PostingController extends Controller
     public function index(Request $request)
     {
         // filters form
-        $classrooms = \App\Models\Academics\Classroom::orderBy('name')->get();
+        $classrooms = \App\Models\Academics\Classroom::query()
+            ->orderByRaw('CASE WHEN level IS NULL OR level = 0 THEN 999 ELSE level END')
+            ->orderBy('name')
+            ->get();
         $streams    = \App\Models\Academics\Stream::orderBy('name')->get();
         $voteheads  = \App\Models\Votehead::orderBy('name')->get();
         $categories = StudentCategory::orderBy('name')->get();
+
+        $currentYear = get_current_academic_year()
+            ?? (int) (\App\Models\AcademicYear::query()->where('is_active', true)->value('year') ?: date('Y'));
+        $currentTermNumber = get_current_term_number() ?? (int) setting('current_term', 1);
+        if ($currentTermNumber < 1 || $currentTermNumber > 3) {
+            $currentTermNumber = 1;
+        }
+        $defaultYear = $currentYear;
+        $defaultTerm = $currentTermNumber;
         
         // Get posting run history
         $runs = FeePostingRun::with(['academicYear', 'term', 'postedBy'])
             ->orderBy('posted_at', 'desc')
             ->paginate(20);
 
-        return view('finance.posting.index', compact('classrooms','streams','voteheads','categories','runs'));
+        return view('finance.posting.index', compact(
+            'classrooms',
+            'streams',
+            'voteheads',
+            'categories',
+            'runs',
+            'currentYear',
+            'currentTermNumber',
+            'defaultYear',
+            'defaultTerm'
+        ));
     }
 
     public function preview(Request $request)

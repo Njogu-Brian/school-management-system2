@@ -447,7 +447,7 @@ class ApiAcademicsController extends Controller
         if ($user && $user->hasTeacherLikeRole() && !$user->hasAnyRole(['Super Admin', 'Admin', 'Secretary'])) {
             $user->applyTeacherStudentFilter($studentsQuery);
         }
-        $students = $studentsQuery->orderBy('last_name')->orderBy('first_name')->get(['id', 'first_name', 'last_name', 'admission_number', 'classroom_id', 'stream_id']);
+        $students = $studentsQuery->orderBy('last_name')->orderBy('first_name')->get(['id', 'first_name', 'middle_name', 'last_name', 'admission_number', 'classroom_id', 'stream_id']);
 
         $entryService = app(ExamMarkEntryService::class);
         $examCandidates = Exam::query()
@@ -489,7 +489,7 @@ class ApiAcademicsController extends Controller
             'data' => [
                 'students' => $students->map(fn ($s) => [
                     'id' => (int) $s->id,
-                    'full_name' => trim(($s->first_name ?? '').' '.($s->last_name ?? '')),
+                    'full_name' => person_display_name($s, 'full'),
                     'admission_number' => $s->admission_number,
                     'classroom_id' => (int) $s->classroom_id,
                     'stream_id' => $s->stream_id ? (int) $s->stream_id : null,

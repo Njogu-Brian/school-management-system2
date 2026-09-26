@@ -141,11 +141,13 @@ class SettingController extends Controller
         $request->validate([
             'enable_online_admission'   => 'nullable|boolean',
             'enable_communication_logs' => 'nullable|boolean',
+            'communication_name_style'  => 'nullable|in:full,first',
         ]);
 
         try {
             Setting::setBool('enable_online_admission', $request->boolean('enable_online_admission'));
             Setting::setBool('enable_communication_logs', $request->boolean('enable_communication_logs'));
+            Setting::set('communication_name_style', $request->input('communication_name_style', 'full') === 'first' ? 'first' : 'full');
         } catch (\Exception $e) {
             Log::error("Failed to update feature toggles: " . $e->getMessage());
             return back()->withErrors('Error updating feature toggles.');

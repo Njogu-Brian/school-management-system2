@@ -6,11 +6,39 @@
         @include('finance.partials.header', [
             'title' => 'Extra income',
             'icon' => 'bi bi-piggy-bank',
-            'subtitle' => 'Trips, fun days, swimming, and other activity fees you can split out of a school-fees payment.',
+            'subtitle' => 'Trips, fun days, swimming, and other activity fees you can split out of a school-fees payment. Showing term ' . ($term ?? '') . ' ' . ($year ?? '') . '.',
             'actions' => '<a href="' . route('finance.extra-income.create') . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-plus-circle"></i> Add extra income</a>',
         ])
 
         @include('finance.invoices.partials.alerts')
+
+        <div class="finance-filter-card finance-animate shadow-sm rounded-4 border-0 mb-4">
+            <form method="GET" action="{{ route('finance.extra-income.index') }}" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="finance-form-label">Academic year</label>
+                    <select name="year" class="finance-form-select">
+                        @foreach(($years ?? collect([$year])) as $y)
+                            <option value="{{ $y }}" {{ (int) $year === (int) $y ? 'selected' : '' }}>
+                                {{ $y }}{{ (int) $y === (int) ($activeYear ?? 0) ? ' (current)' : '' }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="finance-form-label">Term</label>
+                    <select name="term" class="finance-form-select">
+                        @foreach([1, 2, 3] as $t)
+                            <option value="{{ $t }}" {{ (int) $term === $t ? 'selected' : '' }}>
+                                Term {{ $t }}{{ (int) $t === (int) ($activeTerm ?? 0) ? ' (current)' : '' }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-finance btn-finance-primary">Apply</button>
+                </div>
+            </form>
+        </div>
 
         <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
             <div class="finance-card-body p-0">

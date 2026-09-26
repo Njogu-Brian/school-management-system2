@@ -134,9 +134,7 @@ class Staff extends Model
 
     public function getFullNameAttribute(): string
     {
-        return trim(collect([$this->first_name, $this->middle_name, $this->last_name])
-            ->filter(fn ($part) => filled($part))
-            ->implode(' '));
+        return format_person_name($this->first_name, $this->middle_name, $this->last_name);
     }
 
     /** Alias used across HR/payroll views (`$staff->name`). */

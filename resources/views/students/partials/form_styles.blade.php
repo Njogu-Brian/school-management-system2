@@ -1,6 +1,7 @@
 <style>
 .student-form-page .settings-shell {
-  max-width: 1100px;
+  max-width: none;
+  width: 100%;
 }
 .student-admission-form {
   overflow: visible;
