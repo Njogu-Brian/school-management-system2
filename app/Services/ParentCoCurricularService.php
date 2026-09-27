@@ -8,6 +8,7 @@ use App\Models\FeeStructure;
 use App\Models\OptionalFee;
 use App\Models\ParentActivityChangeRequest;
 use App\Models\Student;
+use App\Models\User;
 use App\Models\Votehead;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;

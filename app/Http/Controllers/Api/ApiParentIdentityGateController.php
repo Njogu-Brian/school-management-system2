@@ -50,7 +50,8 @@ class ApiParentIdentityGateController extends Controller
             'children.*.id' => 'required|integer',
             'children.*.first_name' => 'required|string|max:255',
             'children.*.last_name' => 'required|string|max:255',
-            'children.*.dob' => 'required|date',
+            // Soft date check here; applyIdentityGate normalizes Y-m-d / d-m-Y and rejects invalid values.
+            'children.*.dob' => 'required|string|max:32',
         ]);
 
         try {

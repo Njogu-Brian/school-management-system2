@@ -1653,12 +1653,18 @@ class ParentCredentialsService
             }
             $first = trim((string) ($row['first_name'] ?? ''));
             $last = trim((string) ($row['last_name'] ?? ''));
-            $dob = trim((string) ($row['dob'] ?? ''));
+            $dobRaw = trim((string) ($row['dob'] ?? ''));
             if ($first === '' || $last === '') {
                 throw new \InvalidArgumentException('Enter the child first and last name.');
             }
-            if ($dob === '') {
+            if ($dobRaw === '') {
                 throw new \InvalidArgumentException('Enter the child date of birth.');
+            }
+            $dob = $this->normalizeIdentityDob($dobRaw);
+            if ($dob === null) {
+                throw new \InvalidArgumentException(
+                    'Enter each child date of birth as YYYY-MM-DD (for example 2018-03-21).'
+                );
             }
             Student::query()->where('id', $child['id'])->update([
                 'first_name' => $first,
@@ -1668,6 +1674,50 @@ class ParentCredentialsService
         }
 
         return $this->identityGateForUser($user->fresh());
+    }
+
+    /**
+     * Normalize parent-entered DOB to Y-m-d for MySQL date columns.
+     * Accepts Y-m-d, d-m-Y, and d/m/Y; rejects garbage / impossible years.
+     */
+    protected function normalizeIdentityDob(string $value): ?string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        $parsed = null;
+
+        if (preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})$/', $value, $m)) {
+            $y = (int) $m[1];
+            $mo = (int) $m[2];
+            $d = (int) $m[3];
+            if (checkdate($mo, $d, $y)) {
+                $parsed = sprintf('%04d-%02d-%02d', $y, $mo, $d);
+            }
+        } elseif (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $value, $m)) {
+            // Prefer day-month-year (common in KE) when ambiguous.
+            $d = (int) $m[1];
+            $mo = (int) $m[2];
+            $y = (int) $m[3];
+            if (checkdate($mo, $d, $y)) {
+                $parsed = sprintf('%04d-%02d-%02d', $y, $mo, $d);
+            }
+        }
+
+        if ($parsed === null) {
+            return null;
+        }
+
+        $year = (int) substr($parsed, 0, 4);
+        $minYear = 1950;
+        $maxYear = (int) date('Y');
+        if ($year < $minYear || $year > $maxYear) {
+            return null;
+        }
+
+        return $parsed;
     }
 
     public function identityNameIsPlaceholder(?string $name): bool
