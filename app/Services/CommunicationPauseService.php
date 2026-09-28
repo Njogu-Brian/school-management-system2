@@ -195,6 +195,13 @@ class CommunicationPauseService
         $smsResent = self::resendPausedSmsLogs();
         $bulkRedispatched = self::redispatchPausedBulkSmsJobs($meta['paused_bulk_sms'] ?? []);
 
+        $deferredFlush = ['sent' => 0, 'skipped' => 0, 'paused' => false];
+        try {
+            $deferredFlush = app(SmsDeferredMessageService::class)->flushPending();
+        } catch (\Throwable $e) {
+            Log::warning('Failed to flush deferred SMS on resume', ['error' => $e->getMessage()]);
+        }
+
         try {
             app(CommunicationJobService::class)->resumeAllPausedForCredits();
         } catch (\Throwable $e) {
@@ -210,6 +217,7 @@ class CommunicationPauseService
             'fee_reminders' => $reminderCount,
             'sms_resent' => $smsResent,
             'bulk_jobs_redispatched' => $bulkRedispatched,
+            'deferred_sent' => $deferredFlush['sent'] ?? 0,
             'balance' => $balance,
         ]);
 
@@ -219,6 +227,7 @@ class CommunicationPauseService
             'fee_reminders' => $reminderCount,
             'sms_resent' => $smsResent,
             'bulk_jobs_redispatched' => $bulkRedispatched,
+            'deferred_sent' => $deferredFlush['sent'] ?? 0,
         ];
     }
 

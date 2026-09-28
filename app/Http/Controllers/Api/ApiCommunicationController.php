@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CommunicationLog;
 use App\Models\CommunicationTemplate;
 use App\Models\Student;
+use App\Services\CommunicationPauseService;
 use App\Services\SMSService;
 use Illuminate\Http\Request;
 
@@ -265,6 +266,20 @@ class ApiCommunicationController extends Controller
             return response()->json(['success' => false, 'message' => 'At least one valid phone number is required.'], 422);
         }
 
+        $cost = $smsService->estimateCost($message, count($phones));
+        if (! $cost['sufficient']) {
+            return response()->json([
+                'success' => false,
+                'message' => sprintf(
+                    'These credits are not going to be sufficient. This send needs %d credit(s) but you have %s. Recharge before sending.',
+                    (int) $cost['credits_required'],
+                    $cost['balance'] === null ? 'unknown' : (string) $cost['balance']
+                ),
+                'error_code' => 'INSUFFICIENT_CREDITS',
+                'data' => $cost,
+            ], 422);
+        }
+
         if (! empty($data['template_id']) && ! $request->boolean('from_system_recipients')) {
             return response()->json([
                 'success' => false,
@@ -282,7 +297,19 @@ class ApiCommunicationController extends Controller
         foreach ($phones as $phone) {
             try {
                 $response = $smsService->sendSMS($phone, $message, $sender);
-                if ($response) {
+                if (is_array($response) && ($response['error_code'] ?? '') === 'INSUFFICIENT_CREDITS') {
+                    CommunicationPauseService::pauseDueToInsufficientCredits(
+                        (float) ($response['balance'] ?? 0),
+                        'ApiCommunicationController::sendSms'
+                    );
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Insufficient SMS credits. Sending stopped.',
+                        'error_code' => 'INSUFFICIENT_CREDITS',
+                        'data' => ['sent' => $sent, 'failed' => $failed + 1, 'total' => count($phones)],
+                    ], 422);
+                }
+                if ($response && strtolower((string) data_get($response, 'status', '')) !== 'error') {
                     $sent++;
                 } else {
                     $failed++;
@@ -296,6 +323,22 @@ class ApiCommunicationController extends Controller
             'success' => true,
             'message' => "SMS dispatch complete. Sent: {$sent}, failed: {$failed}.",
             'data' => ['sent' => $sent, 'failed' => $failed, 'total' => count($phones)],
+        ]);
+    }
+
+    public function estimateSmsCost(Request $request, SMSService $smsService)
+    {
+        $data = $request->validate([
+            'message' => 'required|string',
+            'recipient_count' => 'nullable|integer|min:0|max:50000',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $smsService->estimateCost(
+                $data['message'],
+                (int) ($data['recipient_count'] ?? 1)
+            ),
         ]);
     }
 

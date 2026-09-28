@@ -407,6 +407,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::get('/communication/logs/{id}', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'logShow']);
     Route::get('/communication/recipients', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'recipients']);
     Route::post('/communication/sms', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'sendSms']);
+    Route::post('/communication/sms/estimate', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'estimateSmsCost']);
     Route::post('/communication/whatsapp', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'sendWhatsApp']);
     Route::post('/communication/email', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'sendEmail']);
     Route::post('/communication/send-app', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'sendApp']);

@@ -49,7 +49,7 @@ class SMSService
         }
         
         // Cache balance for 5 minutes to avoid excessive API calls
-        return Cache::remember($cacheKey, 300, function () {
+        $balance = Cache::remember($cacheKey, 300, function () {
             // Use the new getAccountStatus method which uses the correct HostPinnacle API
             $accountStatus = $this->getAccountStatus();
             
@@ -161,7 +161,15 @@ class SMSService
 
             return null;
         });
+
+        if ($balance !== null) {
+            $this->rememberKnownBalance((float) $balance);
+        }
+
+        return $balance === null ? null : (float) $balance;
     }
+
+    public const LAST_KNOWN_BALANCE_CACHE_KEY = 'sms_balance_last_known';
 
     /**
      * Clear the cached balance to force a fresh check
@@ -172,21 +180,79 @@ class SMSService
     }
 
     /**
-     * Check if sufficient credits are available
-     * @param int $required Minimum credits required (default 1)
-     * @return bool
+     * Persist last successfully read balance for fail-closed decisions when the provider is briefly unreachable.
+     */
+    protected function rememberKnownBalance(?float $balance): void
+    {
+        if ($balance === null) {
+            return;
+        }
+        Cache::put(self::LAST_KNOWN_BALANCE_CACHE_KEY, $balance, now()->addDays(7));
+    }
+
+    public function getLastKnownBalance(): ?float
+    {
+        $value = Cache::get(self::LAST_KNOWN_BALANCE_CACHE_KEY);
+        return $value === null ? null : (float) $value;
+    }
+
+    /**
+     * Check if sufficient credits are available for the required segment cost.
+     *
+     * Fail closed when:
+     * - live balance is known and below required
+     * - communications are paused
+     * - provider unreachable and last known balance is insufficient / zero
      */
     public function hasSufficientCredits(int $required = 1): bool
     {
-        $balance = $this->checkBalance();
-        
-        if ($balance === null) {
-            // If we can't check balance, allow sending but log warning
-            Log::warning("Unable to check SMS balance, proceeding with send attempt");
-            return true; // Don't block if we can't check
+        $required = max(1, $required);
+
+        if (CommunicationPauseService::isPaused()) {
+            return false;
         }
 
-        return $balance >= $required;
+        $balance = $this->checkBalance();
+        if ($balance !== null) {
+            $this->rememberKnownBalance($balance);
+
+            return $balance >= $required;
+        }
+
+        $lastKnown = $this->getLastKnownBalance();
+        if ($lastKnown !== null) {
+            Log::warning('SMS balance API unavailable; using last known balance for credit gate', [
+                'last_known' => $lastKnown,
+                'required' => $required,
+            ]);
+
+            return $lastKnown >= $required;
+        }
+
+        Log::warning('Unable to check SMS balance and no last-known balance; blocking send');
+
+        return false;
+    }
+
+    /**
+     * @return array{encoding:string, characters:int, segments_per_message:int, recipients:int, credits_required:int, balance:float|null, sufficient:bool, is_paused:bool}
+     */
+    public function estimateCost(string $message, int $recipients = 1): array
+    {
+        $estimate = SmsSegmentCalculator::estimate($message, $recipients);
+        $balance = $this->checkBalance();
+        if ($balance !== null) {
+            $this->rememberKnownBalance($balance);
+        }
+        $effectiveBalance = $balance ?? $this->getLastKnownBalance();
+        $required = (int) $estimate['credits_required'];
+        $paused = CommunicationPauseService::isPaused();
+
+        return array_merge($estimate, [
+            'balance' => $effectiveBalance,
+            'sufficient' => ! $paused && $effectiveBalance !== null && $effectiveBalance >= max(1, $required),
+            'is_paused' => $paused,
+        ]);
     }
 
     public function sendSMS($phoneNumber, $message, $senderId = null)
@@ -234,23 +300,24 @@ class SMSService
             ];
         }
 
-        // Check balance before sending
-        if (!$this->hasSufficientCredits(1)) {
-            $balance = $this->checkBalance();
-            Log::error("SMS sending blocked: Insufficient credits", [
+        $requiredCredits = SmsSegmentCalculator::segmentsForMessage((string) $message);
+        if (! $this->hasSufficientCredits($requiredCredits)) {
+            $balance = $this->checkBalance() ?? $this->getLastKnownBalance();
+            Log::error('SMS sending blocked: Insufficient credits', [
                 'phone' => $phoneNumber,
                 'balance' => $balance,
-                'required' => 1
+                'required' => $requiredCredits,
+                'paused' => CommunicationPauseService::isPaused(),
             ]);
-            
-            // Clear cache to force fresh check next time
+
             Cache::forget('sms_balance');
-            
+
             return [
                 'status' => 'error',
                 'message' => 'Insufficient SMS credits',
                 'balance' => $balance,
-                'error_code' => 'INSUFFICIENT_CREDITS'
+                'required' => $requiredCredits,
+                'error_code' => 'INSUFFICIENT_CREDITS',
             ];
         }
 

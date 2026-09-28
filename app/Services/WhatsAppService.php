@@ -14,6 +14,8 @@ class WhatsAppService
     protected ?string $webhookVerifyToken;
     protected ?string $defaultTemplate;
     protected string $defaultTemplateLanguage;
+    protected ?string $otpTemplate;
+    protected string $otpTemplateLanguage;
 
     public function __construct()
     {
@@ -26,6 +28,8 @@ class WhatsAppService
         $this->webhookVerifyToken = $config['webhook_verify_token'] ?? null;
         $this->defaultTemplate = $config['default_template'] ?? null;
         $this->defaultTemplateLanguage = $config['default_template_language'] ?? 'en_US';
+        $this->otpTemplate = $config['otp_template'] ?? 'edulynk_otp';
+        $this->otpTemplateLanguage = $config['otp_template_language'] ?? 'en';
     }
 
     /**
@@ -106,6 +110,142 @@ class WhatsAppService
                 'body' => $text,
             ],
         ]);
+    }
+
+    /**
+     * Send OTP via Meta AUTHENTICATION (or utility) template.
+     * Body parameter {{1}} = OTP code. Optional COPY_CODE button uses the same code.
+     */
+    public function sendOtp(string $to, string $otpCode): array
+    {
+        $template = $this->otpTemplate ?: $this->defaultTemplate;
+        if (! $template) {
+            return [
+                'status' => 'error',
+                'message' => 'WhatsApp OTP template is not configured',
+                'error_code' => 'MISSING_OTP_TEMPLATE',
+                'http_status' => null,
+                'body' => null,
+                'message_id' => null,
+            ];
+        }
+
+        $components = [
+            [
+                'type' => 'body',
+                'parameters' => [
+                    ['type' => 'text', 'text' => (string) $otpCode],
+                ],
+            ],
+            [
+                'type' => 'button',
+                'sub_type' => 'url',
+                'index' => '0',
+                'parameters' => [
+                    ['type' => 'text', 'text' => (string) $otpCode],
+                ],
+            ],
+        ];
+
+        // Authentication templates commonly use COPY_CODE button; fall back to body-only if needed.
+        $result = $this->sendTemplateMessage(
+            $to,
+            $template,
+            $this->otpTemplateLanguage ?: $this->defaultTemplateLanguage,
+            $components
+        );
+
+        if (($result['status'] ?? '') === 'error') {
+            // Retry with body parameter only (some AUTH templates omit URL buttons).
+            $result = $this->sendTemplateMessage(
+                $to,
+                $template,
+                $this->otpTemplateLanguage ?: $this->defaultTemplateLanguage,
+                [
+                    [
+                        'type' => 'body',
+                        'parameters' => [
+                            ['type' => 'text', 'text' => (string) $otpCode],
+                        ],
+                    ],
+                ]
+            );
+        }
+
+        return $result;
+    }
+
+    /**
+     * Create the EduLynk OTP AUTHENTICATION template via Meta Graph API.
+     *
+     * @return array{status:string, http_status:?int, body:mixed, message?:string}
+     */
+    public function createOtpMessageTemplate(): array
+    {
+        $this->ensureConfigured();
+
+        if (! $this->businessAccountId) {
+            return [
+                'status' => 'error',
+                'http_status' => null,
+                'body' => null,
+                'message' => 'WHATSAPP_BUSINESS_ACCOUNT_ID is required to create templates.',
+            ];
+        }
+
+        $name = $this->otpTemplate ?: 'edulynk_otp';
+        $language = $this->otpTemplateLanguage ?: 'en';
+
+        $payload = [
+            'name' => $name,
+            'language' => $language,
+            'category' => 'AUTHENTICATION',
+            'components' => [
+                [
+                    'type' => 'BODY',
+                    'add_security_recommendation' => true,
+                ],
+                [
+                    'type' => 'FOOTER',
+                    'code_expiration_minutes' => 10,
+                ],
+                [
+                    'type' => 'BUTTONS',
+                    'buttons' => [
+                        [
+                            'type' => 'OTP',
+                            'otp_type' => 'COPY_CODE',
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        try {
+            $response = Http::withToken($this->accessToken)
+                ->acceptJson()
+                ->post($this->graphUrl("{$this->businessAccountId}/message_templates"), $payload);
+
+            $body = $response->json() ?? $response->body();
+
+            return [
+                'status' => $response->successful() ? 'success' : 'error',
+                'http_status' => $response->status(),
+                'body' => $body,
+                'message' => $response->successful()
+                    ? "Template '{$name}' submitted for review."
+                    : (is_array($body) ? (string) data_get($body, 'error.message', 'Template create failed') : (string) $body),
+            ];
+        } catch (\Throwable $e) {
+            Log::error('WhatsApp OTP template create failed', ['error' => $e->getMessage()]);
+
+            return [
+                'status' => 'error',
+                'http_status' => null,
+                'body' => $e->getMessage(),
+                'message' => $e->getMessage(),
+            ];
+        }
     }
 
     /**

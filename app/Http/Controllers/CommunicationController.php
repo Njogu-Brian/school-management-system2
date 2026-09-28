@@ -345,6 +345,17 @@ class CommunicationController extends Controller
             return back()->with('error', 'Message content is required.');
         }
 
+        if (\App\Services\CommunicationPauseService::isPaused() || ! $smsService->hasSufficientCredits(1)) {
+            $estimate = $smsService->estimateCost($message, 1);
+            $balance = $estimate['balance'];
+            return back()->with(
+                'error',
+                'SMS credits are insufficient or communications are paused. Current balance: '
+                . ($balance === null ? 'unknown' : $balance)
+                . '. Recharge before sending.'
+            )->withInput();
+        }
+
         if ($data['target'] === 'class' && empty(\App\Services\CommunicationHelperService::normalizeClassroomIds($data))) {
             return back()->with('error', 'Please select at least one classroom.');
         }
@@ -384,6 +395,21 @@ class CommunicationController extends Controller
             }
             $recipients[] = [$normalized, $entity, $parentMeta];
         }
+
+        if (count($recipients) > 0) {
+            $cost = $smsService->estimateCost($message, count($recipients));
+            if (! $cost['sufficient']) {
+                return back()->with(
+                    'error',
+                    sprintf(
+                        'These credits are not going to be sufficient. This send needs %d credit(s) but you have %s. Recharge before sending.',
+                        (int) $cost['credits_required'],
+                        $cost['balance'] === null ? 'unknown' : (string) $cost['balance']
+                    )
+                )->withInput();
+            }
+        }
+
         $title = 'SMS';
         if (!empty($data['template_id'])) {
             $tpl   = CommunicationTemplate::find($data['template_id']);

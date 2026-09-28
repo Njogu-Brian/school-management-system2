@@ -47,6 +47,11 @@ Schedule::command('sms:check-balance-alert')
     ->name('sms-check-balance-alert')
     ->withoutOverlapping();
 
+Schedule::command('sms:process-deferred')
+    ->everyFiveMinutes()
+    ->name('sms-process-deferred')
+    ->withoutOverlapping();
+
 Schedule::command('system-alerts:escalate')
     ->everyFifteenMinutes()
     ->name('system-alerts-escalate')

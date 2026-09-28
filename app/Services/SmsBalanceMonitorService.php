@@ -28,7 +28,27 @@ class SmsBalanceMonitorService
         $threshold = $this->lowBalanceThreshold();
 
         if ($balance <= 0) {
+            CommunicationPauseService::pauseDueToInsufficientCredits(
+                (float) $balance,
+                'SmsBalanceMonitorService::checkAndAlert'
+            );
+
             return $balance;
+        }
+
+        if (CommunicationPauseService::isPaused() && $balance >= 1) {
+            try {
+                $stats = CommunicationPauseService::resume(null);
+                Log::info('SMS communications auto-resumed after credits restored', [
+                    'balance' => $balance,
+                    'stats' => $stats,
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('SMS auto-resume failed', [
+                    'balance' => $balance,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         if ($balance <= $threshold) {

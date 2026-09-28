@@ -375,26 +375,22 @@ public function mark(Request $request)
 // -------------------- TEMPLATE NOTIFY --------------------
 private function notifyWithTemplate(string $code, Student $student, string $humanDate, ?string $status = null, ?string $reason = null)
 {
-    if (class_exists(\App\Services\CommunicationPauseService::class)
-        && \App\Services\CommunicationPauseService::isPaused()) {
-        // Attendance must not queue for resume when credits are paused
+    if (! $student->parent) {
         return;
     }
 
     // Map old codes to new seeder template codes
     $templateCodeMap = [
         'attendance_absent' => 'attendance_absent_sms',
-        'attendance_late' => 'attendance_absent_sms', // Use same template
-        'attendance_corrected' => 'attendance_status_email', // Use email template for corrections
+        'attendance_late' => 'attendance_absent_sms',
+        'attendance_corrected' => 'attendance_status_email',
     ];
-    
+
     $templateCode = $templateCodeMap[strtolower($code)] ?? 'attendance_absent_sms';
-    
-    // Use templates from CommunicationTemplateSeeder
+
     $tpl = CommunicationTemplate::where('code', $templateCode)->first();
-    
-    // Fallback: create template if seeder hasn't run yet
-    if (!$tpl && $templateCode === 'attendance_absent_sms') {
+
+    if (! $tpl && $templateCode === 'attendance_absent_sms') {
         $tpl = CommunicationTemplate::firstOrCreate(
             ['code' => 'attendance_absent_sms'],
             [
@@ -406,11 +402,35 @@ private function notifyWithTemplate(string $code, Student $student, string $huma
         );
     }
 
+    CommunicationTemplate::firstOrCreate(
+        ['code' => 'attendance_absent_whatsapp'],
+        [
+            'title' => 'Attendance: Absent (WhatsApp)',
+            'type' => 'whatsapp',
+            'subject' => null,
+            'content' => $tpl?->content ?? "Dear {{parent_name}},\n\n{{student_name}} was marked {{attendance_status}} on {{attendance_date}}.\nReason: {{attendance_reason}}\nIf clarification is needed, kindly contact the school.\n\nRegards,\n{{school_name}}",
+        ]
+    );
+
     $messageTemplate = $tpl
         ? $this->applyPlaceholders($tpl->content, $student, $humanDate, $status, $reason)
         : "Dear {{parent_name}}, your child {$student->full_name} was marked {$status} on {$humanDate}. Reason: {$reason}";
 
     $parentNotify = app(\App\Services\ParentSchoolNotificationService::class);
+    $deferred = app(\App\Services\SmsDeferredMessageService::class);
+    $title = $tpl->title ?? $code;
+
+    // Always send WhatsApp (same body as SMS) when marking absent/late.
+    try {
+        $parentNotify->sendWhatsAppTemplateToStudentParents(
+            $student,
+            $messageTemplate,
+            $title
+        );
+    } catch (\Throwable $e) {
+        report($e);
+    }
+
     foreach ($parentNotify->smsRecipients($student->parent) as $r) {
         $phone = $r['phone'] ?? null;
         if (! $phone) {
@@ -420,55 +440,131 @@ private function notifyWithTemplate(string $code, Student $student, string $huma
         if ($message === null) {
             continue;
         }
+
+        $required = \App\Services\SmsSegmentCalculator::segmentsForMessage($message);
+        $canSendSms = ! \App\Services\CommunicationPauseService::isPaused()
+            && $this->smsService->hasSufficientCredits($required);
+
+        if (! $canSendSms) {
+            $expiresAt = $deferred->attendanceExpiryToday();
+            if (now()->greaterThanOrEqualTo($expiresAt)) {
+                CommunicationLog::create([
+                    'recipient_type' => 'parent',
+                    'recipient_id' => $student->parent->id ?? null,
+                    'contact' => $phone,
+                    'channel' => 'sms',
+                    'message' => $message,
+                    'status' => 'failed',
+                    'title' => $title,
+                    'type' => 'sms',
+                    'scope' => 'attendance',
+                    'error_code' => 'ATTENDANCE_SKIPPED_AFTER_CUTOFF',
+                    'sent_at' => now(),
+                ]);
+                continue;
+            }
+
+            $deferred->defer(
+                \App\Services\SmsDeferredMessageService::KIND_ATTENDANCE_ABSENT,
+                $phone,
+                $message,
+                null,
+                $title,
+                'attendance',
+                'parent',
+                $student->parent->id ?? null,
+                $expiresAt,
+                ['student_id' => $student->id, 'code' => $code]
+            );
+
+            CommunicationLog::create([
+                'recipient_type' => 'parent',
+                'recipient_id' => $student->parent->id ?? null,
+                'contact' => $phone,
+                'channel' => 'sms',
+                'message' => $message,
+                'status' => 'paused',
+                'title' => $title,
+                'type' => 'sms',
+                'scope' => 'attendance',
+                'error_code' => 'INSUFFICIENT_CREDITS',
+                'sent_at' => now(),
+            ]);
+
+            \App\Services\CommunicationPauseService::pauseDueToInsufficientCredits(
+                (float) ($this->smsService->checkBalance() ?? $this->smsService->getLastKnownBalance() ?? 0),
+                'AttendanceController::notifyWithTemplate'
+            );
+            continue;
+        }
+
         try {
             $response = $this->smsService->sendSMS($phone, $message);
 
             $insufficient = is_array($response) && (($response['error_code'] ?? '') === 'INSUFFICIENT_CREDITS');
             if ($insufficient) {
-                // Fail-and-forget: never pause global communications or retry on resume
+                $expiresAt = $deferred->attendanceExpiryToday();
+                if (now()->lessThan($expiresAt)) {
+                    $deferred->defer(
+                        \App\Services\SmsDeferredMessageService::KIND_ATTENDANCE_ABSENT,
+                        $phone,
+                        $message,
+                        null,
+                        $title,
+                        'attendance',
+                        'parent',
+                        $student->parent->id ?? null,
+                        $expiresAt,
+                        ['student_id' => $student->id, 'code' => $code]
+                    );
+                }
+                \App\Services\CommunicationPauseService::pauseDueToInsufficientCredits(
+                    (float) ($response['balance'] ?? 0),
+                    'AttendanceController::notifyWithTemplate'
+                );
                 CommunicationLog::create([
                     'recipient_type' => 'parent',
-                    'recipient_id'   => $student->parent->id ?? null,
-                    'contact'        => $phone,
-                    'channel'        => 'sms',
-                    'message'        => $message,
-                    'status'         => 'failed',
-                    'response'       => json_encode($response),
-                    'title'          => $tpl->title ?? $code,
-                    'type'           => 'sms',
-                    'scope'          => 'attendance',
-                    'error_code'     => 'ATTENDANCE_SKIPPED_NO_CREDITS',
-                    'sent_at'        => now(),
+                    'recipient_id' => $student->parent->id ?? null,
+                    'contact' => $phone,
+                    'channel' => 'sms',
+                    'message' => $message,
+                    'status' => 'paused',
+                    'response' => json_encode($response),
+                    'title' => $title,
+                    'type' => 'sms',
+                    'scope' => 'attendance',
+                    'error_code' => 'INSUFFICIENT_CREDITS',
+                    'sent_at' => now(),
                 ]);
                 continue;
             }
 
             CommunicationLog::create([
                 'recipient_type' => 'parent',
-                'recipient_id'   => $student->parent->id ?? null,
-                'contact'        => $phone,
-                'channel'        => 'sms',
-                'message'        => $message,
-                'status'         => 'sent',
-                'response'       => json_encode($response),
-                'title'          => $tpl->title ?? $code,
-                'type'           => 'sms',
-                'scope'          => 'attendance',
-                'sent_at'        => now(),
+                'recipient_id' => $student->parent->id ?? null,
+                'contact' => $phone,
+                'channel' => 'sms',
+                'message' => $message,
+                'status' => 'sent',
+                'response' => json_encode($response),
+                'title' => $title,
+                'type' => 'sms',
+                'scope' => 'attendance',
+                'sent_at' => now(),
             ]);
         } catch (\Exception $e) {
             CommunicationLog::create([
                 'recipient_type' => 'parent',
-                'recipient_id'   => $student->parent->id ?? null,
-                'contact'        => $phone,
-                'channel'        => 'sms',
-                'message'        => $message,
-                'status'         => 'failed',
-                'response'       => $e->getMessage(),
-                'title'          => $tpl->title ?? $code,
-                'type'           => 'sms',
-                'scope'          => 'attendance',
-                'sent_at'        => now(),
+                'recipient_id' => $student->parent->id ?? null,
+                'contact' => $phone,
+                'channel' => 'sms',
+                'message' => $message,
+                'status' => 'failed',
+                'response' => $e->getMessage(),
+                'title' => $title,
+                'type' => 'sms',
+                'scope' => 'attendance',
+                'sent_at' => now(),
             ]);
         }
     }

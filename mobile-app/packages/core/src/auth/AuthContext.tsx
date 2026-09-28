@@ -91,7 +91,10 @@ export interface AuthContextValue {
   login: (credentials: LoginCredentials) => Promise<void>;
   loginWithGoogleIdToken: (idToken: string) => Promise<void>;
   /** Request a login OTP for phone/email identifier. */
-  requestLoginOtp: (identifier: string) => Promise<void>;
+  requestLoginOtp: (identifier: string) => Promise<{
+    deliveryChannel?: 'sms' | 'whatsapp' | 'email' | null;
+    message?: string;
+  }>;
   /** Verify login OTP and establish a session. */
   verifyLoginOtp: (identifier: string, code: string) => Promise<void>;
   /** Establish a session from a completed parent-claim signup (`{ token, user }`). */
@@ -378,6 +381,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!res.success) {
         throw new Error(res.message || 'Could not send OTP.');
       }
+      const deliveryChannel =
+        (res.data as { delivery_channel?: 'sms' | 'whatsapp' | 'email' | null } | null)?.delivery_channel ??
+        (res as { delivery_channel?: 'sms' | 'whatsapp' | 'email' | null }).delivery_channel ??
+        null;
+      return {
+        deliveryChannel,
+        message: res.message,
+      };
     } catch (err) {
       const message = toAuthError(err);
       setError(message);

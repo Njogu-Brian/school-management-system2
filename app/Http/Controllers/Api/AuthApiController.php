@@ -244,6 +244,9 @@ class AuthApiController extends Controller
         return response()->json([
             'success' => true,
             'message' => $result['message'] ?? 'OTP sent successfully.',
+            'data' => [
+                'delivery_channel' => $result['delivery_channel'] ?? 'sms',
+            ],
             'delivery_channel' => $result['delivery_channel'] ?? 'sms',
         ]);
     }

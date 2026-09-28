@@ -92,6 +92,8 @@ return [
         // Approved template for outbound bulk messages (body must include {{1}} for message text)
         'default_template' => env('WHATSAPP_DEFAULT_TEMPLATE'),
         'default_template_language' => env('WHATSAPP_DEFAULT_TEMPLATE_LANGUAGE', 'en_US'),
+        'otp_template' => env('WHATSAPP_OTP_TEMPLATE', 'edulynk_otp'),
+        'otp_template_language' => env('WHATSAPP_OTP_TEMPLATE_LANGUAGE', 'en'),
         'bulk_delay_seconds' => (int) env('WHATSAPP_BULK_DELAY_SECONDS', 2),
     ],
 

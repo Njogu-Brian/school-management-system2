@@ -142,7 +142,9 @@ class AuthController extends Controller
         return back()->with([
             'otp_sent' => true,
             'otp_phone' => substr($phone, -4), // Show last 4 digits
-            'otp_identifier' => $normalizedIdentifier
+            'otp_identifier' => $normalizedIdentifier,
+            'otp_delivery_channel' => $result['delivery_channel'] ?? 'sms',
+            'otp_delivery_message' => $result['message'] ?? null,
         ]);
     }
 

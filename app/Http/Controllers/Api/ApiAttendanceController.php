@@ -691,6 +691,10 @@ class ApiAttendanceController extends Controller
     protected function notifyParentAbsent(Student $student, ?string $reason = null): void
     {
         try {
+            if (! $student->parent) {
+                return;
+            }
+
             $tpl = CommunicationTemplate::where('code', 'attendance_absent_sms')->first();
             if (!$tpl) {
                 $tpl = CommunicationTemplate::firstOrCreate(
@@ -703,6 +707,15 @@ class ApiAttendanceController extends Controller
                 );
             }
 
+            CommunicationTemplate::firstOrCreate(
+                ['code' => 'attendance_absent_whatsapp'],
+                [
+                    'title' => 'Attendance: Absent (WhatsApp)',
+                    'type' => 'whatsapp',
+                    'content' => $tpl->content,
+                ]
+            );
+
             $schoolName = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
             $messageTemplate = str_replace(
                 ['{{student_name}}', '{{attendance_status}}', '{{attendance_date}}', '{{attendance_reason}}', '{{school_name}}'],
@@ -714,6 +727,18 @@ class ApiAttendanceController extends Controller
             }
 
             $parentNotify = app(\App\Services\ParentSchoolNotificationService::class);
+            $deferred = app(\App\Services\SmsDeferredMessageService::class);
+
+            try {
+                $parentNotify->sendWhatsAppTemplateToStudentParents(
+                    $student,
+                    $messageTemplate,
+                    'attendance_absent_sms'
+                );
+            } catch (\Throwable $e) {
+                report($e);
+            }
+
             foreach ($parentNotify->smsRecipients($student->parent) as $r) {
                 $phone = $r['phone'] ?? null;
                 if (! $phone) {
@@ -723,7 +748,58 @@ class ApiAttendanceController extends Controller
                 if ($message === null) {
                     continue;
                 }
-                $this->smsService->sendSMS($phone, $message);
+
+                $required = \App\Services\SmsSegmentCalculator::segmentsForMessage($message);
+                $canSend = ! \App\Services\CommunicationPauseService::isPaused()
+                    && $this->smsService->hasSufficientCredits($required);
+
+                if (! $canSend) {
+                    $expiresAt = $deferred->attendanceExpiryToday();
+                    if (now()->lessThan($expiresAt)) {
+                        $deferred->defer(
+                            \App\Services\SmsDeferredMessageService::KIND_ATTENDANCE_ABSENT,
+                            $phone,
+                            $message,
+                            null,
+                            'attendance_absent_sms',
+                            'attendance',
+                            'parent',
+                            $student->parent->id ?? null,
+                            $expiresAt,
+                            ['student_id' => $student->id]
+                        );
+                        \App\Services\CommunicationPauseService::pauseDueToInsufficientCredits(
+                            (float) ($this->smsService->checkBalance() ?? $this->smsService->getLastKnownBalance() ?? 0),
+                            'ApiAttendanceController::notifyParentAbsent'
+                        );
+                    }
+                    continue;
+                }
+
+                $response = $this->smsService->sendSMS($phone, $message);
+                if (is_array($response) && ($response['error_code'] ?? '') === 'INSUFFICIENT_CREDITS') {
+                    $expiresAt = $deferred->attendanceExpiryToday();
+                    if (now()->lessThan($expiresAt)) {
+                        $deferred->defer(
+                            \App\Services\SmsDeferredMessageService::KIND_ATTENDANCE_ABSENT,
+                            $phone,
+                            $message,
+                            null,
+                            'attendance_absent_sms',
+                            'attendance',
+                            'parent',
+                            $student->parent->id ?? null,
+                            $expiresAt,
+                            ['student_id' => $student->id]
+                        );
+                    }
+                    \App\Services\CommunicationPauseService::pauseDueToInsufficientCredits(
+                        (float) ($response['balance'] ?? 0),
+                        'ApiAttendanceController::notifyParentAbsent'
+                    );
+                    continue;
+                }
+
                 CommunicationLog::create([
                     'recipient_type' => 'parent',
                     'recipient_id' => $student->parent->id ?? null,

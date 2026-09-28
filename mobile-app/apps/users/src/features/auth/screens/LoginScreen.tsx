@@ -207,9 +207,15 @@ export const LoginScreen: React.FC = () => {
   const handleRequestOtp = async (): Promise<void> => {
     if (!canRequestOtp) return;
     try {
-      await requestLoginOtp(identifier.trim());
+      const otpResult = await requestLoginOtp(identifier.trim());
       setOtpSent(true);
-      showSuccess('OTP sent', 'Enter the 6-digit code sent to your registered phone.');
+      const viaWhatsApp = otpResult?.deliveryChannel === 'whatsapp';
+      showSuccess(
+        'OTP sent',
+        viaWhatsApp
+          ? 'SMS is unavailable — enter the 6-digit code sent via WhatsApp.'
+          : 'Enter the 6-digit code sent to your registered phone.',
+      );
     } catch {
       /* auth error state */
     }

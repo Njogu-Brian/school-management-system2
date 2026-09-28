@@ -42,8 +42,9 @@
         <textarea name="message" rows="5" class="form-control" id="sms-body" placeholder="160 characters per SMS segment.">{{ old('message') }}</textarea>
         <div class="d-flex justify-content-between text-muted small mt-1">
             <span>Placeholders allowed (see below).</span>
-            <span id="sms-counter">0 chars</span>
+            <span id="sms-counter">0 chars · 1 segment</span>
         </div>
+        <div id="sms-credit-warning" class="alert alert-warning py-2 px-3 mt-2 d-none small mb-0" role="alert"></div>
     </div>
 
     {{-- Common targeting --}}
@@ -201,10 +202,37 @@ document.addEventListener('DOMContentLoaded', function() {
         modeBlocks.manual.forEach(el => el.classList.toggle('d-none', useTemplate));
     }
 
+    function smsSegmentEstimate(text) {
+        // Mirror App\Services\SmsSegmentCalculator (GSM-7 vs UCS-2).
+        const gsmBasic = "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà";
+        const gsmExt = "^{}\\\\[~]|€";
+        let units = 0;
+        let gsm = true;
+        for (const ch of text) {
+            if (gsmBasic.includes(ch)) {
+                units += 1;
+            } else if (gsmExt.includes(ch)) {
+                units += 2;
+            } else {
+                gsm = false;
+                break;
+            }
+        }
+        if (!gsm) {
+            units = [...text].length;
+            if (units <= 70) return { encoding: 'ucs2', units, segments: Math.max(1, units === 0 ? 1 : 1) };
+            return { encoding: 'ucs2', units, segments: Math.ceil(units / 67) };
+        }
+        if (units <= 160) return { encoding: 'gsm7', units, segments: units === 0 ? 1 : 1 };
+        return { encoding: 'gsm7', units, segments: Math.ceil(units / 153) };
+    }
+
     function updateCounter() {
         if (!smsBody || !smsCounter) return;
-        const len = smsBody.value.length;
-        smsCounter.innerText = `${len} chars`;
+        const text = smsBody.value || '';
+        const est = smsSegmentEstimate(text);
+        const len = [...text].length;
+        smsCounter.innerText = `${len} chars · ${est.segments} segment${est.segments === 1 ? '' : 's'} (${est.encoding.toUpperCase()})`;
     }
 
     if (modeTemplate && modeManual) {

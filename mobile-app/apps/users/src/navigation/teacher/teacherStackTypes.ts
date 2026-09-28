@@ -20,6 +20,8 @@ export type TeacherStackParamList = {
     examTypeName?: string;
     classroomName?: string;
     streamName?: string;
+    /** When set, only these matrix exam (subject) columns are shown. */
+    selectedExamIds?: number[];
   };
   MarksExamSetup: { examId: number; examName: string };
   MarksEntry: {

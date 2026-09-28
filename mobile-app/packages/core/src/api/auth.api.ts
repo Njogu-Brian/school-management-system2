@@ -14,9 +14,11 @@ export const authApi = {
     return apiClient.post<ApiLoginData>('/login', credentials);
   },
 
-  /** `POST /login/otp/request` — send SMS OTP for passwordless sign-in. */
-  requestLoginOtp(identifier: string): Promise<ApiResponse<null>> {
-    return apiClient.post<null>('/login/otp/request', { identifier });
+  /** `POST /login/otp/request` — send SMS OTP (falls back to WhatsApp when SMS credits are unavailable). */
+  requestLoginOtp(identifier: string): Promise<
+    ApiResponse<{ delivery_channel?: 'sms' | 'whatsapp' | 'email' | null }>
+  > {
+    return apiClient.post('/login/otp/request', { identifier });
   },
 
   /** `POST /login/otp/verify` → `{ token, user, expires_at }`. */

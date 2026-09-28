@@ -217,6 +217,10 @@
             
             <div class="alert alert-info">
                 <i class="bi bi-info-circle"></i> OTP sent to phone ending in <strong>{{ session('otp_phone') }}</strong>
+                @php $otpChannel = session('otp_delivery_channel', 'sms'); @endphp
+                @if($otpChannel === 'whatsapp')
+                    <div class="mt-1 small">SMS service is currently unavailable — your code was sent via <strong>WhatsApp</strong>.</div>
+                @endif
             </div>
 
             <div class="mb-3">
@@ -224,7 +228,7 @@
                 <input type="text" class="form-control text-center" name="otp_code" 
                        placeholder="000000" maxlength="6" pattern="[0-9]{6}" required autofocus
                        style="font-size: 24px; letter-spacing: 8px;">
-                <small class="text-muted">6-digit code sent via SMS</small>
+                <small class="text-muted">6-digit code sent via {{ ($otpChannel ?? 'sms') === 'whatsapp' ? 'WhatsApp' : 'SMS' }}</small>
             </div>
 
             <div class="mb-3">

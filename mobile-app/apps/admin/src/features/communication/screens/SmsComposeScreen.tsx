@@ -25,7 +25,33 @@ import { showError, showSuccess } from '../../shared/utils/feedback';
 
 type Props = StackScreenProps<CommunicationStackParamList, 'SmsCompose'>;
 
-const SMS_SEGMENT = 160;
+const SMS_SEGMENT_GSM = 160;
+const SMS_SEGMENT_GSM_MULTI = 153;
+const SMS_SEGMENT_UCS = 70;
+const SMS_SEGMENT_UCS_MULTI = 67;
+
+function estimateSmsSegments(text: string): { segments: number; encoding: 'gsm7' | 'ucs2' } {
+  const gsmBasic =
+    "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà";
+  const gsmExt = '^{}\\[~]|€';
+  let units = 0;
+  let gsm = true;
+  for (const ch of text) {
+    if (gsmBasic.includes(ch)) units += 1;
+    else if (gsmExt.includes(ch)) units += 2;
+    else {
+      gsm = false;
+      break;
+    }
+  }
+  if (!gsm) {
+    units = [...text].length;
+    if (units <= SMS_SEGMENT_UCS) return { segments: 1, encoding: 'ucs2' };
+    return { segments: Math.ceil(units / SMS_SEGMENT_UCS_MULTI), encoding: 'ucs2' };
+  }
+  if (units <= SMS_SEGMENT_GSM) return { segments: Math.max(1, units === 0 ? 1 : 1), encoding: 'gsm7' };
+  return { segments: Math.ceil(units / SMS_SEGMENT_GSM_MULTI), encoding: 'gsm7' };
+}
 type SenderId = 'default' | 'finance';
 type Channel = 'sms' | 'whatsapp' | 'email' | 'app';
 type AppTarget = 'parents' | 'staff' | 'class';
@@ -76,9 +102,9 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
     () => phones.split(/[,;\s]+/).filter(Boolean).length,
     [phones],
   );
-  const charCount = message.length;
-  const segments = Math.max(1, Math.ceil(charCount / SMS_SEGMENT));
-  const estimatedCost = segments * (recipientCount || 1);
+  const charCount = [...message].length;
+  const { segments, encoding } = estimateSmsSegments(message);
+  const estimatedCost = segments * Math.max(recipientCount, 1);
 
   const pending =
     sendMutation.isPending ||
@@ -408,8 +434,8 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
 
       {channel === 'sms' ? (
         <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: spacing.xs }}>
-          {charCount} chars · {segments} segment{segments === 1 ? '' : 's'} · est. {estimatedCost} credit
-          {estimatedCost === 1 ? '' : 's'}
+          {charCount} chars · {segments} segment{segments === 1 ? '' : 's'} ({encoding.toUpperCase()}) · est.{' '}
+          {estimatedCost} credit{estimatedCost === 1 ? '' : 's'}
         </Text>
       ) : (
         <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: spacing.xs }}>

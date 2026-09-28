@@ -1,4 +1,4 @@
-import { useMarksMatrixContext } from '@erp/core';
+import { useMarksMatrix, useMarksMatrixContext } from '@erp/core';
 import { AcademicScreenHeader, Button, ScreenContainer, useTheme } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -15,15 +15,45 @@ export const MarksMatrixSetupScreen: React.FC = () => {
   const [selectedExamType, setSelectedExamType] = useState<number | null>(null);
   const [selectedClassroom, setSelectedClassroom] = useState<number | null>(null);
   const [selectedStream, setSelectedStream] = useState<number | null>(null);
+  const [selectedExamIds, setSelectedExamIds] = useState<number[]>([]);
 
   const contextQuery = useMarksMatrixContext(selectedClassroom ?? undefined);
   const examTypes = contextQuery.data?.exam_types ?? [];
   const classrooms = contextQuery.data?.classrooms ?? [];
   const streams = contextQuery.data?.streams ?? [];
 
+  const matrixPreview = useMarksMatrix(
+    selectedExamType && selectedClassroom
+      ? {
+          exam_type_id: selectedExamType,
+          classroom_id: selectedClassroom,
+          stream_id: selectedStream ?? undefined,
+        }
+      : null,
+    { enabled: Boolean(selectedExamType && selectedClassroom) },
+  );
+  const availableExams = matrixPreview.data?.exams ?? [];
+
   useEffect(() => {
     setSelectedStream(null);
   }, [selectedClassroom]);
+
+  useEffect(() => {
+    setSelectedExamIds([]);
+  }, [selectedExamType, selectedClassroom, selectedStream]);
+
+  useEffect(() => {
+    if (availableExams.length === 0) return;
+    // Auto-select all authorized subjects when the list first loads (or when only one).
+    setSelectedExamIds((prev) => {
+      if (prev.length > 0) {
+        const allowed = new Set(availableExams.map((e) => e.id));
+        const kept = prev.filter((id) => allowed.has(id));
+        return kept.length > 0 ? kept : availableExams.map((e) => e.id);
+      }
+      return availableExams.map((e) => e.id);
+    });
+  }, [availableExams]);
 
   const selectedExamTypeName = useMemo(
     () => examTypes.find((e) => e.id === selectedExamType)?.name ?? 'Not selected',
@@ -38,9 +68,17 @@ export const MarksMatrixSetupScreen: React.FC = () => {
     return streams.find((s) => s.id === selectedStream)?.name ?? 'All streams';
   }, [streams, selectedStream]);
 
+  const toggleExam = (id: number) => {
+    setSelectedExamIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
   const handleContinue = () => {
     if (!selectedExamType || !selectedClassroom) {
       showError('Select context', 'Please select exam type and class.');
+      return;
+    }
+    if (selectedExamIds.length === 0) {
+      showError('Select subjects', 'Choose at least one subject you are authorized to mark.');
       return;
     }
     navigation.navigate('MarksMatrixEntry', {
@@ -50,6 +88,7 @@ export const MarksMatrixSetupScreen: React.FC = () => {
       examTypeName: selectedExamTypeName,
       classroomName: selectedClassroomName,
       streamName: selectedStream ? selectedStreamName : undefined,
+      selectedExamIds,
     });
   };
 
@@ -63,20 +102,20 @@ export const MarksMatrixSetupScreen: React.FC = () => {
     <ScreenContainer contentContainerStyle={{ padding: spacing.md }}>
       <AcademicScreenHeader
         title="Bulk marks setup"
-        subtitle="Class · exam type · stream"
+        subtitle="Exam · class · subjects you teach"
         onBack={() => navigation.goBack()}
       />
 
       <View style={[styles.summary, { borderColor: palette.border, padding: spacing.md, marginBottom: spacing.md }]}>
-        <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.xs }}>Selected context</Text>
+        <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.xs }}>Selected</Text>
         <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize }}>
-          Exam type: {selectedExamTypeName}
+          Exam: {selectedExamTypeName}
         </Text>
         <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize }}>
           Class: {selectedClassroomName}
         </Text>
         <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize }}>
-          Stream: {selectedStreamName}
+          Subjects: {selectedExamIds.length || '—'}
         </Text>
       </View>
 
@@ -130,10 +169,50 @@ export const MarksMatrixSetupScreen: React.FC = () => {
         </>
       ) : null}
 
+      {selectedExamType && selectedClassroom ? (
+        <>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+            <Text style={[styles.sectionTitle, { color: palette.textPrimary, marginTop: 0, marginBottom: 0 }]}>
+              Subjects
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <Pressable onPress={() => setSelectedExamIds(availableExams.map((e) => e.id))} disabled={availableExams.length === 0}>
+                <Text style={{ color: colors.primary, fontWeight: '600' }}>Select all</Text>
+              </Pressable>
+              <Pressable onPress={() => setSelectedExamIds([])}>
+                <Text style={{ color: palette.textSecondary, fontWeight: '600' }}>Clear</Text>
+              </Pressable>
+            </View>
+          </View>
+          {matrixPreview.isLoading ? (
+            <Text style={{ color: palette.textSecondary, marginBottom: spacing.sm }}>Loading subjects…</Text>
+          ) : availableExams.length === 0 ? (
+            <Text style={{ color: palette.textSecondary, marginBottom: spacing.sm }}>
+              No open exams in marking for this class and exam type.
+            </Text>
+          ) : (
+            <View style={styles.grid}>
+              {availableExams.map((e) => {
+                const active = selectedExamIds.includes(e.id);
+                return (
+                  <Pressable key={e.id} onPress={() => toggleExam(e.id)} style={[styles.pill, pill(active)]}>
+                    <Text style={{ color: palette.textPrimary, fontWeight: '600', fontSize: typography.body.fontSize }}>
+                      {active ? '☑ ' : '☐ '}
+                      {e.subject_name || e.name}
+                      <Text style={{ color: palette.textSecondary, fontWeight: '400' }}> / {e.max_marks}</Text>
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+        </>
+      ) : null}
+
       <Button
-        label={contextQuery.isLoading ? 'Loading…' : 'Load bulk entry'}
+        label={contextQuery.isLoading || matrixPreview.isFetching ? 'Loading…' : 'Continue'}
         onPress={handleContinue}
-        loading={contextQuery.isLoading}
+        loading={contextQuery.isLoading || matrixPreview.isFetching}
         style={{ marginTop: spacing.lg }}
       />
     </ScreenContainer>
@@ -144,5 +223,5 @@ const styles = StyleSheet.create({
   summary: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 12 },
   sectionTitle: { fontWeight: '700', marginBottom: 8, marginTop: 8 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
-  pill: { borderWidth: 1, paddingVertical: 6, paddingHorizontal: 12 },
+  pill: { borderWidth: 1, paddingVertical: 8, paddingHorizontal: 12 },
 });

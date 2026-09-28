@@ -216,7 +216,26 @@ class FeeReminderController extends Controller
                             $message = $reminder->message ?? $this->generateDefaultMessage($reminder);
                             $message = $replacePlaceholders($message, $vars);
                         }
-                        $this->smsService->sendSMS($phone, $message, $this->smsService->getFinanceSenderId());
+                        $smsResult = $this->smsService->sendSMS($phone, $message, $this->smsService->getFinanceSenderId());
+                        if (is_array($smsResult) && ($smsResult['error_code'] ?? '') === 'INSUFFICIENT_CREDITS') {
+                            $balance = (float) ($smsResult['balance'] ?? 0);
+                            CommunicationPauseService::pauseDueToInsufficientCredits(
+                                $balance,
+                                'FeeReminderController::sendReminder'
+                            );
+                            $reminder->update([
+                                'status' => 'paused',
+                                'error_message' => 'Insufficient SMS credits',
+                            ]);
+                            return;
+                        }
+                        if (is_array($smsResult) && strtolower((string) ($smsResult['status'] ?? '')) === 'error') {
+                            $reminder->update([
+                                'status' => 'failed',
+                                'error_message' => 'SMS failed: ' . ($smsResult['message'] ?? 'Unknown error'),
+                            ]);
+                            return;
+                        }
                     } catch (\Exception $e) {
                         $reminder->update([
                             'status' => 'failed',
