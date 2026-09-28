@@ -10,22 +10,30 @@ use Illuminate\Support\Facades\DB;
 
 class ExamMarkEntryService
 {
-    /** Exam statuses where regular teachers may enter or revise marks (before publication). */
+    /** Exam statuses where regular teachers may enter or revise marks. */
     public function teacherEditableStatuses(): array
     {
-        return ['open', 'marking', 'moderation', 'approved'];
+        return ['marking'];
     }
 
-    /** Exam statuses shown in mark-entry pickers (includes published/locked for senior teachers). */
+    /**
+     * Exam statuses shown in mark-entry pickers.
+     * Published closes teacher entry; seniors/admins may still correct published exams.
+     * Locked is closed for everyone except Super Admin / Admin.
+     */
     public function entryVisibleStatuses(?User $user = null): array
     {
         $statuses = $this->teacherEditableStatuses();
 
-        if ($user && $this->userCanOverrideLockedEntry($user)) {
-            $statuses = array_merge($statuses, ['published', 'locked']);
+        if ($user && $this->userCanOverridePublishedEntry($user)) {
+            $statuses[] = 'published';
         }
 
-        return $statuses;
+        if ($user && $this->userCanOverrideLockedEntry($user)) {
+            $statuses[] = 'locked';
+        }
+
+        return array_values(array_unique($statuses));
     }
 
     public function examAcceptsTeacherEntry(Exam $exam, ?User $user = null): bool
@@ -34,12 +42,25 @@ class ExamMarkEntryService
             return true;
         }
 
-        if ($user && $this->userCanOverrideLockedEntry($user)
-            && in_array($exam->status, ['published', 'locked'], true)) {
+        if ($user && $exam->status === 'published' && $this->userCanOverridePublishedEntry($user)) {
+            return true;
+        }
+
+        if ($user && $exam->status === 'locked' && $this->userCanOverrideLockedEntry($user)) {
             return true;
         }
 
         return false;
+    }
+
+    public function userCanOverridePublishedEntry(User $user): bool
+    {
+        return $user->hasAnyRole([
+            'Super Admin', 'super admin', 'Super admin',
+            'Admin', 'System Admin',
+            'Senior Teacher', 'senior teacher', 'Senior teacher',
+            'Deputy Senior Teacher', 'deputy senior teacher', 'Deputy senior teacher',
+        ]);
     }
 
     public function userCanOverrideLockedEntry(User $user): bool
@@ -47,8 +68,6 @@ class ExamMarkEntryService
         return $user->hasAnyRole([
             'Super Admin', 'super admin', 'Super admin',
             'Admin', 'System Admin',
-            'Senior Teacher', 'senior teacher', 'Senior teacher',
-            'Deputy Senior Teacher', 'deputy senior teacher', 'Deputy senior teacher',
         ]);
     }
 

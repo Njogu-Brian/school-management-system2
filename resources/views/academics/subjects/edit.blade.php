@@ -121,17 +121,23 @@
         </div>
         <div class="card-body">
           <div id="classroom-assignments">
-            @foreach($classroomAssignments as $index => $assignment)
+            @forelse($classroomAssignments as $index => $assignment)
             <div class="classroom-assignment-item mb-3 p-3 border rounded">
               <input type="hidden" name="classroom_assignments[{{ $index }}][id]" value="{{ $assignment->id }}">
               <div class="row g-3">
-                <div class="col-md-4">
+                <div class="col-md-3">
                   <label class="form-label">Classroom</label>
-                  <select name="classroom_assignments[{{ $index }}][classroom_id]" class="form-select" required>
+                  <select name="classroom_assignments[{{ $index }}][classroom_id]" class="form-select js-classroom-select" required>
                     <option value="">-- Select Classroom --</option>
                     @foreach($classrooms as $classroom)
                       <option value="{{ $classroom->id }}" {{ $assignment->classroom_id == $classroom->id ? 'selected' : '' }}>{{ $classroom->name }}</option>
                     @endforeach
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Stream</label>
+                  <select name="classroom_assignments[{{ $index }}][stream_id]" class="form-select js-stream-select" data-selected-stream="{{ $assignment->stream_id }}">
+                    <option value="">All streams</option>
                   </select>
                 </div>
                 <div class="col-md-3">
@@ -152,7 +158,7 @@
                     @endforeach
                   </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-md-1">
                   <label class="form-label">Term</label>
                   <select name="classroom_assignments[{{ $index }}][term_id]" class="form-select">
                     <option value="">-- All --</option>
@@ -172,7 +178,60 @@
                 <i class="bi bi-trash"></i> Remove
               </button>
             </div>
-            @endforeach
+            @empty
+            <div class="classroom-assignment-item mb-3 p-3 border rounded">
+              <div class="row g-3">
+                <div class="col-md-3">
+                  <label class="form-label">Classroom</label>
+                  <select name="classroom_assignments[0][classroom_id]" class="form-select js-classroom-select">
+                    <option value="">-- Select Classroom --</option>
+                    @foreach($classrooms as $classroom)
+                      <option value="{{ $classroom->id }}">{{ $classroom->name }}</option>
+                    @endforeach
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Stream</label>
+                  <select name="classroom_assignments[0][stream_id]" class="form-select js-stream-select">
+                    <option value="">All streams</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Teacher</label>
+                  <select name="classroom_assignments[0][staff_id]" class="form-select">
+                    <option value="">-- Select Teacher --</option>
+                    @foreach($teachers as $teacher)
+                      <option value="{{ $teacher->id }}">{{ $teacher->full_name }}</option>
+                    @endforeach
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Academic Year</label>
+                  <select name="classroom_assignments[0][academic_year_id]" class="form-select">
+                    <option value="">-- All --</option>
+                    @foreach($years as $year)
+                      <option value="{{ $year->id }}">{{ $year->year }}</option>
+                    @endforeach
+                  </select>
+                </div>
+                <div class="col-md-1">
+                  <label class="form-label">Term</label>
+                  <select name="classroom_assignments[0][term_id]" class="form-select">
+                    <option value="">-- All --</option>
+                    @foreach($terms as $term)
+                      <option value="{{ $term->id }}">{{ $term->name }}</option>
+                    @endforeach
+                  </select>
+                </div>
+                <div class="col-md-1">
+                  <label class="form-label">Compulsory</label>
+                  <div class="form-check form-switch">
+                    <input type="checkbox" name="classroom_assignments[0][is_compulsory]" value="1" class="form-check-input" checked>
+                  </div>
+                </div>
+              </div>
+            </div>
+            @endforelse
           </div>
           <button type="button" class="btn btn-sm btn-ghost-strong" id="add-classroom-assignment">
             <i class="bi bi-plus-circle"></i> Add Another Classroom
@@ -192,9 +251,40 @@
 
 @push('scripts')
 <script>
-  let assignmentIndex = {{ $classroomAssignments->count() }};
+  const streamsByClassroom = @json($streamsByClassroom ?? new \stdClass());
+  let assignmentIndex = {{ max($classroomAssignments->count(), 1) }};
   const addBtn = document.getElementById('add-classroom-assignment');
   const container = document.getElementById('classroom-assignments');
+
+  function fillStreams(selectEl, classroomId, selectedStreamId) {
+    if (!selectEl) return;
+    const streams = streamsByClassroom[classroomId] || [];
+    selectEl.innerHTML = '';
+    const allOpt = document.createElement('option');
+    allOpt.value = '';
+    allOpt.textContent = streams.length ? 'All streams' : 'No streams / class-level';
+    selectEl.appendChild(allOpt);
+    streams.forEach((s) => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = s.name;
+      if (String(selectedStreamId || '') === String(s.id)) opt.selected = true;
+      selectEl.appendChild(opt);
+    });
+  }
+
+  function bindClassroomStream(row) {
+    const classSel = row.querySelector('.js-classroom-select');
+    const streamSel = row.querySelector('.js-stream-select');
+    if (!classSel || !streamSel) return;
+    const selected = streamSel.getAttribute('data-selected-stream') || streamSel.value || '';
+    fillStreams(streamSel, classSel.value, selected);
+    classSel.addEventListener('change', () => fillStreams(streamSel, classSel.value, ''));
+  }
+
+  if (container) {
+    container.querySelectorAll('.classroom-assignment-item').forEach(bindClassroomStream);
+  }
 
   if (addBtn && container) {
     addBtn.addEventListener('click', () => {
@@ -215,13 +305,15 @@
           el.checked = false;
         } else if (el.tagName === 'SELECT') {
           el.selectedIndex = 0;
-        } else {
+        } else if (el.type !== 'hidden') {
           el.value = '';
         }
       });
 
-      const removeBtn = template.querySelector('.remove-assignment');
-      if (!removeBtn) {
+      const streamSel = template.querySelector('.js-stream-select');
+      if (streamSel) streamSel.removeAttribute('data-selected-stream');
+
+      if (!template.querySelector('.remove-assignment')) {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'btn btn-sm btn-ghost-strong text-danger mt-2 remove-assignment';
@@ -230,6 +322,7 @@
       }
 
       container.appendChild(template);
+      bindClassroomStream(template);
       assignmentIndex++;
     });
   }

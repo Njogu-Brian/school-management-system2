@@ -3,6 +3,7 @@ import {
   isAdminAppRole,
   useAppMode,
   useCurrentUser,
+  userCanWork,
   UserRole,
 } from '@erp/core';
 import { EmptyState, ScreenContainer } from '@erp/ui';
@@ -13,16 +14,28 @@ import { ParentTabNavigator } from './parent/ParentTabNavigator';
 import { StudentTabNavigator } from './student/StudentTabNavigator';
 import { TeacherNavigator } from './teacher/TeacherNavigator';
 
+function isTeacherLikeRole(role: UserRole | null | undefined): boolean {
+  return (
+    role === UserRole.TEACHER ||
+    role === UserRole.SENIOR_TEACHER ||
+    role === UserRole.SUPERVISOR
+  );
+}
+
 /**
  * Role-adaptive shell — one binary, tabs chosen by role at runtime.
  *
  * Dual-identity users can switch between Work and Home. Mode changes remount this
  * tree (via key) after cache invalidation in AppModeSwitch.
+ *
+ * Critical: when Work is selected, always mount the staff shell even if the API
+ * primary role string is still "Parent" (Senior Teacher + Parent accounts).
  */
 export const RoleBasedNavigator: React.FC = () => {
   const user = useCurrentUser();
   const role = effectiveRole(user);
   const { mode, canSwitch, ready } = useAppMode();
+  const canWork = userCanWork(user);
 
   if (!ready) {
     return (
@@ -33,21 +46,30 @@ export const RoleBasedNavigator: React.FC = () => {
   }
 
   const shellKey = `mode-${mode}-role-${role ?? 'none'}-dual-${canSwitch ? 1 : 0}`;
+  const isAdminDual = (role === UserRole.DIRECTOR || isAdminAppRole(role)) && (user?.parentId || user?.canHomeMode);
 
   let body: React.ReactElement;
 
   if (canSwitch && mode === 'home') {
     body = <ParentTabNavigator />;
+  } else if (canSwitch && mode === 'work') {
+    // Dual-identity Work: never remount Parent shell just because role resolves to Parent.
+    if (isAdminDual) {
+      body = <OpenAdminAppScreen />;
+    } else if (role === UserRole.DRIVER || role === UserRole.TRANSPORT) {
+      body = <DriverTabNavigator />;
+    } else {
+      body = <TeacherNavigator />;
+    }
+  } else if (isAdminDual) {
+    body = mode === 'work' ? <OpenAdminAppScreen /> : <ParentTabNavigator />;
+  } else if (isTeacherLikeRole(role)) {
+    body = <TeacherNavigator />;
   } else if (
-    (role === UserRole.DIRECTOR || isAdminAppRole(role)) &&
-    (user?.parentId || user?.canHomeMode)
-  ) {
-    // Admin dual identity: Home = parent shell; Work = Admin app hand-off (not teacher UI).
-    body = mode === 'work' && canSwitch ? <OpenAdminAppScreen /> : <ParentTabNavigator />;
-  } else if (
-    role === UserRole.TEACHER ||
-    role === UserRole.SENIOR_TEACHER ||
-    role === UserRole.SUPERVISOR
+    // Staff linked but Spatie primary role still Parent — treat as teacher work shell.
+    canWork &&
+    (user?.staffId || user?.canWorkMode) &&
+    (role === UserRole.PARENT || role === UserRole.GUARDIAN)
   ) {
     body = <TeacherNavigator />;
   } else if (role === UserRole.PARENT || role === UserRole.GUARDIAN) {

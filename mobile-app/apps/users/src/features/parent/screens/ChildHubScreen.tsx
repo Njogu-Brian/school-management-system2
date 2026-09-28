@@ -4,13 +4,13 @@ import {
   EmptyState,
   ScreenContainer,
   Soft3DIcon,
+  type Student360TabId,
   useTheme,
 } from '@erp/ui';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { navigateToTab } from '../../../navigation/navigateToTab';
 import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
 
 type Nav = StackNavigationProp<ParentStackParamList>;
@@ -20,88 +20,37 @@ type HubTile = {
   label: string;
   icon: keyof typeof import('@expo/vector-icons').Ionicons.glyphMap;
   tone: 'indigo' | 'emerald' | 'amber' | 'blue' | 'cyan' | 'rose' | 'violet' | 'teal';
-  route:
-    | 'ChildResults'
-    | 'ChildAttendance'
+  /** Open student 360 on a specific tab (preserves hub under the stack for back). */
+  profileTab?: Student360TabId;
+  route?:
     | 'ChildHomework'
-    | 'StudentStatement'
-    | 'Transport'
     | 'DiaryChat'
     | 'RaiseConcern'
     | 'ChildProfile'
     | 'CoCurricularChild'
-    | 'ChildRequirements';
-  /** When set, switch bottom tab so the bar highlight matches the destination area. */
-  tabJump?: { tab: string; screen: string; tabHome?: string };
+    | 'ChildResults';
 };
 
+/**
+ * Profile sections open StudentDetail tabs so Back returns to this hub
+ * (scroll position preserved). Extra actions stay as dedicated screens.
+ */
 const TILES: HubTile[] = [
-  {
-    label: 'Profile',
-    icon: 'person-outline',
-    tone: 'teal',
-    route: 'ChildProfile',
-  },
-  {
-    label: 'Results',
-    icon: 'school-outline',
-    tone: 'indigo',
-    route: 'ChildResults',
-    tabJump: { tab: 'ParentAcademicTab', screen: 'ChildResults', tabHome: 'AcademicHome' },
-  },
-  {
-    label: 'Attendance',
-    icon: 'calendar-outline',
-    tone: 'emerald',
-    route: 'ChildAttendance',
-    tabJump: { tab: 'ParentAcademicTab', screen: 'ChildAttendance', tabHome: 'AcademicHome' },
-  },
-  {
-    label: 'Homework',
-    icon: 'book-outline',
-    tone: 'amber',
-    route: 'ChildHomework',
-    tabJump: { tab: 'ParentAcademicTab', screen: 'ChildHomework', tabHome: 'AcademicHome' },
-  },
-  {
-    label: 'Fees',
-    icon: 'cash-outline',
-    tone: 'blue',
-    route: 'StudentStatement',
-    tabJump: { tab: 'ParentFeesTab', screen: 'StudentStatement', tabHome: 'FeesHome' },
-  },
-  {
-    label: 'Transport',
-    icon: 'bus-outline',
-    tone: 'cyan',
-    route: 'Transport',
-  },
-  {
-    label: 'Diary',
-    icon: 'chatbubbles-outline',
-    tone: 'violet',
-    route: 'DiaryChat',
-    tabJump: { tab: 'ParentHomeTab', screen: 'DiaryChat', tabHome: 'ParentHome' },
-  },
-  {
-    label: 'Co-curricular',
-    icon: 'sparkles-outline',
-    tone: 'amber',
-    route: 'CoCurricularChild',
-  },
-  {
-    label: 'Requirements',
-    icon: 'clipboard-outline',
-    tone: 'indigo',
-    route: 'ChildRequirements',
-  },
-  {
-    label: 'Raise concern',
-    icon: 'alert-circle-outline',
-    tone: 'rose',
-    route: 'RaiseConcern',
-    tabJump: { tab: 'ParentHomeTab', screen: 'RaiseConcern', tabHome: 'ParentHome' },
-  },
+  { label: 'Overview', icon: 'person-outline', tone: 'teal', profileTab: 'overview' },
+  { label: 'Attendance', icon: 'calendar-outline', tone: 'emerald', profileTab: 'attendance' },
+  { label: 'Fees', icon: 'cash-outline', tone: 'blue', profileTab: 'fees' },
+  { label: 'Academic', icon: 'school-outline', tone: 'indigo', profileTab: 'academics' },
+  { label: 'Family', icon: 'people-outline', tone: 'violet', profileTab: 'family' },
+  { label: 'Transport', icon: 'bus-outline', tone: 'cyan', profileTab: 'transport' },
+  { label: 'Requirements', icon: 'clipboard-outline', tone: 'indigo', profileTab: 'requirements' },
+  { label: 'Documents', icon: 'document-text-outline', tone: 'amber', profileTab: 'documents' },
+  { label: 'Health', icon: 'medkit-outline', tone: 'rose', profileTab: 'health' },
+  { label: 'Results', icon: 'ribbon-outline', tone: 'indigo', route: 'ChildResults' },
+  { label: 'Homework', icon: 'book-outline', tone: 'amber', route: 'ChildHomework' },
+  { label: 'Diary', icon: 'chatbubbles-outline', tone: 'violet', route: 'DiaryChat' },
+  { label: 'Co-curricular', icon: 'sparkles-outline', tone: 'amber', route: 'CoCurricularChild' },
+  { label: 'Edit profile', icon: 'create-outline', tone: 'teal', route: 'ChildProfile' },
+  { label: 'Raise concern', icon: 'alert-circle-outline', tone: 'rose', route: 'RaiseConcern' },
 ];
 
 export const ChildHubScreen: React.FC = () => {
@@ -133,20 +82,15 @@ export const ChildHubScreen: React.FC = () => {
       <View style={styles.grid}>
         {TILES.map((tile) => (
           <Pressable
-            key={tile.route}
+            key={tile.label}
             onPress={() => {
-              const params = { studentId };
-              if (tile.tabJump) {
-                navigateToTab(
-                  navigation,
-                  tile.tabJump.tab,
-                  tile.tabJump.screen,
-                  params,
-                  tile.tabJump.tabHome,
-                );
+              if (tile.profileTab) {
+                navigation.navigate('StudentDetail', { studentId, tab: tile.profileTab });
                 return;
               }
-              navigation.navigate(tile.route, params);
+              if (tile.route) {
+                navigation.navigate(tile.route, { studentId });
+              }
             }}
             style={[
               styles.tile,

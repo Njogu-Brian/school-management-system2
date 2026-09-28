@@ -4,3 +4,7 @@ android/
 ios/
 *.log
 .DS_Store
+credentials.json
+upload-keystore.jks
+*.jks
+*.keystore

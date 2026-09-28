@@ -11,6 +11,13 @@ ios/Pods/
 .env
 .env.local
 
+# Android signing (never commit)
+credentials.json
+**/credentials.json
+*.jks
+*.keystore
+upload-keystore.jks
+
 # Expo local
 .expo/
 dist/

@@ -500,6 +500,8 @@ Route::middleware('auth')->group(function () {
         Route::post('streams/{id}/assign-teachers', [StreamController::class, 'assignTeachers'])->name('streams.assign-teachers');
         Route::get('subjects/teacher-assignments', [SubjectController::class, 'teacherAssignments'])->name('subjects.teacher-assignments');
         Route::post('subjects/teacher-assignments', [SubjectController::class, 'saveTeacherAssignments'])->name('subjects.teacher-assignments.save');
+        Route::post('subjects/{id}/restore', [SubjectController::class, 'restore'])->name('subjects.restore');
+        Route::delete('subjects/{id}/force', [SubjectController::class, 'forceDestroy'])->name('subjects.force-destroy');
         Route::resource('subjects',        SubjectController::class);
         Route::post('subjects/generate-cbc', [SubjectController::class, 'generateCBCSubjects'])->name('subjects.generate-cbc');
         Route::post('subjects/assign-classrooms', [SubjectController::class, 'assignToClassrooms'])->name('subjects.assign-classrooms');

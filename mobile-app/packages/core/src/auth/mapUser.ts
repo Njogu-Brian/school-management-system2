@@ -28,7 +28,21 @@ export function mapApiUser(raw: ApiUser): User {
     parentId: raw.parent_id ?? null,
     studentId: raw.student_id ?? null,
     canHomeMode: raw.can_home_mode ?? Boolean(raw.parent_id),
-    canWorkMode: raw.can_work_mode ?? Boolean(raw.staff_id),
+    canWorkMode:
+      Boolean(raw.can_work_mode) ||
+      Boolean(raw.staff_id) ||
+      (() => {
+        const r = (raw.role ?? '').toLowerCase();
+        return (
+          r.includes('teacher') ||
+          r.includes('supervisor') ||
+          r.includes('admin') ||
+          r.includes('director') ||
+          r.includes('secretary') ||
+          r.includes('accountant') ||
+          r.includes('finance')
+        );
+      })(),
     parentProfileReviewRequired: raw.parent_profile_review_required ?? false,
     mustChangePassword: raw.must_change_password ?? false,
     identityGateRequired: raw.identity_gate_required ?? false,

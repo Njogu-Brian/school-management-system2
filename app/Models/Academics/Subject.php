@@ -4,10 +4,13 @@ namespace App\Models\Academics;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\User;
 
 class Subject extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = [
         'code',
         'name',
@@ -22,6 +25,7 @@ class Subject extends Model
         'is_active' => 'boolean',
         'is_optional' => 'boolean',
         'meta' => 'array',
+        'deleted_at' => 'datetime',
     ];
 
     public function classrooms()
@@ -41,7 +45,22 @@ class Subject extends Model
         return $this->belongsToMany(User::class, 'subject_teacher', 'subject_id', 'teacher_id');
     }
 
-    // Scopes
+    public function examMarks()
+    {
+        return $this->hasMany(ExamMark::class);
+    }
+
+    public function exams()
+    {
+        return $this->hasMany(Exam::class);
+    }
+
+    /** Whether this subject has entered marks (blocks hard delete). */
+    public function hasEnteredMarks(): bool
+    {
+        return $this->examMarks()->withTrashed()->exists();
+    }
+
     public function scopeActive(Builder $query)
     {
         return $query->where('is_active', true);

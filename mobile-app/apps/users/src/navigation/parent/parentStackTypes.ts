@@ -16,7 +16,7 @@ export type ParentStackParamList = {
   WalletTopUp: undefined;
   WalletSavingPlans: undefined;
   WalletSavingPlanForm: { planId?: number } | undefined;
-  StudentDetail: { studentId: number };
+  StudentDetail: { studentId: number; tab?: import('@erp/ui').Student360TabId };
   StudentStatement: { studentId: number };
   MpesaPrompt: { studentId: number; amount?: number };
   DiaryList: undefined;

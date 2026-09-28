@@ -49,7 +49,7 @@ export type TeacherStackParamList = {
   Announcements: undefined;
   Notifications: undefined;
   Settings: undefined;
-  StudentDetail: { studentId: number };
+  StudentDetail: { studentId: number; tab?: import('@erp/ui').Student360TabId };
   AssignmentsHub: undefined;
   CreateAssignment: undefined;
   AssignmentDetail: { assignmentId: number };

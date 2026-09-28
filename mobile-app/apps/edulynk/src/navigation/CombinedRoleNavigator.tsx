@@ -4,6 +4,7 @@ import {
   useAppMode,
   useCurrentUser,
   userCanHome,
+  userCanWork,
   UserRole,
 } from '@erp/core';
 import { EmptyState, ScreenContainer, ScreenContainerDefaultsProvider } from '@erp/ui';
@@ -18,31 +19,22 @@ import { TeacherNavigator } from '@users/navigation/teacher/TeacherNavigator';
 /**
  * Combined Edulynk shell — Admin and Users navigators, switched by role + Work|Home.
  *
- * Work mode
- *  - Admin / director / secretary / finance → full Admin drawer (dashboard, students,
- *    finance, HR, approvals, admissions, academics, operations, communication, reports, settings)
- *  - Teacher / senior teacher / supervisor → Teacher tabs
- *  - Driver / transport → Driver tabs
- *  - Parent / guardian (work not available) → Parent tabs
- *  - Student → Student tabs
- *
- * Home mode (dual-identity staff/admins who also have a parent profile)
- *  - Full Parent tabs (children, fees, academics, wallet, diary, transport, …)
+ * Work mode must mount the staff shell for Senior Teacher + Parent dual accounts
+ * even when the API primary role string is still "Parent".
  */
 export const CombinedRoleNavigator: React.FC = () => {
   const user = useCurrentUser();
   const role = effectiveRole(user);
   const { mode, ready } = useAppMode();
   const canHome = userCanHome(user);
+  const canWork = userCanWork(user);
   const adminWork = isAdminAppRole(role) || role === UserRole.DIRECTOR;
 
   if (!ready) {
     return <AuthLoadingScreen />;
   }
 
-  // Parent tabs only when the user explicitly chose Home. Super Admin / staff
-  // must land on the Admin drawer — a leftover parent_id used to dump them
-  // into an empty parent shell (blank grey).
+  // Parent tabs only when the user explicitly chose Home.
   if (canHome && mode === 'home' && !adminWork) {
     return <ParentTabNavigator />;
   }
@@ -58,24 +50,29 @@ export const CombinedRoleNavigator: React.FC = () => {
     );
   }
 
-  if (
-    role === UserRole.TEACHER ||
-    role === UserRole.SENIOR_TEACHER ||
-    role === UserRole.SUPERVISOR
-  ) {
-    return <TeacherNavigator />;
-  }
-
-  if (role === UserRole.PARENT || role === UserRole.GUARDIAN) {
-    return <ParentTabNavigator />;
+  if (role === UserRole.DRIVER || role === UserRole.TRANSPORT) {
+    return <DriverTabNavigator />;
   }
 
   if (role === UserRole.STUDENT) {
     return <StudentTabNavigator />;
   }
 
-  if (role === UserRole.DRIVER || role === UserRole.TRANSPORT) {
-    return <DriverTabNavigator />;
+  // Teacher / senior / supervisor, or dual Parent+staff in Work mode.
+  if (
+    role === UserRole.TEACHER ||
+    role === UserRole.SENIOR_TEACHER ||
+    role === UserRole.SUPERVISOR ||
+    (mode === 'work' &&
+      canWork &&
+      (Boolean(user?.staffId) || Boolean(user?.canWorkMode)) &&
+      (role === UserRole.PARENT || role === UserRole.GUARDIAN || role == null))
+  ) {
+    return <TeacherNavigator />;
+  }
+
+  if (role === UserRole.PARENT || role === UserRole.GUARDIAN) {
+    return <ParentTabNavigator />;
   }
 
   return (

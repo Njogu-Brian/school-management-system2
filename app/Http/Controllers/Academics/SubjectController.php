@@ -27,17 +27,22 @@ class SubjectController extends Controller
             'teacherAssignments',
             'saveTeacherAssignments',
         ]);
-        $this->middleware('permission:subjects.delete')->only(['destroy']);
+        $this->middleware('permission:subjects.delete')->only(['destroy', 'restore', 'forceDestroy']);
     }
 
     public function index(Request $request)
     {
-        $query = Subject::with([
+        $query = Subject::query()
+            ->with([
                 'classroomSubjects.classroom',
                 'classroomSubjects.stream',
                 'teachers'
             ])
             ->withCount(['classroomSubjects', 'teachers']);
+
+        if ($request->input('archived') === '1') {
+            $query->onlyTrashed();
+        }
 
         // Search
         if ($request->filled('search')) {
@@ -64,19 +69,27 @@ class SubjectController extends Controller
 
         $subjects = $query->orderBy('name')->paginate(20)->withQueryString();
 
-        $levels = Subject::distinct()->whereNotNull('level')->pluck('level')->sort();
+        $levels = Subject::withTrashed()->distinct()->whereNotNull('level')->pluck('level')->sort();
 
         return view('academics.subjects.index', compact('subjects', 'levels'));
     }
 
     public function create()
     {
-        $classrooms = Classroom::orderBy('name')->get();
+        $classrooms = Classroom::with(['primaryStreams', 'streams'])->orderBy('name')->get();
         $teachers = Staff::where('status', 'active')->whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher', 'Senior Teacher', 'Supervisor', 'supervisor']))->get();
         $years = \App\Support\AcademicContext::years();
         $terms = \App\Support\AcademicContext::allTermsForSelect();
+        $streamsByClassroom = $classrooms->mapWithKeys(function (Classroom $classroom) {
+            return [
+                $classroom->id => $classroom->allStreams()->map(fn ($s) => [
+                    'id' => $s->id,
+                    'name' => $s->name,
+                ])->values(),
+            ];
+        });
 
-        return view('academics.subjects.create', compact('classrooms', 'teachers', 'years', 'terms'));
+        return view('academics.subjects.create', compact('classrooms', 'teachers', 'years', 'terms', 'streamsByClassroom'));
     }
 
     public function store(Request $request)
@@ -88,28 +101,19 @@ class SubjectController extends Controller
             'level' => 'nullable|string|max:50',
             'is_active' => 'boolean',
             'is_optional' => 'boolean',
+            'classroom_assignments' => 'nullable|array',
+            'classroom_assignments.*.classroom_id' => 'nullable|exists:classrooms,id',
+            'classroom_assignments.*.stream_id' => 'nullable|exists:streams,id',
+            'classroom_assignments.*.staff_id' => 'nullable|exists:staff,id',
+            'classroom_assignments.*.academic_year_id' => 'nullable|exists:academic_years,id',
+            'classroom_assignments.*.term_id' => 'nullable|exists:terms,id',
+            'classroom_assignments.*.is_compulsory' => 'nullable|boolean',
         ]);
 
         $subject = Subject::create($validated);
 
-        // Handle classroom assignments with detailed information
         if ($request->filled('classroom_assignments')) {
-            foreach ($request->classroom_assignments as $assignment) {
-                // Include staff_id in the unique constraint check to allow multiple teachers
-                ClassroomSubject::updateOrCreate(
-                    [
-                        'classroom_id' => $assignment['classroom_id'],
-                        'subject_id' => $subject->id,
-                        'stream_id' => $assignment['stream_id'] ?? null,
-                        'staff_id' => $assignment['staff_id'] ?? null,
-                        'academic_year_id' => $assignment['academic_year_id'] ?? null,
-                        'term_id' => $assignment['term_id'] ?? null,
-                    ],
-                    [
-                        'is_compulsory' => $assignment['is_compulsory'] ?? !$subject->is_optional,
-                    ]
-                );
-            }
+            $this->syncClassroomAssignments($subject, $request->classroom_assignments);
         }
 
         return redirect()
@@ -123,6 +127,7 @@ class SubjectController extends Controller
             'classrooms',
             'teachers',
             'classroomSubjects.classroom',
+            'classroomSubjects.stream',
             'classroomSubjects.teacher'
         ]);
 
@@ -131,12 +136,10 @@ class SubjectController extends Controller
 
     public function edit(Subject $subject)
     {
-        $classrooms = Classroom::orderBy('name')->get();
+        $classrooms = Classroom::with(['primaryStreams', 'streams'])->orderBy('name')->get();
         $classroomAssignments = $subject->classroomSubjects()
-            ->with(['classroom', 'teacher'])
+            ->with(['classroom', 'stream', 'teacher'])
             ->get();
-        // Active staff only, plus any currently assigned teacher who is archived
-        // so existing assignments remain visible and changeable.
         $assignedStaffIds = $classroomAssignments->pluck('staff_id')->filter()->all();
         $teachers = Staff::where(function ($q) use ($assignedStaffIds) {
                 $q->where('status', 'active')->orWhereIn('id', $assignedStaffIds);
@@ -145,6 +148,14 @@ class SubjectController extends Controller
             ->get();
         $years = \App\Support\AcademicContext::years();
         $terms = \App\Support\AcademicContext::allTermsForSelect();
+        $streamsByClassroom = $classrooms->mapWithKeys(function (Classroom $classroom) {
+            return [
+                $classroom->id => $classroom->allStreams()->map(fn ($s) => [
+                    'id' => $s->id,
+                    'name' => $s->name,
+                ])->values(),
+            ];
+        });
 
         return view('academics.subjects.edit', compact(
             'subject',
@@ -152,7 +163,8 @@ class SubjectController extends Controller
             'teachers',
             'years',
             'terms',
-            'classroomAssignments'
+            'classroomAssignments',
+            'streamsByClassroom'
         ));
     }
 
@@ -165,48 +177,20 @@ class SubjectController extends Controller
             'level' => 'nullable|string|max:50',
             'is_active' => 'boolean',
             'is_optional' => 'boolean',
+            'classroom_assignments' => 'nullable|array',
+            'classroom_assignments.*.id' => 'nullable|integer',
+            'classroom_assignments.*.classroom_id' => 'nullable|exists:classrooms,id',
+            'classroom_assignments.*.stream_id' => 'nullable|exists:streams,id',
+            'classroom_assignments.*.staff_id' => 'nullable|exists:staff,id',
+            'classroom_assignments.*.academic_year_id' => 'nullable|exists:academic_years,id',
+            'classroom_assignments.*.term_id' => 'nullable|exists:terms,id',
+            'classroom_assignments.*.is_compulsory' => 'nullable|boolean',
         ]);
 
         $subject->update($validated);
 
-        // Handle classroom assignments
-        if ($request->filled('classroom_assignments')) {
-            // Delete existing assignments not in the new list
-            $newAssignmentIds = collect($request->classroom_assignments)
-                ->pluck('id')
-                ->filter()
-                ->toArray();
-
-            $subject->classroomSubjects()
-                ->whereNotIn('id', $newAssignmentIds)
-                ->delete();
-
-            // Update or create assignments
-            foreach ($request->classroom_assignments as $assignment) {
-                if (isset($assignment['id']) && $assignment['id']) {
-                    $classroomSubject = ClassroomSubject::find($assignment['id']);
-                    if ($classroomSubject) {
-                        $classroomSubject->update([
-                            'classroom_id' => $assignment['classroom_id'],
-                            'stream_id' => $assignment['stream_id'] ?? null,
-                            'staff_id' => $assignment['staff_id'] ?? null,
-                            'academic_year_id' => $assignment['academic_year_id'] ?? null,
-                            'term_id' => $assignment['term_id'] ?? null,
-                            'is_compulsory' => $assignment['is_compulsory'] ?? !$subject->is_optional,
-                        ]);
-                    }
-                } else {
-                    ClassroomSubject::create([
-                        'classroom_id' => $assignment['classroom_id'],
-                        'subject_id' => $subject->id,
-                        'stream_id' => $assignment['stream_id'] ?? null,
-                        'staff_id' => $assignment['staff_id'] ?? null,
-                        'academic_year_id' => $assignment['academic_year_id'] ?? null,
-                        'term_id' => $assignment['term_id'] ?? null,
-                        'is_compulsory' => $assignment['is_compulsory'] ?? !$subject->is_optional,
-                    ]);
-                }
-            }
+        if ($request->has('classroom_assignments')) {
+            $this->syncClassroomAssignments($subject, $request->input('classroom_assignments', []), true);
         }
 
         return redirect()
@@ -214,25 +198,149 @@ class SubjectController extends Controller
             ->with('success', 'Subject updated successfully.');
     }
 
+    /**
+     * Archive (soft-delete) a subject. Never hard-deletes rows that have marks.
+     */
     public function destroy(Subject $subject)
     {
-        $assignmentCount = 0;
-
-        DB::transaction(function () use ($subject, &$assignmentCount) {
-            $assignmentCount = $subject->classroomSubjects()->count();
-            $subject->classroomSubjects()->delete();
-            $subject->teachers()->detach();
-            $subject->delete();
-        });
-
-        $msg = 'Subject deleted successfully.';
-        if ($assignmentCount > 0) {
-            $msg .= sprintf(' Removed %d classroom assignment(s).', $assignmentCount);
-        }
+        $subject->update(['is_active' => false]);
+        $subject->delete();
 
         return redirect()
             ->route('academics.subjects.index')
-            ->with('success', $msg);
+            ->with('success', 'Subject archived. Classroom assignments and marks are preserved. You can restore it from Archived subjects.');
+    }
+
+    public function restore(int $id)
+    {
+        $subject = Subject::onlyTrashed()->findOrFail($id);
+        $subject->restore();
+        $subject->update(['is_active' => true]);
+
+        return redirect()
+            ->route('academics.subjects.index')
+            ->with('success', 'Subject restored successfully.');
+    }
+
+    /**
+     * Permanent delete — blocked when any exam marks exist for this subject.
+     */
+    public function forceDestroy(int $id)
+    {
+        $subject = Subject::withTrashed()->findOrFail($id);
+
+        if ($subject->hasEnteredMarks()) {
+            return redirect()
+                ->route('academics.subjects.index', ['archived' => 1])
+                ->with('error', 'Cannot permanently delete this subject because exam marks have been entered. Keep it archived instead.');
+        }
+
+        DB::transaction(function () use ($subject) {
+            $subject->classroomSubjects()->delete();
+            $subject->teachers()->detach();
+            $subject->forceDelete();
+        });
+
+        return redirect()
+            ->route('academics.subjects.index', ['archived' => 1])
+            ->with('success', 'Subject permanently deleted.');
+    }
+
+    /**
+     * Persist classroom/stream/teacher assignment rows.
+     * Empty stream_id + classroom with streams → one row per stream (same teacher).
+     *
+     * @param  array<int, array<string, mixed>>  $assignments
+     */
+    protected function syncClassroomAssignments(Subject $subject, array $assignments, bool $replaceMissing = false): void
+    {
+        $slotService = app(ClassroomSubjectSlotService::class);
+        $keptIds = [];
+
+        foreach ($assignments as $assignment) {
+            $classroomId = (int) ($assignment['classroom_id'] ?? 0);
+            if ($classroomId <= 0) {
+                continue;
+            }
+
+            $streamId = filled($assignment['stream_id'] ?? null) ? (int) $assignment['stream_id'] : null;
+            $staffId = filled($assignment['staff_id'] ?? null) ? (int) $assignment['staff_id'] : null;
+            $yearId = filled($assignment['academic_year_id'] ?? null) ? (int) $assignment['academic_year_id'] : null;
+            $termId = filled($assignment['term_id'] ?? null) ? (int) $assignment['term_id'] : null;
+            $attrs = [
+                'is_compulsory' => (bool) ($assignment['is_compulsory'] ?? ! $subject->is_optional),
+            ];
+
+            $classroom = Classroom::with(['primaryStreams', 'streams'])->find($classroomId);
+            $streams = $classroom ? $classroom->allStreams() : collect();
+
+            // Explicit stream, or class has no streams → single slot.
+            if ($streamId !== null || $streams->isEmpty()) {
+                $existingId = filled($assignment['id'] ?? null) ? (int) $assignment['id'] : null;
+                if ($existingId) {
+                    $row = ClassroomSubject::query()->where('subject_id', $subject->id)->find($existingId);
+                    if ($row) {
+                        $row->update([
+                            'classroom_id' => $classroomId,
+                            'stream_id' => $streamId,
+                            'staff_id' => $staffId,
+                            'academic_year_id' => $yearId,
+                            'term_id' => $termId,
+                            'is_compulsory' => $attrs['is_compulsory'],
+                        ]);
+                        $keptIds[] = $row->id;
+                        continue;
+                    }
+                }
+
+                $slotService->upsertSlot($classroomId, $subject->id, $streamId, $staffId, $yearId, $termId, $attrs);
+                $keptIds = array_merge($keptIds, $this->findSlotIds($subject->id, $classroomId, $streamId, $yearId, $termId));
+                continue;
+            }
+
+            // "All streams" — create/update one slot per stream with the same teacher.
+            foreach ($streams as $stream) {
+                $slotService->upsertSlot($classroomId, $subject->id, (int) $stream->id, $staffId, $yearId, $termId, $attrs);
+                $keptIds = array_merge($keptIds, $this->findSlotIds($subject->id, $classroomId, (int) $stream->id, $yearId, $termId));
+            }
+        }
+
+        if ($replaceMissing) {
+            $subject->classroomSubjects()
+                ->when(! empty($keptIds), fn ($q) => $q->whereNotIn('id', array_unique($keptIds)))
+                ->when(empty($keptIds), fn ($q) => $q)
+                ->delete();
+        }
+    }
+
+    /**
+     * @return list<int>
+     */
+    protected function findSlotIds(int $subjectId, int $classroomId, ?int $streamId, ?int $yearId, ?int $termId): array
+    {
+        $q = ClassroomSubject::query()
+            ->where('subject_id', $subjectId)
+            ->where('classroom_id', $classroomId);
+
+        if ($streamId === null) {
+            $q->whereNull('stream_id');
+        } else {
+            $q->where('stream_id', $streamId);
+        }
+
+        if ($yearId === null) {
+            $q->whereNull('academic_year_id');
+        } else {
+            $q->where('academic_year_id', $yearId);
+        }
+
+        if ($termId === null) {
+            $q->whereNull('term_id');
+        } else {
+            $q->where('term_id', $termId);
+        }
+
+        return $q->pluck('id')->map(fn ($id) => (int) $id)->all();
     }
 
     /**

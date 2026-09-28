@@ -23,6 +23,8 @@ export interface OverviewTabProps {
   canViewFees: boolean;
   statementLoading: boolean;
   statement?: StudentStatementRecord | null;
+  /** Overview widgets → open matching 360 tab (attendance calendar, fees, family). */
+  onWidgetPress?: (widgetId: string) => void;
 }
 
 function StatusChip({
@@ -135,6 +137,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   canViewFees,
   statementLoading,
   statement,
+  onWidgetPress,
 }) => {
   const { palette, typography, spacing, colors, radius, elevation } = useTheme();
   const kemisOptionsQuery = useKemisOptions();
@@ -151,7 +154,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         id: 'attendance',
         label: 'Attendance',
         value: formatPercent(attendancePct ?? null),
-        delta: 'Last 90 days',
+        delta: 'Tap for calendar',
         icon: 'checkmark-circle-outline',
       },
       {
@@ -170,7 +173,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         id: 'balance',
         label: 'Fee balance',
         value: formatKes(feeBalanceValue),
-        delta: student.feeStatus === 'pending' ? 'Outstanding' : 'Cleared',
+        delta: student.feeStatus === 'pending' ? 'Tap for fees' : 'Tap for fees',
         icon: 'wallet-outline',
       });
     } else {
@@ -178,6 +181,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         id: 'fees',
         label: 'Fees',
         value: student.feeStatus === 'pending' ? 'Pending' : 'Cleared',
+        delta: 'Tap for fees',
         icon: 'wallet-outline',
       });
     }
@@ -187,7 +191,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       id: 'parent',
       label: 'Primary contact',
       value: primary?.name ?? student.parent?.fatherName ?? student.parent?.motherName ?? '—',
-      delta: primary?.phone ?? student.parent?.fatherPhone ?? student.parent?.motherPhone ?? undefined,
+      delta: primary?.phone ?? student.parent?.fatherPhone ?? student.parent?.motherPhone ?? 'Tap for family',
       icon: 'people-outline',
     });
 
@@ -279,7 +283,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         </View>
       </View>
 
-      <StudentSummaryWidgets widgets={widgets} />
+      <StudentSummaryWidgets widgets={widgets} onWidgetPress={onWidgetPress} />
 
       {statementLoading && canViewFees ? (
         <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.md }} />

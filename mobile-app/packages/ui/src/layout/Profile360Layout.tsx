@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useRef } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
 import { ScrollableTabBar, type ScrollableTab } from './ScrollableTabBar';
 import { useTheme } from '../theme/ThemeContext';
 
@@ -26,6 +26,7 @@ const COLLAPSE_THRESHOLD = 80;
 
 /**
  * Shared 360 profile shell — collapsing header, sticky tabs, tab content.
+ * Remembers scroll offset per tab so switching (and returning) restores the view.
  */
 export function Profile360Layout<T extends string>({
   header,
@@ -38,6 +39,22 @@ export function Profile360Layout<T extends string>({
 }: Profile360LayoutProps<T>) {
   const { palette, spacing, typography } = useTheme();
   const scrollY = useRef(new Animated.Value(0)).current;
+  const scrollRef = useRef<Animated.ScrollView>(null);
+  const currentY = useRef(0);
+  const offsetsByTab = useRef<Partial<Record<T, number>>>({});
+  const prevTabRef = useRef(activeTab);
+
+  useEffect(() => {
+    if (prevTabRef.current === activeTab) return;
+    offsetsByTab.current[prevTabRef.current] = currentY.current;
+    const restoreY = offsetsByTab.current[activeTab] ?? 0;
+    prevTabRef.current = activeTab;
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y: restoreY, animated: false });
+      currentY.current = restoreY;
+      scrollY.setValue(restoreY);
+    });
+  }, [activeTab, scrollY]);
 
   const largeOpacity = scrollY.interpolate({
     inputRange: [0, COLLAPSE_THRESHOLD * 0.55, COLLAPSE_THRESHOLD],
@@ -52,6 +69,13 @@ export function Profile360Layout<T extends string>({
         extrapolate: 'clamp',
       })
     : undefined;
+
+  const onScroll = Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+    useNativeDriver: true,
+    listener: (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      currentY.current = e.nativeEvent.contentOffset.y;
+    },
+  });
 
   return (
     <View style={styles.flex}>
@@ -107,19 +131,18 @@ export function Profile360Layout<T extends string>({
         ) : null}
 
         <Animated.ScrollView
-        contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
-        stickyHeaderIndices={[1]}
-        scrollEventThrottle={16}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
-          useNativeDriver: true,
-        })}
-      >
-        <Animated.View style={{ opacity: largeOpacity }}>{header}</Animated.View>
+          ref={scrollRef}
+          contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
+          stickyHeaderIndices={[1]}
+          scrollEventThrottle={16}
+          onScroll={onScroll}
+        >
+          <Animated.View style={{ opacity: largeOpacity }}>{header}</Animated.View>
 
-        <ScrollableTabBar tabs={tabs} activeTab={activeTab} onTabChange={onTabChange} variant="scroll" />
+          <ScrollableTabBar tabs={tabs} activeTab={activeTab} onTabChange={onTabChange} variant="scroll" />
 
-        <View style={{ marginTop: spacing.sm }}>{children}</View>
-      </Animated.ScrollView>
+          <View style={{ marginTop: spacing.sm }}>{children}</View>
+        </Animated.ScrollView>
       </View>
     </View>
   );

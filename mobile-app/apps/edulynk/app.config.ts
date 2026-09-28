@@ -11,8 +11,8 @@ const controlPlaneBase =
 const requireSchoolCode = process.env.EXPO_PUBLIC_REQUIRE_SCHOOL_CODE !== 'false';
 const productWebsite = process.env.EXPO_PUBLIC_PRODUCT_WEBSITE_URL || 'https://edulynk.co.ke';
 const splashBackground = '#000000';
-/** Linked EAS project — filled by `eas init` / extra.eas.projectId. */
-const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID ?? '53f1ee05-d923-4583-b2d2-f38b118c1341';
+/** Linked EAS project under @breysoms-team. */
+const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID ?? '54d4662d-a1f2-472d-86de-acfec0eea76d';
 const APP_VERSION = '1.0.1';
 
 const updatesUrl = `https://u.expo.dev/${EAS_PROJECT_ID}`;
@@ -21,7 +21,7 @@ const config: ExpoConfig = {
   name: 'Edulynk',
   slug: 'edulynk',
   scheme: 'edulynk',
-  owner: 'briannjogu',
+  owner: 'breysoms-team',
   version: APP_VERSION,
   orientation: 'default',
   userInterfaceStyle: 'automatic',

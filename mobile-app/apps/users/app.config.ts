@@ -9,14 +9,15 @@ const controlPlaneBase =
   process.env.EXPO_PUBLIC_CONTROL_PLANE_BASE_URL || apiBase;
 const requireSchoolCode = process.env.EXPO_PUBLIC_REQUIRE_SCHOOL_CODE === 'true';
 const primaryColor = '#004A99';
-/** EAS project for Royal Kings Users (`@briannjogu/royal-kings-users`). */
-const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID ?? '9655dc56-ce2d-4a0b-b7e0-57460abbac8d';
+/** EAS project for Royal Kings Users (`@breysoms-team/royal-kings-users`). */
+const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID ?? 'f958de71-5153-4219-a112-0b1b503eefe7';
 const APP_VERSION = '1.0.8';
 
 const config: ExpoConfig = {
   name: 'Royal Kings Users',
   slug: 'royal-kings-users',
   scheme: 'royalkingsusers',
+  owner: 'breysoms-team',
   version: APP_VERSION,
   orientation: 'default',
   userInterfaceStyle: 'automatic',

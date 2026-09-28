@@ -72,6 +72,13 @@
               <option value="0" {{ request('is_active') === '0' ? 'selected' : '' }}>Inactive</option>
             </select>
           </div>
+          <div class="col-md-2">
+            <label class="form-label">Archive</label>
+            <select name="archived" class="form-select">
+              <option value="" {{ request('archived') !== '1' ? 'selected' : '' }}>Current</option>
+              <option value="1" {{ request('archived') === '1' ? 'selected' : '' }}>Archived only</option>
+            </select>
+          </div>
           <div class="col-md-1 d-flex justify-content-end">
             <button type="submit" class="btn btn-settings-primary w-100">
               <i class="bi bi-search"></i>
@@ -155,18 +162,33 @@
                 </td>
                 <td class="text-end">
                   <div class="d-flex justify-content-end gap-1 flex-wrap">
+                    @if(request('archived') !== '1')
                     <a href="{{ route('academics.subjects.show', $subject) }}" class="btn btn-sm btn-ghost-strong text-info" title="View">
                       <i class="bi bi-eye"></i>
                     </a>
                     <a href="{{ route('academics.subjects.edit', $subject) }}" class="btn btn-sm btn-ghost-strong" title="Edit">
                       <i class="bi bi-pencil"></i>
                     </a>
-                    <form action="{{ route('academics.subjects.destroy', $subject) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this subject?');">
+                    <form action="{{ route('academics.subjects.destroy', $subject) }}" method="POST" class="d-inline" onsubmit="return confirm('Archive this subject? Marks and teacher assignments are kept. You can restore it later.');">
                       @csrf @method('DELETE')
-                      <button type="submit" class="btn btn-sm btn-ghost-strong text-danger" title="Delete">
+                      <button type="submit" class="btn btn-sm btn-ghost-strong text-warning" title="Archive">
+                        <i class="bi bi-archive"></i>
+                      </button>
+                    </form>
+                    @else
+                    <form action="{{ route('academics.subjects.restore', $subject->id) }}" method="POST" class="d-inline">
+                      @csrf
+                      <button type="submit" class="btn btn-sm btn-ghost-strong text-success" title="Restore">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                      </button>
+                    </form>
+                    <form action="{{ route('academics.subjects.force-destroy', $subject->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Permanently delete this subject? This is blocked if any marks exist.');">
+                      @csrf @method('DELETE')
+                      <button type="submit" class="btn btn-sm btn-ghost-strong text-danger" title="Delete permanently">
                         <i class="bi bi-trash"></i>
                       </button>
                     </form>
+                    @endif
                   </div>
                 </td>
               </tr>

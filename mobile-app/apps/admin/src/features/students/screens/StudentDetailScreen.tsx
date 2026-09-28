@@ -18,7 +18,7 @@ import {
   type Student360TabId,
   useTheme,
 } from '@erp/ui';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, Share, StyleSheet, Text } from 'react-native';
 import type { StudentsStackParamList } from '../../../navigation/studentsStackTypes';
 import { navigateToTab } from '../../../navigation/navigateWorkspace';
@@ -39,12 +39,13 @@ type Props = StackScreenProps<StudentsStackParamList, 'StudentDetail'>;
 const BASE_TABS: Array<{ id: Student360TabId; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'attendance', label: 'Attendance' },
-  { id: 'health', label: 'Health' },
+  { id: 'fees', label: 'Fees' },
+  { id: 'academics', label: 'Academic' },
+  { id: 'family', label: 'Family' },
   { id: 'transport', label: 'Transport' },
   { id: 'requirements', label: 'Requirements' },
   { id: 'documents', label: 'Documents' },
-  { id: 'fees', label: 'Fees' },
-  { id: 'family', label: 'Family' },
+  { id: 'health', label: 'Health' },
 ];
 
 function summaryAsDetail(summary: StudentSummary): StudentDetail {
@@ -99,6 +100,39 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const [activeTab, setActiveTab] = useState<Student360TabId>(initialTab ?? 'overview');
   const [promptOpen, setPromptOpen] = useState(false);
 
+  // Keep route params in sync so back from nested screens restores this tab.
+  useEffect(() => {
+    const paramTab = route.params?.tab;
+    if (paramTab) {
+      setActiveTab(paramTab);
+    }
+  }, [route.params?.tab]);
+
+  const handleTabChange = useCallback(
+    (tab: Student360TabId) => {
+      setActiveTab(tab);
+      navigation.setParams({ tab });
+    },
+    [navigation],
+  );
+
+  const handleOverviewWidgetPress = useCallback(
+    (widgetId: string) => {
+      const map: Record<string, Student360TabId> = {
+        attendance: 'attendance',
+        balance: 'fees',
+        fees: 'fees',
+        parent: 'family',
+        status: 'overview',
+      };
+      const next = map[widgetId];
+      if (next && next !== activeTab) {
+        handleTabChange(next);
+      }
+    },
+    [activeTab, handleTabChange],
+  );
+
   const detailQuery = useStudentDetail(studentId);
   const statsQuery = useStudentStats(studentId);
   const statementQuery = useStudentStatement(
@@ -149,13 +183,12 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   };
 
   const tabs = useMemo(() => {
-    const list = [...BASE_TABS];
-    if (canViewAcademics) {
-      const healthIndex = list.findIndex((t) => t.id === 'health');
-      list.splice(healthIndex >= 0 ? healthIndex : 2, 0, { id: 'academics', label: 'Academics' });
+    let list = [...BASE_TABS];
+    if (!canViewAcademics) {
+      list = list.filter((t) => t.id !== 'academics');
     }
     if (!canViewFees) {
-      return list.filter((t) => t.id !== 'fees');
+      list = list.filter((t) => t.id !== 'fees');
     }
     return list;
   }, [canViewAcademics, canViewFees]);
@@ -234,6 +267,7 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             canViewFees={canViewFees}
             statementLoading={statementQuery.isLoading}
             statement={statement ?? null}
+            onWidgetPress={handleOverviewWidgetPress}
           />
         );
       case 'attendance':
@@ -313,7 +347,7 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
         header={header}
         tabs={tabs}
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
         onBack={() => navigation.goBack()}
       >
         <Pressable

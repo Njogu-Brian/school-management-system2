@@ -243,7 +243,8 @@ class AuthApiController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'OTP sent successfully.',
+            'message' => $result['message'] ?? 'OTP sent successfully.',
+            'delivery_channel' => $result['delivery_channel'] ?? 'sms',
         ]);
     }
 
@@ -583,13 +584,21 @@ class AuthApiController extends Controller
         }
 
         // Dual-identity / mode flags for the mobile Work|Home switcher.
+        // Teacher-like Spatie roles must enable Work even when staff row is missing,
+        // otherwise Senior Teacher + Parent accounts get stuck on Home-only.
         $hasParent = ! empty($user->parent_id) || $user->hasAnyRole(['Parent', 'Guardian']);
         $hasStaff = $staff !== null;
         $data['can_home_mode'] = $hasParent;
         $data['can_work_mode'] = $hasStaff
+            || $user->hasTeacherLikeRole()
             || $user->hasAnyRole([
                 'Director', 'Super Admin', 'Admin', 'Secretary', 'Accountant', 'Finance Officer',
                 'Academic Administrator',
+                'Senior Teacher', 'senior teacher', 'Senior teacher',
+                'Deputy Senior Teacher', 'deputy senior teacher', 'Deputy senior teacher',
+                'Teacher', 'teacher',
+                'Supervisor', 'supervisor',
+                'Driver', 'driver', 'Transport', 'transport',
             ]);
 
         if (Schema::hasColumn('users', 'parent_profile_review_required')) {

@@ -120,17 +120,23 @@
           <h5 class="mb-0">Classroom Assignments (Optional)</h5>
         </div>
         <div class="card-body">
-          <p class="text-muted">Assign this subject to classrooms now or later. Leave blank to skip.</p>
+          <p class="text-muted">Assign this subject to classrooms and streams. Leave stream as âAll streamsâ to create one row per stream with the same teacher.</p>
           <div id="classroom-assignments">
             <div class="classroom-assignment-item mb-3 p-3 border rounded">
               <div class="row g-3">
-                <div class="col-md-4">
+                <div class="col-md-3">
                   <label class="form-label">Classroom</label>
-                  <select name="classroom_assignments[0][classroom_id]" class="form-select">
+                  <select name="classroom_assignments[0][classroom_id]" class="form-select js-classroom-select">
                     <option value="">-- Select Classroom --</option>
                     @foreach($classrooms as $classroom)
                       <option value="{{ $classroom->id }}">{{ $classroom->name }}</option>
                     @endforeach
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Stream</label>
+                  <select name="classroom_assignments[0][stream_id]" class="form-select js-stream-select">
+                    <option value="">All streams</option>
                   </select>
                 </div>
                 <div class="col-md-3">
@@ -151,12 +157,12 @@
                     @endforeach
                   </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-md-1">
                   <label class="form-label">Term</label>
                   <select name="classroom_assignments[0][term_id]" class="form-select">
                     <option value="">-- All --</option>
                     @foreach($terms as $term)
-                      <option value="{{ $term->id }}" data-academic-year-id="{{ $term->academic_year_id }}">{{ ($term->academicYear->year ?? '') ? ($term->academicYear->year . ' � ' . $term->name) : $term->name }}</option>
+                      <option value="{{ $term->id }}" data-academic-year-id="{{ $term->academic_year_id }}">{{ ($term->academicYear->year ?? '') ? ($term->academicYear->year . ' Â· ' . $term->name) : $term->name }}</option>
                     @endforeach
                   </select>
                 </div>
@@ -187,9 +193,38 @@
 
 @push('scripts')
 <script>
+  const streamsByClassroom = @json($streamsByClassroom ?? new \stdClass());
   let assignmentIndex = 1;
   const addBtn = document.getElementById('add-classroom-assignment');
   const container = document.getElementById('classroom-assignments');
+
+  function fillStreams(selectEl, classroomId, selectedStreamId) {
+    if (!selectEl) return;
+    const streams = streamsByClassroom[classroomId] || [];
+    selectEl.innerHTML = '';
+    const allOpt = document.createElement('option');
+    allOpt.value = '';
+    allOpt.textContent = streams.length ? 'All streams' : 'No streams / class-level';
+    selectEl.appendChild(allOpt);
+    streams.forEach((s) => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = s.name;
+      if (String(selectedStreamId) === String(s.id)) opt.selected = true;
+      selectEl.appendChild(opt);
+    });
+  }
+
+  function bindClassroomStream(row) {
+    const classSel = row.querySelector('.js-classroom-select');
+    const streamSel = row.querySelector('.js-stream-select');
+    if (!classSel || !streamSel) return;
+    classSel.addEventListener('change', () => fillStreams(streamSel, classSel.value, ''));
+  }
+
+  if (container) {
+    container.querySelectorAll('.classroom-assignment-item').forEach(bindClassroomStream);
+  }
 
   if (addBtn && container) {
     addBtn.addEventListener('click', function() {
@@ -198,7 +233,7 @@
       const clone = first.cloneNode(true);
       clone.querySelectorAll('select, input').forEach(el => {
         if (el.name) {
-          el.name = el.name.replace(/\[0\]/, `[${assignmentIndex}]`);
+          el.name = el.name.replace(/\[\d+\]/, `[${assignmentIndex}]`);
         }
         if (el.type === 'checkbox') {
           el.checked = false;
@@ -207,6 +242,7 @@
         }
       });
       container.appendChild(clone);
+      bindClassroomStream(clone);
       assignmentIndex++;
     });
   }

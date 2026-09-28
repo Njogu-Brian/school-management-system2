@@ -175,15 +175,18 @@ class Exam extends Model
         return $query->where('status', $status);
     }
 
+    /** Canonical exam lifecycle statuses. */
+    public static function lifecycleStatuses(): array
+    {
+        return ['draft', 'marking', 'published', 'locked'];
+    }
+
     // Accessors
     public function getStatusBadgeAttribute()
     {
         $badges = [
             'draft' => 'secondary',
-            'open' => 'info',
             'marking' => 'warning',
-            'moderation' => 'warning',
-            'approved' => 'success',
             'published' => 'success',
             'locked' => 'danger',
         ];
@@ -193,17 +196,17 @@ class Exam extends Model
 
     public function getIsOpenAttribute()
     {
-        return $this->status === 'open';
+        return $this->status === 'marking';
     }
 
     public function getCanEnterMarksAttribute()
     {
-        return in_array($this->status, ['open', 'marking']);
+        return $this->status === 'marking';
     }
 
     public function getCanPublishAttribute()
     {
-        return in_array($this->status, ['approved', 'published']);
+        return in_array($this->status, ['marking', 'published'], true);
     }
 
     public function getIsLockedAttribute()
@@ -232,22 +235,19 @@ class Exam extends Model
     public function canTransitionTo($newStatus)
     {
         $transitions = [
-            'draft' => ['open'],
-            'open' => ['marking', 'draft'],
-            'marking' => ['moderation', 'open'],
-            'moderation' => ['approved', 'marking'],
-            'approved' => ['published', 'locked', 'moderation'],
-            'published' => ['locked', 'approved', 'marking', 'moderation'],
-            'locked' => ['approved', 'marking', 'moderation', 'published'],
+            'draft' => ['marking'],
+            'marking' => ['published', 'draft'],
+            'published' => ['locked', 'marking'],
+            'locked' => ['published', 'marking'],
         ];
 
         return in_array($newStatus, $transitions[$this->status] ?? []);
     }
 
-    /** Statuses that reopen mark entry for regular teachers after publish/lock. */
+    /** Statuses that reopen mark entry for teachers after publish/lock. */
     public static function reopeningStatuses(): array
     {
-        return ['marking', 'moderation', 'approved'];
+        return ['marking'];
     }
 
     public function isReopeningTo(string $newStatus): bool

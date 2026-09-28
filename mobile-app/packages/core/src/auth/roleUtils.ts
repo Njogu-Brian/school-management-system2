@@ -99,10 +99,23 @@ export function canAccessApp(user: User | null, target: AppTarget): boolean {
 /** Work shell is available for admin roles and any staff identity. */
 export function userCanWork(user: User | null | undefined): boolean {
   if (!user) return false;
-  if (user.canWorkMode) return true;
+  // Explicit API flag (including true from teacher-like Spatie roles).
+  if (user.canWorkMode === true) return true;
   if (user.staffId) return true;
   const role = effectiveRole(user);
-  if (role == null) return false;
+  if (role == null) {
+    // Fall back to raw role name when normalize failed but staff role string is present.
+    const raw = (user.roleName ?? '').toLowerCase();
+    if (
+      raw.includes('teacher') ||
+      raw.includes('supervisor') ||
+      raw.includes('admin') ||
+      raw.includes('director')
+    ) {
+      return true;
+    }
+    return false;
+  }
   if (isAdminAppRole(role)) return true;
   return (
     role === UserRole.TEACHER ||

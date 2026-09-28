@@ -8,8 +8,8 @@ const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://erp.royalkingss
 const controlPlaneBase =
   process.env.EXPO_PUBLIC_CONTROL_PLANE_BASE_URL || apiBase;
 const requireSchoolCode = process.env.EXPO_PUBLIC_REQUIRE_SCHOOL_CODE === 'true';
-/** Linked EAS project: @briannjogu/royal-kings-admin */
-const EAS_PROJECT_ID = '0d0b7844-fe28-441d-ab98-bb27890a38f3';
+/** Linked EAS project: @breysoms-team/royal-kings-admin */
+const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID ?? 'c647e9a8-c6a0-4a8a-964e-381032e4bd9c';
 const APP_VERSION = '1.0.17';
 /** Matches Royal Kings logo purple used in launcher assets. */
 const iconBackground = '#390754';
@@ -18,6 +18,7 @@ const config: ExpoConfig = {
   name: 'Royal Kings Admin',
   slug: 'royal-kings-admin',
   scheme: 'royalkingsadmin',
+  owner: 'breysoms-team',
   version: APP_VERSION,
   orientation: 'default',
   userInterfaceStyle: 'automatic',

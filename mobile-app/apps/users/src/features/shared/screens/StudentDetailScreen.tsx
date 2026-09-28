@@ -2,14 +2,19 @@ import {
   buildPerformanceTrend,
   buildSubjectProgress,
   computeTrendDelta,
+  downloadAuthenticatedFile,
   progressDirection,
+  useAppMode,
   useCurrentUser,
   useMedicalRecords,
   useStudentAcademicSummary,
   useStudentAssessmentHistory,
+  useStudentAttendanceCalendar,
   useStudentAttendanceTrend,
   useStudentDetail,
+  useStudentDocuments,
   useStudentRequirements,
+  useStudentStatement,
   useStudentStats,
   useTeacherTransportStudents,
   UserRole,
@@ -18,6 +23,7 @@ import {
   type TeacherTransportLeg,
 } from '@erp/core';
 import {
+  AttendanceMonthCalendar,
   Button,
   EmptyState,
   FinanceFieldSection,
@@ -35,11 +41,16 @@ import {
   type StudentSummaryWidgetData,
 } from '@erp/ui';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
-type DetailParams = { studentId: number };
-type LooseNav = { navigate: (name: string, params?: object) => void; goBack: () => void; canGoBack: () => boolean };
+type DetailParams = { studentId: number; tab?: Student360TabId };
+type LooseNav = {
+  navigate: (name: string, params?: object) => void;
+  goBack: () => void;
+  canGoBack: () => boolean;
+  setParams: (params: object) => void;
+};
 
 const STAFF_ROLES = [UserRole.TEACHER, UserRole.SENIOR_TEACHER, UserRole.SUPERVISOR, UserRole.ADMIN];
 
@@ -96,17 +107,26 @@ const TransportLegLine: React.FC<{ label: 'Morning' | 'Evening'; leg?: TeacherTr
   );
 };
 
-const OverviewTab: React.FC<{ student: StudentDetail; attendancePct: number | null | undefined }> = ({
-  student,
-  attendancePct,
-}) => {
+const OverviewTab: React.FC<{
+  student: StudentDetail;
+  attendancePct: number | null | undefined;
+  onWidgetPress?: (widgetId: string) => void;
+  /** Teachers must not see fee widgets on pastoral profiles. */
+  showFees?: boolean;
+}> = ({ student, attendancePct, onWidgetPress, showFees = false }) => {
   const { spacing, palette } = useTheme();
   const classLabel = [student.className, student.streamName].filter(Boolean).join(' · ') || 'Unassigned';
   const primary = student.guardians.find((g) => g.isPrimary) ?? student.guardians[0];
 
-  const widgets = useMemo(
-    (): StudentSummaryWidgetData[] => [
-      { id: 'attendance', label: 'Attendance', value: fmtPercent(attendancePct), delta: 'Last 90 days', icon: 'checkmark-circle-outline' },
+  const widgets = useMemo((): StudentSummaryWidgetData[] => {
+    const list: StudentSummaryWidgetData[] = [
+      {
+        id: 'attendance',
+        label: 'Attendance',
+        value: fmtPercent(attendancePct),
+        delta: 'Tap for calendar',
+        icon: 'checkmark-circle-outline',
+      },
       {
         id: 'enrollment',
         label: 'Enrollment',
@@ -116,30 +136,33 @@ const OverviewTab: React.FC<{ student: StudentDetail; attendancePct: number | nu
         delta: student.category ?? 'Student',
         icon: 'school-outline',
       },
-      {
+    ];
+    if (showFees) {
+      list.push({
         id: 'fees',
         label: 'Fees',
         value: student.feeStatus === 'pending' ? 'Pending' : 'Cleared',
+        delta: 'Tap for fees',
         icon: 'shield-checkmark-outline',
-      },
-      {
-        id: 'contact',
-        label: 'Primary contact',
-        value: primary?.name ?? student.parent?.fatherName ?? student.parent?.motherName ?? '—',
-        delta: primary?.phone ?? student.parent?.fatherPhone ?? student.parent?.motherPhone ?? undefined,
-        icon: 'people-outline',
-      },
-    ],
-    [student, attendancePct, primary],
-  );
+      });
+    }
+    list.push({
+      id: 'contact',
+      label: 'Primary contact',
+      value: primary?.name ?? student.parent?.fatherName ?? student.parent?.motherName ?? '—',
+      delta: primary?.phone ?? student.parent?.fatherPhone ?? student.parent?.motherPhone ?? undefined,
+      icon: 'people-outline',
+    });
+    return list;
+  }, [student, attendancePct, primary, showFees]);
 
   return (
     <View>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md }}>
         <StudentStatusBadge kind="enrollment" enrollmentStatus={student.enrollmentStatus} />
-        <StudentStatusBadge kind="fee" feeStatus={student.feeStatus} />
+        {showFees ? <StudentStatusBadge kind="fee" feeStatus={student.feeStatus} /> : null}
       </View>
-      <StudentSummaryWidgets widgets={widgets} />
+      <StudentSummaryWidgets widgets={widgets} onWidgetPress={onWidgetPress} />
       <View style={{ marginTop: spacing.lg }}>
         <StaffFieldSection
           title="Quick profile"
@@ -163,15 +186,27 @@ const OverviewTab: React.FC<{ student: StudentDetail; attendancePct: number | nu
         />
       </View>
       <Text style={{ color: palette.textMuted, marginTop: spacing.md, fontSize: 12 }}>
-        Fee status is shown as a badge only — balances are not visible here.
+        Tap Attendance to open this child’s calendar. Back returns you to the tab you were on.
       </Text>
     </View>
   );
 };
 
-const AttendanceTab: React.FC<{ studentId: number; statsPct?: number | null }> = ({ studentId, statsPct }) => {
-  const { colors, spacing } = useTheme();
+const AttendanceTab: React.FC<{
+  studentId: number;
+  statsPct?: number | null;
+  isParent?: boolean;
+}> = ({ studentId, statsPct, isParent }) => {
+  const { colors, spacing, palette, typography, radius } = useTheme();
+  const navigation = useNavigation<LooseNav>();
   const trend = useStudentAttendanceTrend(studentId);
+  const now = useMemo(() => new Date(), []);
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const calendar = useStudentAttendanceCalendar(studentId, year, month, {
+    enabled: studentId > 0,
+  });
 
   const widgets = useMemo(
     (): StudentSummaryWidgetData[] => [
@@ -182,6 +217,13 @@ const AttendanceTab: React.FC<{ studentId: number; statsPct?: number | null }> =
     ],
     [trend.summary, statsPct],
   );
+
+  const shiftMonth = (delta: number) => {
+    const d = new Date(year, month - 1 + delta, 1);
+    setYear(d.getFullYear());
+    setMonth(d.getMonth() + 1);
+    setSelectedDate(null);
+  };
 
   if (trend.isLoading) {
     return (
@@ -201,7 +243,234 @@ const AttendanceTab: React.FC<{ studentId: number; statsPct?: number | null }> =
       />
     );
   }
-  return <StudentSummaryWidgets widgets={widgets} />;
+
+  return (
+    <View>
+      <StudentSummaryWidgets widgets={widgets} />
+      {isParent ? (
+        <Button
+          label="Report absence"
+          variant="secondary"
+          style={{ marginTop: spacing.md, marginBottom: spacing.sm }}
+          onPress={() => navigation.navigate('ReportAbsence', { studentId })}
+        />
+      ) : null}
+      <Text
+        style={{
+          color: palette.textSub,
+          fontSize: typography.overline.fontSize,
+          letterSpacing: typography.overline.letterSpacing,
+          fontWeight: '700',
+          textTransform: 'uppercase',
+          marginTop: spacing.lg,
+          marginBottom: spacing.sm,
+        }}
+      >
+        Attendance calendar
+      </Text>
+      {calendar.isLoading ? (
+        <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.md }} />
+      ) : calendar.isError ? (
+        <EmptyState
+          title="Could not load calendar"
+          message={calendar.error instanceof Error ? calendar.error.message : 'Try again later.'}
+          icon="alert-circle-outline"
+          actionLabel="Retry"
+          onAction={() => void calendar.refetch()}
+        />
+      ) : (
+        <AttendanceMonthCalendar
+          year={year}
+          month={month}
+          days={calendar.data ?? []}
+          selectedDate={selectedDate}
+          onSelectDate={setSelectedDate}
+          onShiftMonth={shiftMonth}
+        />
+      )}
+      {trend.trend.length > 0 ? (
+        <Text
+          style={{
+            color: palette.textSub,
+            fontSize: typography.overline.fontSize,
+            fontWeight: '700',
+            textTransform: 'uppercase',
+            marginTop: spacing.lg,
+            marginBottom: spacing.sm,
+          }}
+        >
+          Weekly trend
+        </Text>
+      ) : null}
+      {trend.trend.map((point) => (
+        <View
+          key={point.label}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            marginBottom: spacing.sm,
+            gap: spacing.sm,
+          }}
+        >
+          <Text style={{ width: 56, color: palette.textSub, fontSize: typography.caption.fontSize }}>
+            {point.label}
+          </Text>
+          <View
+            style={{
+              flex: 1,
+              height: 8,
+              borderRadius: radius.full,
+              backgroundColor: palette.surfaceMuted,
+              overflow: 'hidden',
+            }}
+          >
+            <View
+              style={{
+                width: `${Math.min(100, point.present + point.absent + point.late > 0 ? (point.present / (point.present + point.absent + point.late)) * 100 : 0)}%`,
+                height: '100%',
+                backgroundColor: colors.primary,
+              }}
+            />
+          </View>
+          <Text style={{ color: palette.textSub, fontSize: typography.caption.fontSize }}>
+            P{point.present} A{point.absent} L{point.late}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+};
+
+const FeesTab: React.FC<{ studentId: number; isParent: boolean; feeStatus?: string | null }> = ({
+  studentId,
+  isParent,
+  feeStatus,
+}) => {
+  const { colors, spacing } = useTheme();
+  const navigation = useNavigation<LooseNav>();
+  const statement = useStudentStatement(studentId, { detailed: true }, { enabled: isParent && studentId > 0 });
+
+  if (!isParent) {
+    return (
+      <View style={{ gap: spacing.md }}>
+        <FinanceFieldSection
+          title="Fee status"
+          rows={[
+            {
+              label: 'Status',
+              value: feeStatus === 'pending' ? 'Pending' : feeStatus === 'cleared' ? 'Cleared' : '—',
+            },
+          ]}
+        />
+        <EmptyState
+          title="Balances hidden"
+          message="Teachers see fee clearance status only. Open the admin app for full fee details."
+          icon="lock-closed-outline"
+        />
+      </View>
+    );
+  }
+
+  if (statement.isLoading) {
+    return (
+      <View style={{ paddingVertical: spacing.xl, alignItems: 'center' }}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+
+  const s = statement.data;
+  return (
+    <View style={{ gap: spacing.md }}>
+      <FinanceFieldSection
+        title="Fees summary"
+        rows={[
+          {
+            label: 'Balance',
+            value: s?.closing_balance != null ? `KES ${Number(s.closing_balance).toLocaleString()}` : '—',
+          },
+          {
+            label: 'Invoiced',
+            value: s?.total_invoiced != null ? `KES ${Number(s.total_invoiced).toLocaleString()}` : '—',
+          },
+          {
+            label: 'Paid',
+            value: s?.total_paid != null ? `KES ${Number(s.total_paid).toLocaleString()}` : '—',
+          },
+        ]}
+      />
+      <Button
+        label="Full fee statement"
+        onPress={() => navigation.navigate('StudentStatement', { studentId })}
+      />
+    </View>
+  );
+};
+
+const DocumentsTab: React.FC<{ studentId: number }> = ({ studentId }) => {
+  const { colors, spacing, palette, typography, radius } = useTheme();
+  const query = useStudentDocuments(studentId);
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
+
+  if (query.isLoading) {
+    return (
+      <View style={{ paddingVertical: spacing.xl, alignItems: 'center' }}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+  if (query.isError) {
+    return (
+      <EmptyState
+        title="Could not load documents"
+        message={query.error instanceof Error ? query.error.message : 'Try again.'}
+        icon="alert-circle-outline"
+        actionLabel="Retry"
+        onAction={() => void query.refetch()}
+      />
+    );
+  }
+  const docs = query.data ?? [];
+  if (docs.length === 0) {
+    return (
+      <EmptyState
+        title="No documents"
+        message="No documents are attached to this student profile yet."
+        icon="document-text-outline"
+      />
+    );
+  }
+
+  return (
+    <View style={{ gap: spacing.sm }}>
+      {docs.map((doc) => (
+        <Pressable
+          key={doc.id}
+          onPress={() => {
+            if (!doc.download_path) return;
+            setDownloadingId(doc.id);
+            void downloadAuthenticatedFile(doc.download_path, doc.title)
+              .catch((err) => Alert.alert('Download failed', (err as Error).message))
+              .finally(() => setDownloadingId(null));
+          }}
+          style={{
+            padding: spacing.md,
+            borderRadius: radius.md,
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: palette.borderSubtle,
+            backgroundColor: palette.surfaceRaised,
+          }}
+        >
+          <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: typography.body.fontSize }}>
+            {doc.title}
+          </Text>
+          <Text style={{ color: palette.textSecondary, marginTop: 4, fontSize: typography.caption.fontSize }}>
+            {downloadingId === doc.id ? 'Downloading…' : doc.download_path ? 'Tap to download' : 'No file'}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
 };
 
 const AcademicsTab: React.FC<{ studentId: number; studentName?: string; isStaff?: boolean }> = ({
@@ -534,31 +803,79 @@ const FamilyTab: React.FC<{ student: StudentDetail; onOpenSibling?: (id: number)
 const BASE_TABS: Array<{ id: Student360TabId; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'attendance', label: 'Attendance' },
-  { id: 'academics', label: 'Academics' },
-  { id: 'health', label: 'Health' },
+  { id: 'fees', label: 'Fees' },
+  { id: 'academics', label: 'Academic' },
+  { id: 'family', label: 'Family' },
   { id: 'transport', label: 'Transport' },
   { id: 'requirements', label: 'Requirements' },
-  { id: 'family', label: 'Family' },
+  { id: 'documents', label: 'Documents' },
+  { id: 'health', label: 'Health' },
 ];
 
 /**
- * Shared student profile — used by Teacher (class / subject-teacher scope) and
- * reachable from Parent stacks. Pastoral 360 view: never renders fee balances or
- * amounts, only the cleared/pending badge.
+ * Shared student profile — Teacher / Parent / Edulynk.
+ * Tabs stay in route params so back from nested screens restores the same section.
  */
 export const StudentDetailScreen: React.FC = () => {
   const navigation = useNavigation() as unknown as LooseNav;
   const route = useRoute();
   const user = useCurrentUser();
+  const { mode } = useAppMode();
   const { colors, spacing } = useTheme();
-  const studentId = (route.params as DetailParams | undefined)?.studentId ?? 0;
+  const params = (route.params as DetailParams | undefined) ?? { studentId: 0 };
+  const studentId = params.studentId ?? 0;
 
-  const [activeTab, setActiveTab] = useState<Student360TabId>('overview');
+  const [activeTab, setActiveTab] = useState<Student360TabId>(params.tab ?? 'overview');
+
+  useEffect(() => {
+    if (params.tab) {
+      setActiveTab(params.tab);
+    }
+  }, [params.tab]);
+
+  const handleTabChange = useCallback(
+    (tab: Student360TabId) => {
+      setActiveTab(tab);
+      navigation.setParams({ tab });
+    },
+    [navigation],
+  );
 
   const detail = useStudentDetail(studentId, { enabled: studentId > 0 });
   const stats = useStudentStats(studentId, { enabled: studentId > 0 });
 
   const isStaff = user?.role != null && STAFF_ROLES.includes(user.role as UserRole);
+  // Fees only in parent/Home context — never for teachers in Work mode.
+  const showFeesTab = mode === 'home' || (!isStaff && (user?.role === UserRole.PARENT || user?.role === UserRole.GUARDIAN));
+  const showParentFeatures = showFeesTab;
+
+  const handleOverviewWidgetPress = useCallback(
+    (widgetId: string) => {
+      const map: Record<string, Student360TabId> = {
+        attendance: 'attendance',
+        contact: 'family',
+      };
+      if (showFeesTab) {
+        map.fees = 'fees';
+      }
+      const next = map[widgetId];
+      if (next) handleTabChange(next);
+    },
+    [handleTabChange, showFeesTab],
+  );
+
+  const tabs = useMemo(
+    () => (showFeesTab ? BASE_TABS : BASE_TABS.filter((t) => t.id !== 'fees')),
+    [showFeesTab],
+  );
+
+  useEffect(() => {
+    if (!showFeesTab && activeTab === 'fees') {
+      setActiveTab('overview');
+      navigation.setParams({ tab: 'overview' });
+    }
+  }, [showFeesTab, activeTab, navigation]);
+
   const student = detail.data;
 
   const header = useMemo(() => {
@@ -607,19 +924,34 @@ export const StudentDetailScreen: React.FC = () => {
   const tabContent = (() => {
     switch (activeTab) {
       case 'overview':
-        return <OverviewTab student={student} attendancePct={stats.data?.attendance_percentage} />;
+        return (
+          <OverviewTab
+            student={student}
+            attendancePct={stats.data?.attendance_percentage}
+            onWidgetPress={handleOverviewWidgetPress}
+            showFees={showFeesTab}
+          />
+        );
       case 'attendance':
-        return <AttendanceTab studentId={studentId} statsPct={stats.data?.attendance_percentage} />;
+        return (
+          <AttendanceTab
+            studentId={studentId}
+            statsPct={stats.data?.attendance_percentage}
+            isParent={showParentFeatures}
+          />
+        );
+      case 'fees':
+        return (
+          <FeesTab
+            studentId={studentId}
+            isParent={showParentFeatures}
+            feeStatus={student.feeStatus}
+          />
+        );
       case 'academics':
         return (
           <AcademicsTab studentId={studentId} studentName={student.fullName} isStaff={isStaff} />
         );
-      case 'health':
-        return <HealthTab student={student} />;
-      case 'transport':
-        return <TransportTab student={student} isStaff={isStaff} />;
-      case 'requirements':
-        return <RequirementsTab studentId={studentId} canCollect={isStaff} />;
       case 'family':
         return (
           <FamilyTab
@@ -627,6 +959,14 @@ export const StudentDetailScreen: React.FC = () => {
             onOpenSibling={(id) => navigation.navigate('StudentDetail', { studentId: id })}
           />
         );
+      case 'transport':
+        return <TransportTab student={student} isStaff={isStaff} />;
+      case 'requirements':
+        return <RequirementsTab studentId={studentId} canCollect={isStaff} />;
+      case 'documents':
+        return <DocumentsTab studentId={studentId} />;
+      case 'health':
+        return <HealthTab student={student} />;
       default:
         return null;
     }
@@ -636,9 +976,9 @@ export const StudentDetailScreen: React.FC = () => {
     <ScreenContainer scroll={false} style={styles.flex}>
       <Student360Layout
         header={header}
-        tabs={BASE_TABS}
+        tabs={tabs}
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
         onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
       >
         <View style={{ marginBottom: spacing.md }}>

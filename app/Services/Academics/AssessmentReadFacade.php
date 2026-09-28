@@ -183,10 +183,8 @@ class AssessmentReadFacade
                 $q->where('term_id', (int) $filters['term_id']);
             }
             if ($restrictToPublishedForGuardians) {
-                $q->where(function ($inner) {
-                    $inner->where('publish_result', true)
-                        ->orWhereIn('status', ['published', 'locked', 'approved']);
-                });
+                // Locked exams are pushed to the parent app.
+                $q->where('status', 'locked');
             }
             $this->applyDateRangeOnExam($q, $filters);
         });
@@ -209,7 +207,7 @@ class AssessmentReadFacade
             );
 
             $status = (string) ($mark->status ?? 'draft');
-            if ($exam && in_array($exam->status, ['published', 'locked'], true)) {
+            if ($exam && $exam->status === 'locked') {
                 $status = 'published';
             }
 

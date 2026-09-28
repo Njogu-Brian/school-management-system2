@@ -7,3 +7,9 @@ launch-log.txt
 
 # EAS upload exclusions (also listed in .easignore)
 node_modules/
+
+# Android signing (never commit)
+credentials.json
+upload-keystore.jks
+*.jks
+*.keystore
