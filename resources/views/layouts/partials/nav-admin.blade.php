@@ -40,7 +40,8 @@ $studentsActive = Request::is('students*')
     || Request::is('families*')
     || Request::is('admin/family-update*')
     || Request::is('parents/credentials*')
-    || Request::is('users/require-password-change*');
+    || Request::is('users/require-password-change*')
+    || Request::is('users/require-google-link*');
 $studentRecordsActive = Request::is('students/*/medical-records*') || Request::is('students/*/disciplinary-records*') || Request::is('students/*/activities*') || Request::is('students/*/academic-history*');
 @endphp
 <a href="#studentsMenu" data-bs-toggle="collapse" aria-expanded="{{ $studentsActive ? 'true' : 'false' }}" class="{{ $studentsActive ? 'parent-active' : '' }}">
@@ -56,6 +57,9 @@ $studentRecordsActive = Request::is('students/*/medical-records*') || Request::i
     @endif
     @if(Route::has('users.require-password-change'))
     <a href="{{ route('users.require-password-change') }}" class="{{ Request::is('users/require-password-change*') ? 'active' : '' }}"><i class="bi bi-shield-lock"></i> Require password change</a>
+    @endif
+    @if(Route::has('users.require-google-link'))
+    <a href="{{ route('users.require-google-link') }}" class="{{ Request::is('users/require-google-link*') ? 'active' : '' }}"><i class="bi bi-google"></i> Google sign-in prompt</a>
     @endif
     <a href="{{ route('students.create') }}" class="{{ Request::is('students/create') ? 'active' : '' }}">Admissions</a>
     <a href="{{ route('students.bulk.assign-categories') }}" class="{{ Request::is('students/bulk-assign-categories*') ? 'active' : '' }}"><i class="bi bi-tag"></i> Assign Categories</a>

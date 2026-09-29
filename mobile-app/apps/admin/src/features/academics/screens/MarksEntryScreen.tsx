@@ -22,7 +22,7 @@ import {
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, View } from 'react-native';
 import type { AcademicsStackParamList } from '../../../navigation/academicsStackTypes';
 import { showError, showSuccess } from '../../shared/utils/feedback';
 
@@ -116,6 +116,18 @@ export const MarksEntryScreen: React.FC<Props> = ({ navigation, route }) => {
     setHasLocalDraft(true);
   };
 
+  const changedFromSaved = useMemo(() => {
+    const changes: { name: string; from: string; to: string }[] = [];
+    for (const s of students) {
+      const prev = (serverSnapshotRef.current[s.id]?.marks ?? '').trim();
+      const next = (marks[s.id]?.marks ?? '').trim();
+      if (prev !== '' && next !== '' && prev !== next) {
+        changes.push({ name: s.full_name, from: prev, to: next });
+      }
+    }
+    return changes;
+  }, [students, marks]);
+
   const filteredStudents = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return students;
@@ -159,41 +171,63 @@ export const MarksEntryScreen: React.FC<Props> = ({ navigation, route }) => {
       return;
     }
 
-    const syncPayload = {
-      exam_id: examId,
-      subject_id: subjectId,
-      classroom_id: classroomId,
-      label: `${examQuery.data?.name ?? `Exam #${examId}`} · ${subjectName}`,
-      marks: payload,
-      baseSnapshot: serverSnapshotRef.current,
+    const runSave = async () => {
+      const syncPayload = {
+        exam_id: examId,
+        subject_id: subjectId,
+        classroom_id: classroomId,
+        label: `${examQuery.data?.name ?? `Exam #${examId}`} · ${subjectName}`,
+        marks: payload,
+        baseSnapshot: serverSnapshotRef.current,
+      };
+
+      try {
+        const result = await queueOrExecute(
+          SYNC_KINDS.EXAM_MARKS_BATCH,
+          syncPayload,
+          async () => {
+            await enterMarks.mutateAsync({
+              exam_id: examId,
+              subject_id: subjectId,
+              classroom_id: classroomId,
+              marks: syncPayload.marks,
+            });
+          },
+          networkStatus,
+          { label: syncPayload.label },
+        );
+
+        if (result === 'queued') {
+          showSuccess('Queued offline', 'Marks will sync when you reconnect.');
+        } else {
+          showSuccess('Saved', 'Marks saved.');
+          await clearDraft();
+          navigation.goBack();
+        }
+      } catch (err) {
+        showError('Save failed', (err as Error).message);
+      }
     };
 
-    try {
-      const result = await queueOrExecute(
-        SYNC_KINDS.EXAM_MARKS_BATCH,
-        syncPayload,
-        async () => {
-          await enterMarks.mutateAsync({
-            exam_id: examId,
-            subject_id: subjectId,
-            classroom_id: classroomId,
-            marks: syncPayload.marks,
-          });
-        },
-        networkStatus,
-        { label: syncPayload.label },
+    if (changedFromSaved.length > 0) {
+      const sample = changedFromSaved
+        .slice(0, 4)
+        .map((c) => `${c.name}: ${c.from} → ${c.to}`)
+        .join('\n');
+      const more =
+        changedFromSaved.length > 4 ? `\n…and ${changedFromSaved.length - 4} more` : '';
+      Alert.alert(
+        'Confirm mark changes',
+        `You are changing saved marks. Senior teachers and admins will be notified.\n\n${sample}${more}`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Save changes', style: 'destructive', onPress: () => void runSave() },
+        ],
       );
-
-      if (result === 'queued') {
-        showSuccess('Queued offline', 'Marks will sync when you reconnect.');
-      } else {
-        showSuccess('Saved', 'Marks saved.');
-        await clearDraft();
-        navigation.goBack();
-      }
-    } catch (err) {
-      showError('Save failed', (err as Error).message);
+      return;
     }
+
+    await runSave();
   };
 
   const loading = examQuery.isLoading || marksQuery.isLoading || loadingStudents;

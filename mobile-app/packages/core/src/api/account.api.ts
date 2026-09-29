@@ -33,4 +33,12 @@ export const accountApi = {
         : '/account/biometric-unlock',
     );
   },
+
+  linkGoogle(payload: { id_token: string }): Promise<ApiResponse<{ google_linked: boolean; google_email?: string | null }>> {
+    return apiClient.post('/account/google/link', payload);
+  },
+
+  unlinkGoogle(): Promise<ApiResponse<{ google_linked: boolean; google_email?: string | null }>> {
+    return apiClient.delete('/account/google');
+  },
 };

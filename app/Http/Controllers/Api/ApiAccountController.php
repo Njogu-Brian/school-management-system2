@@ -176,4 +176,61 @@ class ApiAccountController extends Controller
             'message' => 'Biometric unlock removed.',
         ]);
     }
+
+    /**
+     * Link Google to the authenticated account (existing users only).
+     */
+    public function linkGoogle(Request $request)
+    {
+        $request->validate([
+            'id_token' => 'required|string',
+        ]);
+
+        $google = app(\App\Services\GoogleAccountService::class);
+        $validated = $google->validateIdToken((string) $request->id_token);
+        if (! ($validated['ok'] ?? false)) {
+            return response()->json([
+                'success' => false,
+                'message' => $validated['message'] ?? 'Invalid Google token.',
+            ], $validated['status'] ?? 401);
+        }
+
+        $result = $google->linkToUser(
+            $request->user(),
+            $validated['google_id'],
+            $validated['email']
+        );
+
+        if (! ($result['ok'] ?? false)) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'] ?? 'Could not link Google account.',
+            ], $result['status'] ?? 422);
+        }
+
+        $user = $result['user']->load('roles', 'roles.permissions', 'staff');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Google account linked.',
+            'data' => [
+                'google_linked' => true,
+                'google_email' => $user->google_email,
+            ],
+        ]);
+    }
+
+    public function unlinkGoogle(Request $request)
+    {
+        app(\App\Services\GoogleAccountService::class)->unlink($request->user());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Google account unlinked.',
+            'data' => [
+                'google_linked' => false,
+                'google_email' => null,
+            ],
+        ]);
+    }
 }

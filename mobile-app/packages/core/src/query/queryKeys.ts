@@ -104,8 +104,8 @@ export const queryKeys = {
       [...queryKeys.academics.all, 'exam-class-sheet', params] as const,
     marks: (filters?: MarksListFilters | Record<string, never>) =>
       [...queryKeys.academics.all, 'marks', filters ?? {}] as const,
-    marksMatrixContext: (classroomId?: number) =>
-      [...queryKeys.academics.all, 'marks-matrix-context', classroomId ?? 'all'] as const,
+    marksMatrixContext: (classroomId?: number, academicYearId?: number) =>
+      [...queryKeys.academics.all, 'marks-matrix-context', classroomId ?? 'all', academicYearId ?? 'active'] as const,
     marksMatrix: (filters?: MarksMatrixFilters | Record<string, never>) =>
       [...queryKeys.academics.all, 'marks-matrix', filters ?? {}] as const,
     assessmentHistory: (

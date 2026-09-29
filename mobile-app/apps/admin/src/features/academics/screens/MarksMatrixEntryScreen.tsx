@@ -22,7 +22,7 @@ import {
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Text, View } from 'react-native';
 import type { AcademicsStackParamList } from '../../../navigation/academicsStackTypes';
 import { showError, showSuccess } from '../../shared/utils/feedback';
 
@@ -37,8 +37,22 @@ type MatrixDraft = {
 
 type FocusId = 'all' | number;
 
+const keyOf = (studentId: number, examId: number) => `${studentId}-${examId}`;
+
 export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { examTypeId, classroomId, streamId, examTypeName, classroomName, streamName } = route.params;
+  const {
+    examTypeId,
+    classroomId,
+    streamId,
+    academicYearId,
+    termId,
+    examTypeName,
+    classroomName,
+    streamName,
+    academicYearName,
+    termName,
+    selectedExamIds,
+  } = route.params;
   const { colors, palette, spacing, typography } = useTheme();
   const networkStatus = useNetworkStatus();
   const [values, setValues] = useState<Record<string, EntryValue>>({});
@@ -55,15 +69,24 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
   draftRef.current = draft;
 
   const matrixQuery = useMarksMatrix(
-    { exam_type_id: examTypeId, classroom_id: classroomId, stream_id: streamId },
+    {
+      exam_type_id: examTypeId,
+      classroom_id: classroomId,
+      stream_id: streamId,
+      academic_year_id: academicYearId,
+      term_id: termId,
+    },
     { enabled: true },
   );
   const saveMutation = useEnterMarksMatrix();
 
   const students = matrixQuery.data?.students ?? [];
-  const exams = matrixQuery.data?.exams ?? [];
-
-  const keyOf = (studentId: number, examId: number) => `${studentId}-${examId}`;
+  const allExams = matrixQuery.data?.exams ?? [];
+  const exams = useMemo(() => {
+    if (!selectedExamIds?.length) return allExams;
+    const allowed = new Set(selectedExamIds);
+    return allExams.filter((e) => allowed.has(e.id));
+  }, [allExams, selectedExamIds]);
 
   useEffect(() => {
     if (!matrixQuery.data) return;
@@ -96,11 +119,10 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
     setDraft({ values, serverSnapshot: serverSnapshotRef.current });
   }, [values, students.length, setDraft]);
 
-  // Start on the first subject for easiest bulk entry; user can still pick All.
   useEffect(() => {
     if (didInitFocus.current || exams.length === 0) return;
     didInitFocus.current = true;
-    setFocusId(exams[0].id);
+    setFocusId(exams.length === 1 ? exams[0].id : 'all');
   }, [exams]);
 
   const visibleExams = useMemo(() => {
@@ -126,6 +148,25 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
     }));
     setHasLocalDraft(true);
   };
+
+  const changedFromSaved = useMemo(() => {
+    const changes: { label: string; from: string; to: string }[] = [];
+    for (const s of students) {
+      for (const e of exams) {
+        const k = keyOf(s.id, e.id);
+        const prev = (serverSnapshotRef.current[k]?.marks ?? '').trim();
+        const next = (values[k]?.marks ?? '').trim();
+        if (prev !== '' && next !== '' && prev !== next) {
+          changes.push({
+            label: `${s.full_name} · ${e.subject_name || e.name}`,
+            from: prev,
+            to: next,
+          });
+        }
+      }
+    }
+    return changes;
+  }, [students, exams, values]);
 
   const enteredCount = useMemo(() => {
     let n = 0;
@@ -163,6 +204,8 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
   }, [students, exams, values]);
 
   const contextLabel = [
+    academicYearName,
+    termName,
     classroomName ?? `Class #${classroomId}`,
     examTypeName ?? `Exam type #${examTypeId}`,
     streamName,
@@ -170,7 +213,7 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
     .filter(Boolean)
     .join(' · ');
 
-  const save = async () => {
+  const runSave = async () => {
     if (nonEmptyEntries.length === 0) {
       showError('Nothing to save', 'Enter at least one score or remark.');
       return;
@@ -213,6 +256,31 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
     }
   };
 
+  const save = () => {
+    if (nonEmptyEntries.length === 0) {
+      showError('Nothing to save', 'Enter at least one score or remark.');
+      return;
+    }
+    if (changedFromSaved.length > 0) {
+      const sample = changedFromSaved
+        .slice(0, 4)
+        .map((c) => `${c.label}: ${c.from} → ${c.to}`)
+        .join('\n');
+      const more =
+        changedFromSaved.length > 4 ? `\n…and ${changedFromSaved.length - 4} more` : '';
+      Alert.alert(
+        'Confirm mark changes',
+        `You are changing saved marks. Senior teachers and admins will be notified.\n\n${sample}${more}`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Save changes', style: 'destructive', onPress: () => void runSave() },
+        ],
+      );
+      return;
+    }
+    void runSave();
+  };
+
   return (
     <ScreenContainer
       scroll={false}
@@ -224,7 +292,7 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
           <View style={{ padding: spacing.md, paddingBottom: 0 }}>
             <AcademicScreenHeader
               title="Bulk marks entry"
-              subtitle="One subject at a time, or all subjects — nothing hidden"
+              subtitle={[academicYearName, termName].filter(Boolean).join(' · ') || 'One subject at a time, or all'}
               onBack={() => navigation.goBack()}
             />
             {matrixQuery.isLoading || exams.length === 0 ? null : (
@@ -243,11 +311,13 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
                   placeholder="Name or admission #"
                 />
                 <FilterChipRow label="Subject focus" wrap>
-                  <FilterChip
-                    label={`All (${exams.length})`}
-                    active={focusId === 'all'}
-                    onPress={() => setFocusId('all')}
-                  />
+                  {exams.length > 1 ? (
+                    <FilterChip
+                      label={`All (${exams.length})`}
+                      active={focusId === 'all'}
+                      onPress={() => setFocusId('all')}
+                    />
+                  ) : null}
                   {exams.map((e) => (
                     <FilterChip
                       key={e.id}
@@ -282,7 +352,7 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
                     ? `Queue ${nonEmptyEntries.length} entries`
                     : `Save ${nonEmptyEntries.length} entries`
                 }
-                onPress={() => void save()}
+                onPress={save}
                 loading={saveMutation.isPending}
               />
             </FooterDock>
@@ -300,7 +370,7 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
               paddingHorizontal: spacing.md,
             }}
           >
-            No open exams in marking status for this class and exam type.
+            No open exams in marking for the selected year, term, class and exam type.
           </Text>
         ) : (
           <FlatList

@@ -17,9 +17,13 @@ export type TeacherStackParamList = {
     examTypeId: number;
     classroomId: number;
     streamId?: number;
+    academicYearId?: number;
+    termId?: number;
     examTypeName?: string;
     classroomName?: string;
     streamName?: string;
+    academicYearName?: string;
+    termName?: string;
     /** When set, only these matrix exam (subject) columns are shown. */
     selectedExamIds?: number[];
   };

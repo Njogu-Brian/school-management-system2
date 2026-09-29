@@ -196,6 +196,17 @@ export const TransportScreen: React.FC = () => {
                     {d?.dropOffPointOther || 'No trip assigned yet.'}
                   </Text>
                 ) : null}
+                <Button
+                  label="Track bus live"
+                  variant="primary"
+                  onPress={() =>
+                    (navigation as { navigate: (name: string, params: { studentId: number }) => void }).navigate(
+                      'LiveBusTrack',
+                      { studentId },
+                    )
+                  }
+                  style={{ marginTop: spacing.md }}
+                />
               </>
             )}
           </SurfaceCard>

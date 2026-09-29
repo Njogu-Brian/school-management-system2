@@ -18,8 +18,10 @@ use App\Services\CommunicationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
 use Spatie\Permission\Models\Role;
 use App\Exports\StaffTemplateExport;
@@ -900,148 +902,93 @@ class StaffController extends Controller
     }
 
     /**
-     * Resend login credentials to staff member
+     * Resend login credentials to staff member.
+     * Re-applies the shared password (ID number by default) so the message matches login,
+     * and can optionally set a fresh app PIN when requested.
      */
-    public function resendCredentials($id)
+    public function resendCredentials(Request $request, $id)
     {
         $staff = Staff::with('user')->findOrFail($id);
         $user = $staff->user;
 
-        if (!$user) {
+        if (! $user) {
             return back()->with('error', 'Staff member does not have a user account.');
         }
 
+        $request->validate([
+            'reset_pin' => 'nullable|boolean',
+            'include_pin' => 'nullable|boolean',
+        ]);
+
         try {
-            // Password is the staff's ID number
-            $passwordPlain = $staff->id_number;
+            $passwordPlain = filled($staff->id_number) ? (string) $staff->id_number : Str::random(8);
+            $user->update([
+                'password' => Hash::make($passwordPlain),
+                'must_change_password' => true,
+            ]);
 
-            // Get school settings for templates
-            $schoolName = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
-            $appUrl = config('app.url');
-            
-            // Prepare template variables matching CommunicationTemplateSeeder placeholders
-            $vars = [
-                'staff_name' => $user->name,
-                'school_name' => $schoolName,
-                'app_url' => $appUrl,
-                'login_email' => $user->email,
-                'temporary_password' => $passwordPlain,
-                'staff_role' => $staff->jobTitle->name ?? $staff->category->name ?? 'Staff Member',
-                // Legacy support for old template format
-                'name'     => $user->name,
-                'login'    => $user->email,
-                'password' => $passwordPlain,
-                'staff_id' => $staff->staff_id,
-            ];
+            $pinPlain = null;
+            $pinNote = null;
+            $shouldResetPin = $request->boolean('reset_pin') || $request->boolean('include_pin');
+            $pinAlreadySet = Schema::hasColumn('users', 'unlock_pin_hash')
+                && filled($user->unlock_pin_hash);
 
-            // Use templates from CommunicationTemplateSeeder
-            $emailTpl = CommunicationTemplate::where('code', 'staff_welcome_email')->first();
-            $smsTpl   = CommunicationTemplate::where('code', 'staff_welcome_sms')->first();
-
-            $sent = false;
-            $errors = [];
-            $warnings = [];
-
-            // Check if templates exist
-            if (!$emailTpl && !$smsTpl) {
-                return back()->with('error', 'Welcome staff templates not found. Please create "staff_welcome_email" and/or "staff_welcome_sms" templates first.');
+            if ($shouldResetPin && Schema::hasColumn('users', 'unlock_pin_hash')) {
+                $pinPlain = $this->generateStaffAppPin();
+                $user->forceFill([
+                    'unlock_pin_hash' => Hash::make($pinPlain),
+                    'unlock_pin_set_at' => now(),
+                ])->saveQuietly();
+            } elseif ($pinAlreadySet) {
+                $pinNote = 'Your existing app PIN still works for quick login.';
             }
 
-            // Send email notification
-            if ($emailTpl) {
-                if (!$user->email) {
-                    $warnings[] = 'Email not available for this staff member.';
-                } else {
-                    try {
-                        $subject = $this->fillTemplate($emailTpl->subject ?? 'Welcome to ' . config('app.name'), $vars);
-                        $body    = $this->fillTemplate($emailTpl->content, $vars);
-                        $attachmentPath = $emailTpl->attachment ?? null;
+            $result = $this->dispatchStaffCredentialMessages(
+                $staff,
+                $user->fresh(),
+                $passwordPlain,
+                'credentials',
+                $pinPlain,
+                $pinNote
+            );
 
-                        $this->comm->sendEmail(
-                            'staff',
-                            $staff->id,
-                            $user->email,
-                            $subject,
-                            $body,
-                            $attachmentPath
-                        );
-                        $sent = true;
-                    } catch (\Exception $e) {
-                        $errors[] = 'Email: ' . $e->getMessage();
-                        Log::warning('Failed to resend welcome email to staff', [
-                            'staff_id' => $staff->id,
-                            'email' => $user->email,
-                            'error' => $e->getMessage()
-                        ]);
-                    }
-                }
-            } else {
-                $warnings[] = 'Email template not found.';
-            }
-
-            // Send SMS notification
-            if ($smsTpl) {
-                if (!$staff->phone_number) {
-                    $warnings[] = 'Phone number not available for this staff member.';
-                } else {
-                    try {
-                        $phoneService = app(\App\Services\PhoneNumberService::class);
-                        $smsPhone = $phoneService->formatWithCountryCode($staff->phone_number, '+254');
-
-                        $smsBody = $this->fillTemplate($smsTpl->content, $vars);
-                        $smsTitle = $smsTpl->title ? $this->fillTemplate($smsTpl->title, $vars) : 'Welcome to ' . config('app.name');
-                        $smsResult = $this->comm->sendSMS('staff', $staff->id, $smsPhone, $smsBody, $smsTitle);
-                        if ($smsResult['success'] ?? false) {
-                            $sent = true;
-                        } else {
-                            $errors[] = 'SMS: ' . ($smsResult['error'] ?? 'Failed to send SMS');
-                            Log::warning('Failed to resend welcome SMS to staff', [
-                                'staff_id' => $staff->id,
-                                'phone' => $smsPhone,
-                                'error' => $smsResult['error'] ?? 'Unknown SMS error',
-                                'result' => $smsResult['result'] ?? null,
-                            ]);
-                        }
-                    } catch (\Exception $e) {
-                        $errors[] = 'SMS: ' . $e->getMessage();
-                        Log::warning('Failed to resend welcome SMS to staff', [
-                            'staff_id' => $staff->id,
-                            'phone' => $staff->phone_number,
-                            'error' => $e->getMessage()
-                        ]);
-                    }
-                }
-            } else {
-                $warnings[] = 'SMS template not found.';
-            }
-
-            // Build response message
-            if ($sent) {
+            if ($result['sent']) {
                 $message = 'Login credentials have been resent successfully.';
-                if (!empty($warnings)) {
-                    $message .= ' Note: ' . implode(' ', $warnings);
+                if ($pinPlain) {
+                    $message .= ' A new app PIN was included.';
+                } elseif ($pinNote) {
+                    $message .= ' Existing app PIN remains unchanged.';
                 }
-                if (!empty($errors)) {
-                    $message .= ' However, some notifications failed: ' . implode(', ', $errors);
+                if ($result['warnings'] !== []) {
+                    $message .= ' Note: '.implode(' ', $result['warnings']);
                 }
-                return back()->with('success', $message);
-            } else {
-                $errorMsg = 'Failed to resend credentials.';
-                if (!empty($errors)) {
-                    $errorMsg .= ' ' . implode(', ', $errors);
+                if ($result['errors'] !== []) {
+                    $message .= ' However, some notifications failed: '.implode(', ', $result['errors']);
                 }
-                if (!empty($warnings)) {
-                    $errorMsg .= ' ' . implode(' ', $warnings);
-                }
-                return back()->with('error', $errorMsg);
+
+                return back()
+                    ->with('success', $message)
+                    ->with('staff_temp_password', $passwordPlain)
+                    ->with('staff_temp_pin', $pinPlain);
             }
+
+            $errorMsg = 'Failed to resend credentials.';
+            if ($result['errors'] !== []) {
+                $errorMsg .= ' '.implode(', ', $result['errors']);
+            }
+            if ($result['warnings'] !== []) {
+                $errorMsg .= ' '.implode(' ', $result['warnings']);
+            }
+
+            return back()->with('error', $errorMsg);
         } catch (\Throwable $e) {
             Log::error('Failed to resend credentials to staff', [
                 'staff_id' => $staff->id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            return back()->with('error', 'Error resending credentials: ' . $e->getMessage());
+
+            return back()->with('error', 'Error resending credentials: '.$e->getMessage());
         }
     }
 
@@ -1053,139 +1000,74 @@ class StaffController extends Controller
         $staff = Staff::with('user')->findOrFail($id);
         $user = $staff->user;
 
-        if (!$user) {
+        if (! $user) {
             return back()->with('error', 'Staff member does not have a user account. Cannot reset password.');
         }
 
         $request->validate([
             'new_password' => 'nullable|string|min:6',
             'password_option' => 'required|in:id_number,random,custom',
+            'reset_pin' => 'nullable|boolean',
+            'include_pin' => 'nullable|boolean',
         ]);
 
         try {
-            // Generate new password based on selected option
             $passwordOption = $request->input('password_option');
-            
+
             if ($passwordOption === 'custom' && $request->filled('new_password')) {
-                $newPassword = $request->new_password;
+                $newPassword = (string) $request->new_password;
             } elseif ($passwordOption === 'id_number' && $staff->id_number) {
-                $newPassword = $staff->id_number;
+                $newPassword = (string) $staff->id_number;
             } elseif ($passwordOption === 'random') {
-                // Generate a random password
-                $newPassword = \Str::random(8);
+                $newPassword = Str::random(8);
             } else {
                 return back()->with('error', 'Invalid password option or missing required data.');
             }
 
-            // Update user password
             $user->update([
-                'password' => \Hash::make($newPassword),
-                'must_change_password' => true, // Force password change on next login
+                'password' => Hash::make($newPassword),
+                'must_change_password' => true,
             ]);
 
-            // Prepare template variables
-            $vars = [
-                'name'     => $user->name,
-                'login'    => $user->email,
-                'password' => $newPassword,
-                'staff_id' => $staff->staff_id,
-            ];
+            $pinPlain = null;
+            $pinNote = null;
+            $shouldResetPin = $request->boolean('reset_pin') || $request->boolean('include_pin');
+            $pinAlreadySet = Schema::hasColumn('users', 'unlock_pin_hash')
+                && filled($user->fresh()->unlock_pin_hash);
 
-            // Get password reset templates (or use welcome_staff if reset template doesn't exist)
-            $emailTpl = CommunicationTemplate::where('code', 'password_reset_staff')
-                ->where('type', 'email')
-                ->first()
-                ?? CommunicationTemplate::where('code', 'staff_welcome_email')->where('type', 'email')->first()
-                ?? CommunicationTemplate::where('code', 'welcome_staff')->where('type', 'email')->first();
-
-            $smsTpl = CommunicationTemplate::where('code', 'password_reset_staff')
-                ->where('type', 'sms')
-                ->first()
-                ?? CommunicationTemplate::where('code', 'staff_welcome_sms')->where('type', 'sms')->first()
-                ?? CommunicationTemplate::where('code', 'welcome_staff')->where('type', 'sms')->first();
-
-            $sent = false;
-            $errors = [];
-            $warnings = [];
-
-            // Send email notification
-            if ($emailTpl && $user->email) {
-                try {
-                    $subject = $this->fillTemplate($emailTpl->subject ?? 'Password Reset - ' . config('app.name'), $vars);
-                    $body    = $this->fillTemplate($emailTpl->content, $vars);
-                    $attachmentPath = $emailTpl->attachment ?? null;
-
-                    $this->comm->sendEmail(
-                        'staff',
-                        $staff->id,
-                        $user->email,
-                        $subject,
-                        $body,
-                        $attachmentPath
-                    );
-                    $sent = true;
-                } catch (\Exception $e) {
-                    $errors[] = 'Email: ' . $e->getMessage();
-                    Log::warning('Failed to send password reset email to staff', [
-                        'staff_id' => $staff->id,
-                        'email' => $user->email,
-                        'error' => $e->getMessage()
-                    ]);
-                }
-            } else {
-                if (!$user->email) {
-                    $warnings[] = 'Email not available for this staff member.';
-                } else {
-                    $warnings[] = 'Email template not found.';
-                }
+            if ($shouldResetPin && Schema::hasColumn('users', 'unlock_pin_hash')) {
+                $pinPlain = $this->generateStaffAppPin();
+                $user->forceFill([
+                    'unlock_pin_hash' => Hash::make($pinPlain),
+                    'unlock_pin_set_at' => now(),
+                ])->saveQuietly();
+            } elseif ($pinAlreadySet) {
+                $pinNote = 'Your existing app PIN still works for quick login.';
             }
 
-            // Send SMS notification
-            if ($smsTpl && $staff->phone_number) {
-                try {
-                    $phoneService = app(\App\Services\PhoneNumberService::class);
-                    $smsPhone = $phoneService->formatWithCountryCode($staff->phone_number, '+254');
+            $result = $this->dispatchStaffCredentialMessages(
+                $staff,
+                $user->fresh(),
+                $newPassword,
+                'reset',
+                $pinPlain,
+                $pinNote
+            );
 
-                    $smsBody = $this->fillTemplate($smsTpl->content, $vars);
-                    $smsTitle = $smsTpl->title ? $this->fillTemplate($smsTpl->title, $vars) : 'Password Reset - ' . config('app.name');
-                    $smsResult = $this->comm->sendSMS('staff', $staff->id, $smsPhone, $smsBody, $smsTitle);
-                    if ($smsResult['success'] ?? false) {
-                        $sent = true;
-                    } else {
-                        $errors[] = 'SMS: ' . ($smsResult['error'] ?? 'Failed to send SMS');
-                        Log::warning('Failed to send password reset SMS to staff', [
-                            'staff_id' => $staff->id,
-                            'phone' => $smsPhone,
-                            'error' => $smsResult['error'] ?? 'Unknown SMS error',
-                            'result' => $smsResult['result'] ?? null,
-                        ]);
-                    }
-                } catch (\Exception $e) {
-                    $errors[] = 'SMS: ' . $e->getMessage();
-                    Log::warning('Failed to send password reset SMS to staff', [
-                        'staff_id' => $staff->id,
-                        'phone' => $staff->phone_number,
-                        'error' => $e->getMessage()
-                    ]);
-                }
-            } else {
-                if (!$staff->phone_number) {
-                    $warnings[] = 'Phone number not available for this staff member.';
-                } else {
-                    $warnings[] = 'SMS template not found.';
-                }
-            }
-
-            // Build response message
             $message = 'Password has been reset successfully.';
-            if ($sent) {
+            if ($result['sent']) {
                 $message .= ' The new password has been sent to the staff member.';
             }
-            if (!empty($warnings)) {
-                $message .= ' Note: ' . implode(' ', $warnings);
+            if ($pinPlain) {
+                $message .= ' A new app PIN was included in the message.';
+            } elseif ($pinNote) {
+                $message .= ' Existing app PIN remains unchanged.';
             }
-            if (!empty($errors)) {
-                $message .= ' However, some notifications failed: ' . implode(', ', $errors);
+            if ($result['warnings'] !== []) {
+                $message .= ' Note: '.implode(' ', $result['warnings']);
+            }
+            if ($result['errors'] !== []) {
+                $message .= ' However, some notifications failed: '.implode(', ', $result['errors']);
             }
 
             Log::info('Admin reset password for staff', [
@@ -1194,15 +1076,213 @@ class StaffController extends Controller
                 'staff_email' => $user->email,
             ]);
 
-            return back()->with('success', $message);
+            return back()
+                ->with('success', $message)
+                ->with('staff_temp_password', $newPassword)
+                ->with('staff_temp_pin', $pinPlain);
         } catch (\Throwable $e) {
             Log::error('Failed to reset password for staff', [
                 'staff_id' => $staff->id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            return back()->with('error', 'Error resetting password: ' . $e->getMessage());
+
+            return back()->with('error', 'Error resetting password: '.$e->getMessage());
         }
+    }
+
+    /**
+     * @return array{sent:bool,errors:list<string>,warnings:list<string>}
+     */
+    private function dispatchStaffCredentialMessages(
+        Staff $staff,
+        User $user,
+        string $passwordPlain,
+        string $purpose = 'reset',
+        ?string $pinPlain = null,
+        ?string $pinNote = null,
+    ): array {
+        $vars = $this->staffCredentialTemplateVars($staff, $user, $passwordPlain, $pinPlain, $pinNote);
+        [$emailTpl, $smsTpl] = $this->resolveStaffCredentialTemplates($purpose);
+
+        $sent = false;
+        $errors = [];
+        $warnings = [];
+
+        if ($emailTpl && $user->email) {
+            try {
+                $subject = $this->fillTemplate(
+                    $emailTpl->subject ?? ($purpose === 'reset' ? 'Password Reset - '.config('app.name') : 'Login credentials - '.config('app.name')),
+                    $vars
+                );
+                $body = $this->fillTemplate((string) $emailTpl->content, $vars);
+                if ($pinPlain || $pinNote) {
+                    $body = rtrim($body)."\n\n".$this->pinMessageLine($pinPlain, $pinNote);
+                }
+                $this->comm->sendEmail(
+                    'staff',
+                    $staff->id,
+                    $user->email,
+                    $subject,
+                    $body,
+                    $emailTpl->attachment ?? null
+                );
+                $sent = true;
+            } catch (\Throwable $e) {
+                $errors[] = 'Email: '.$e->getMessage();
+                Log::warning('Failed to send staff credential email', [
+                    'staff_id' => $staff->id,
+                    'email' => $user->email,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        } elseif (! $user->email) {
+            $warnings[] = 'Email not available for this staff member.';
+        } else {
+            $warnings[] = 'Email template not found.';
+        }
+
+        $phone = $staff->phone_number ?: $user->phone_number;
+        if ($smsTpl && $phone) {
+            try {
+                $phoneService = app(\App\Services\PhoneNumberService::class);
+                $smsPhone = $phoneService->formatWithCountryCode($phone, '+254');
+                $smsBody = $this->fillTemplate((string) $smsTpl->content, $vars);
+                if ($pinPlain || $pinNote) {
+                    $smsBody = rtrim($smsBody)."\n".$this->pinMessageLine($pinPlain, $pinNote);
+                }
+                // Guard against leftover unreplaced placeholders (invalid messages).
+                if (preg_match('/\{\{[a-z_]+\}\}/i', $smsBody)) {
+                    $smsBody = $this->defaultStaffCredentialSmsBody($vars, $purpose);
+                }
+                $smsTitle = $smsTpl->title
+                    ? $this->fillTemplate((string) $smsTpl->title, $vars)
+                    : ($purpose === 'reset' ? 'Password Reset - '.config('app.name') : 'Login credentials');
+                $smsResult = $this->comm->sendSMS('staff', $staff->id, $smsPhone, $smsBody, $smsTitle);
+                if ($smsResult['success'] ?? false) {
+                    $sent = true;
+                } else {
+                    $errors[] = 'SMS: '.($smsResult['error'] ?? 'Failed to send SMS');
+                }
+            } catch (\Throwable $e) {
+                $errors[] = 'SMS: '.$e->getMessage();
+                Log::warning('Failed to send staff credential SMS', [
+                    'staff_id' => $staff->id,
+                    'phone' => $phone,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        } elseif (! $phone) {
+            $warnings[] = 'Phone number not available for this staff member.';
+        } else {
+            // No SMS template — still send a correct plaintext fallback.
+            try {
+                $phoneService = app(\App\Services\PhoneNumberService::class);
+                $smsPhone = $phoneService->formatWithCountryCode($phone, '+254');
+                $smsBody = $this->defaultStaffCredentialSmsBody($vars, $purpose);
+                if ($pinPlain || $pinNote) {
+                    $smsBody = rtrim($smsBody)."\n".$this->pinMessageLine($pinPlain, $pinNote);
+                }
+                $smsResult = $this->comm->sendSMS(
+                    'staff',
+                    $staff->id,
+                    $smsPhone,
+                    $smsBody,
+                    $purpose === 'reset' ? 'Password Reset' : 'Login credentials'
+                );
+                if ($smsResult['success'] ?? false) {
+                    $sent = true;
+                } else {
+                    $errors[] = 'SMS: '.($smsResult['error'] ?? 'Failed to send SMS');
+                }
+            } catch (\Throwable $e) {
+                $warnings[] = 'SMS template not found.';
+                $errors[] = 'SMS: '.$e->getMessage();
+            }
+        }
+
+        return compact('sent', 'errors', 'warnings');
+    }
+
+    /**
+     * @return array{0:?CommunicationTemplate,1:?CommunicationTemplate}
+     */
+    private function resolveStaffCredentialTemplates(string $purpose): array
+    {
+        if ($purpose === 'reset' || $purpose === 'credentials') {
+            $emailTpl = CommunicationTemplate::where('code', 'password_reset_staff')->where('type', 'email')->first()
+                ?? CommunicationTemplate::where('code', 'password_reset_staff')->first()
+                ?? CommunicationTemplate::where('code', 'staff_welcome_email')->first();
+            // SMS may share the same unique `code` as email on some DBs — prefer type=sms, else fallback body.
+            $smsTpl = CommunicationTemplate::where('code', 'password_reset_staff')->where('type', 'sms')->first()
+                ?? CommunicationTemplate::where('code', 'password_reset_staff_sms')->first();
+
+            return [$emailTpl, $smsTpl];
+        }
+
+        return [
+            CommunicationTemplate::where('code', 'staff_welcome_email')->first(),
+            CommunicationTemplate::where('code', 'staff_welcome_sms')->first(),
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function staffCredentialTemplateVars(
+        Staff $staff,
+        User $user,
+        string $passwordPlain,
+        ?string $pinPlain = null,
+        ?string $pinNote = null,
+    ): array {
+        $schoolName = DB::table('settings')->where('key', 'school_name')->value('value')
+            ?? config('app.name', 'School');
+        $appUrl = (string) config('app.url');
+        $login = (string) ($user->email ?: $user->phone_number ?: '');
+
+        return [
+            'staff_name' => (string) $user->name,
+            'school_name' => (string) $schoolName,
+            'app_url' => $appUrl,
+            'login_email' => $login,
+            'temporary_password' => $passwordPlain,
+            'staff_role' => (string) ($staff->jobTitle->name ?? $staff->category->name ?? 'Staff Member'),
+            'name' => (string) $user->name,
+            'login' => $login,
+            'password' => $passwordPlain,
+            'staff_id' => (string) ($staff->staff_id ?? ''),
+            'pin' => (string) ($pinPlain ?? ''),
+            'app_pin' => (string) ($pinPlain ?? ''),
+            'pin_note' => (string) ($pinNote ?? ''),
+        ];
+    }
+
+    private function defaultStaffCredentialSmsBody(array $vars, string $purpose): string
+    {
+        $school = $vars['school_name'] ?? config('app.name', 'School');
+        $login = $vars['login'] ?? '';
+        $password = $vars['password'] ?? '';
+        $name = $vars['name'] ?? 'Staff';
+        $intro = $purpose === 'reset'
+            ? 'Your password has been reset.'
+            : 'Your staff login credentials:';
+
+        return "Dear {$name},\n\n{$intro}\nLogin: {$login}\nPassword: {$password}\n\nPlease change your password after logging in.\n\n{$school}";
+    }
+
+    private function pinMessageLine(?string $pinPlain, ?string $pinNote): string
+    {
+        if ($pinPlain) {
+            return 'App PIN: '.$pinPlain.' (use this for quick unlock in the app).';
+        }
+
+        return $pinNote ?: '';
+    }
+
+    private function generateStaffAppPin(): string
+    {
+        return str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
     }
 
     private function fillTemplate(string $content, array $vars): string
@@ -1211,10 +1291,11 @@ class StaffController extends Controller
         $result = $content;
         foreach ($vars as $key => $value) {
             // Replace {{key}} format (seeder style)
-            $result = str_replace('{{' . $key . '}}', $value, $result);
+            $result = str_replace('{{'.$key.'}}', (string) $value, $result);
             // Replace {key} format (legacy style)
-            $result = str_replace('{' . $key . '}', $value, $result);
+            $result = str_replace('{'.$key.'}', (string) $value, $result);
         }
+
         return $result;
     }
 

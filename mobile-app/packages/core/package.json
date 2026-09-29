@@ -7,8 +7,8 @@
   "types": "src/index.ts",
   "sideEffects": false,
   "peerDependencies": {
-    "@tanstack/react-query": "^5.0.0",
     "@react-native-async-storage/async-storage": "*",
+    "@tanstack/react-query": "^5.0.0",
     "axios": "*",
     "expo-constants": "*",
     "expo-crypto": "*",
@@ -19,5 +19,8 @@
     "expo-secure-store": "*",
     "react": "*",
     "react-native": "*"
+  },
+  "dependencies": {
+    "react-native-maps": "^1.29.11"
   }
 }

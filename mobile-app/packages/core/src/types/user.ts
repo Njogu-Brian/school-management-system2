@@ -59,4 +59,9 @@ export interface User {
   /** Set after Google sign-in when the ID token is decoded client-side. */
   googleId?: string | null;
   googleEmail?: string | null;
+  googleLinked?: boolean;
+  /** Admin wants this user prompted to link Google after credential login. */
+  googleLinkRequired?: boolean;
+  /** Server says show the post-login Link Google screen (skip allowed). */
+  googleLinkPrompt?: boolean;
 }

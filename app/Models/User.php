@@ -24,7 +24,7 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
 
     protected $fillable = [
         'name', 'email', 'password', 'must_change_password',
-        'google_id', 'google_email',
+        'google_id', 'google_email', 'google_link_required',
         'parent_id', 'phone_number', 'parent_profile_review_required',
         'unlock_pin_hash', 'unlock_pin_set_at',
         'credentials_sent_at', 'credentials_sent_via',
@@ -43,6 +43,7 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
         'password' => 'hashed',
         'parent_profile_review_required' => 'boolean',
         'must_change_password' => 'boolean',
+        'google_link_required' => 'boolean',
         'credentials_sent_at' => 'datetime',
         'first_app_login_at' => 'datetime',
         'password_changed_at' => 'datetime',

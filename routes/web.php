@@ -1273,6 +1273,12 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         ->middleware('role:Super Admin|Admin|Secretary')->name('users.require-password-change');
     Route::post('/users/require-password-change', [\App\Http\Controllers\Users\ForcePasswordChangeController::class, 'store'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('users.require-password-change.store');
+    Route::get('/users/require-google-link', [\App\Http\Controllers\Users\ForceGoogleLinkController::class, 'index'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('users.require-google-link');
+    Route::post('/users/require-google-link/mode', [\App\Http\Controllers\Users\ForceGoogleLinkController::class, 'updateMode'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('users.require-google-link.mode');
+    Route::post('/users/require-google-link', [\App\Http\Controllers\Users\ForceGoogleLinkController::class, 'store'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('users.require-google-link.store');
 
     // Helper for cascading class → streams
     Route::post('/get-streams', [StudentController::class, 'getStreams'])

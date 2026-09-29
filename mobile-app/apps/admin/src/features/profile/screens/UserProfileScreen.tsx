@@ -9,12 +9,25 @@ import {
   downloadAuthenticatedFile,
   staffApi,
   queryKeys,
+  GOOGLE_ANDROID_CLIENT_ID,
+  GOOGLE_IOS_CLIENT_ID,
+  GOOGLE_WEB_CLIENT_ID,
+  hasGoogleOAuthConfig,
 } from '@erp/core';
-import { AcademicScreenHeader, Button, PasswordField, ScreenContainer, TextField, isStrongPassword, useTheme } from '@erp/ui';
+import {
+  AcademicScreenHeader,
+  Button,
+  GoogleSignInButton,
+  PasswordField,
+  ScreenContainer,
+  TextField,
+  isStrongPassword,
+  useTheme,
+} from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import { useQueryClient } from '@tanstack/react-query';
 import React, { useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { DashboardStackParamList } from '../../../navigation/dashboardStackTypes';
 import { navigateDashboardBack } from '../../../navigation/navigateWorkspace';
 import { showError, showSuccess } from '../../shared/utils/feedback';
@@ -426,6 +439,52 @@ export const UserProfileScreen: React.FC<Props> = ({ navigation }) => {
 
         {sectionHeader('Security')}
         <View style={groupStyle}>
+          <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.xs }}>
+            Google account
+          </Text>
+          {user?.googleLinked || user?.googleEmail ? (
+            <>
+              <Text style={{ color: palette.textPrimary, marginBottom: spacing.sm }}>
+                Linked{user.googleEmail ? `: ${user.googleEmail}` : ''}
+              </Text>
+              <Button
+                label="Unlink Google"
+                variant="secondary"
+                onPress={() => {
+                  void (async () => {
+                    try {
+                      const res = await accountApi.unlinkGoogle();
+                      if (!res.success) throw new Error(res.message || 'Could not unlink.');
+                      await refreshUser();
+                      showSuccess('Unlinked', 'Google sign-in removed from this account.');
+                    } catch (err) {
+                      showError('Unlink failed', err instanceof Error ? err.message : 'Try again.');
+                    }
+                  })();
+                }}
+              />
+            </>
+          ) : (
+            <GoogleSignInButton
+              label="Link Google account"
+              clientIds={{
+                androidClientId: GOOGLE_ANDROID_CLIENT_ID,
+                iosClientId: GOOGLE_IOS_CLIENT_ID,
+                webClientId: GOOGLE_WEB_CLIENT_ID,
+              }}
+              configured={hasGoogleOAuthConfig(Platform.OS)}
+              onIdToken={async (idToken) => {
+                try {
+                  const res = await accountApi.linkGoogle({ id_token: idToken });
+                  if (!res.success) throw new Error(res.message || 'Could not link Google.');
+                  await refreshUser();
+                  showSuccess('Linked', 'You can sign in with Google next time.');
+                } catch (err) {
+                  showError('Link failed', err instanceof Error ? err.message : 'Try again.');
+                }
+              }}
+            />
+          )}
           <PasswordField
             showCurrent
             currentValue={currentPassword}

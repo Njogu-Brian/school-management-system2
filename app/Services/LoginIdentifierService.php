@@ -35,6 +35,12 @@ class LoginIdentifierService
                 $staff = Staff::whereNotNull('work_email')
                     ->whereRaw('LOWER(TRIM(work_email)) = ?', [$email])
                     ->first();
+                // Also accept staff personal_email (e.g. Gmail kept on profile, not as login email).
+                if (! $staff && Schema::hasColumn('staff', 'personal_email')) {
+                    $staff = Staff::whereNotNull('personal_email')
+                        ->whereRaw('LOWER(TRIM(personal_email)) = ?', [$email])
+                        ->first();
+                }
                 if ($staff && $staff->user_id) {
                     $user = User::find($staff->user_id);
                 }
@@ -44,39 +50,35 @@ class LoginIdentifierService
             }
         } else {
             $variants = $this->phoneVariants($raw);
-            if (Schema::hasColumn('users', 'phone_number') && $variants !== []) {
-                $user = User::query()->whereIn('phone_number', $variants)->first();
+
+            // Prefer the staff account when the same phone is also used on a parent login.
+            // Dual-identity teachers (e.g. Senior Teacher + Parent) otherwise get stuck in Home mode.
+            $staff = $this->findStaffByPhone($variants, $raw);
+            if ($staff && $staff->user_id) {
+                $user = User::query()->with('roles')->find($staff->user_id);
+            }
+
+            if (! $user && Schema::hasColumn('users', 'phone_number') && $variants !== []) {
+                $user = $this->preferStaffLinkedUser(
+                    User::query()->whereIn('phone_number', $variants)->with('roles')->get()
+                );
                 if (! $user) {
                     $needle = normalize_contact_for_parent_match($raw);
                     if (strlen($needle) >= 9) {
-                        $user = User::query()
-                            ->whereNotNull('phone_number')
-                            ->whereRaw(
-                                "RIGHT(REPLACE(REPLACE(REPLACE(phone_number, '+', ''), ' ', ''), '-', ''), 9) = ?",
-                                [$needle]
-                            )
-                            ->first();
+                        $user = $this->preferStaffLinkedUser(
+                            User::query()
+                                ->whereNotNull('phone_number')
+                                ->whereRaw(
+                                    "RIGHT(REPLACE(REPLACE(REPLACE(phone_number, '+', ''), ' ', ''), '-', ''), 9) = ?",
+                                    [$needle]
+                                )
+                                ->with('roles')
+                                ->get()
+                        );
                     }
                 }
             }
 
-            $staff = Staff::whereNotNull('phone_number')
-                ->whereIn('phone_number', $variants)
-                ->first();
-            if (! $staff) {
-                $digits = ltrim($this->normalizePhone($raw), '+');
-                $normalized = $this->normalizePhone($raw);
-                $staff = Staff::whereNotNull('phone_number')
-                    ->where(function ($q) use ($digits, $normalized) {
-                        $q->where('phone_number', 'like', '%'.$digits.'%')
-                            ->orWhere('phone_number', 'like', '%'.$normalized.'%');
-                    })
-                    ->first();
-            }
-
-            if (! $user && $staff && $staff->user_id) {
-                $user = User::find($staff->user_id);
-            }
             if (! $user) {
                 $user = $this->findParentUserByContact($raw, 'phone');
             }
@@ -87,6 +89,53 @@ class LoginIdentifierService
         }
 
         return [$user, $staff];
+    }
+
+    /**
+     * @param  list<string>  $variants
+     */
+    protected function findStaffByPhone(array $variants, string $raw): ?Staff
+    {
+        $staff = Staff::whereNotNull('phone_number')
+            ->whereIn('phone_number', $variants)
+            ->first();
+        if ($staff) {
+            return $staff;
+        }
+
+        $digits = ltrim($this->normalizePhone($raw), '+');
+        $normalized = $this->normalizePhone($raw);
+
+        return Staff::whereNotNull('phone_number')
+            ->where(function ($q) use ($digits, $normalized) {
+                $q->where('phone_number', 'like', '%'.$digits.'%')
+                    ->orWhere('phone_number', 'like', '%'.$normalized.'%');
+            })
+            ->first();
+    }
+
+    /**
+     * When several users share a phone, pick the staff-linked / elevated account.
+     *
+     * @param  \Illuminate\Support\Collection<int, User>  $users
+     */
+    protected function preferStaffLinkedUser($users): ?User
+    {
+        if ($users->isEmpty()) {
+            return null;
+        }
+
+        $withStaff = $users->first(fn (User $u) => Staff::where('user_id', $u->id)->exists());
+        if ($withStaff) {
+            return $withStaff;
+        }
+
+        $elevated = $users->first(fn (User $u) => $u->hasElevatedStaffRole() || $u->hasTeacherLikeRole());
+        if ($elevated) {
+            return $elevated;
+        }
+
+        return $users->first();
     }
 
     /**

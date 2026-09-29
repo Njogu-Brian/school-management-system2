@@ -80,6 +80,8 @@ export interface AuthContextValue {
   biometricEnrollmentPending: boolean;
   /** Offer PIN enrollment after biometrics step (or when biometrics unavailable). */
   pinEnrollmentPending: boolean;
+  /** After password/OTP login, optionally ask to link Google (skip allowed). */
+  googleLinkEnrollmentPending: boolean;
   /**
    * True only after a fresh sign-in when admin required a password change.
    * Not set on session restore / biometric / PIN unlock so it does not block mid-day.
@@ -110,6 +112,9 @@ export interface AuthContextValue {
   skipPinEnrollment: () => void;
   /** Remove stored app PIN (settings). */
   disablePin: () => Promise<void>;
+  /** Link Google from the post-login prompt, then continue enrollment. */
+  completeGoogleLinkEnrollment: (idToken: string) => Promise<void>;
+  skipGoogleLinkEnrollment: () => void;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -127,6 +132,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [submitting, setSubmitting] = useState(false);
   const [biometricEnrollmentPending, setBiometricEnrollmentPending] = useState(false);
   const [pinEnrollmentPending, setPinEnrollmentPending] = useState(false);
+  const [googleLinkEnrollmentPending, setGoogleLinkEnrollmentPending] = useState(false);
   const [forcePasswordChangePending, setForcePasswordChangePending] = useState(false);
 
   const logoutRef = useRef<() => Promise<void>>(async () => {});
@@ -140,6 +146,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setPinEnrollmentPending(true);
     return true;
   }, []);
+
+  const maybeOfferBiometricAndPin = useCallback(
+    async (
+      result: AuthProviderResult,
+      identifier: string | undefined,
+      options?: { offerBiometricEnrollment?: boolean },
+    ) => {
+      const offerEnrollment =
+        options?.offerBiometricEnrollment ?? (result.method !== 'biometric' && result.method !== 'pin');
+      if (offerEnrollment && result.method !== 'biometric' && result.method !== 'pin') {
+        const enabled = await getBiometricEnabled();
+        const deviceOk = await canUseBiometrics();
+        const existing = await getBiometricAuthBundle();
+        const switchedUser = Boolean(existing?.userId) && existing!.userId !== result.user.id;
+
+        if (switchedUser) {
+          await clearBiometricEnrollment();
+          if (deviceOk) {
+            setBiometricEnrollmentPending(true);
+            return;
+          }
+        } else if (!enabled && deviceOk) {
+          setBiometricEnrollmentPending(true);
+          return;
+        } else if (enabled && deviceOk) {
+          try {
+            await ensureDeviceBiometricUnlock({
+              userId: result.user.id,
+              identifier,
+            });
+          } catch {
+            /* session is already established; biometric can be retried from settings */
+          }
+        }
+
+        if (await maybeOfferPinEnrollment()) {
+          return;
+        }
+      }
+
+      setBiometricEnrollmentPending(false);
+      setPinEnrollmentPending(false);
+    },
+    [maybeOfferPinEnrollment],
+  );
 
   const completeAuth = useCallback(
     async (result: AuthProviderResult, options?: { offerBiometricEnrollment?: boolean }) => {
@@ -188,47 +239,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       }
 
-      const offerEnrollment = options?.offerBiometricEnrollment ?? (result.method !== 'biometric' && result.method !== 'pin');
-      if (offerEnrollment && result.method !== 'biometric' && result.method !== 'pin') {
-        const enabled = await getBiometricEnabled();
-        const deviceOk = await canUseBiometrics();
-        const existing = await getBiometricAuthBundle();
-        const switchedUser =
-          Boolean(existing?.userId) && existing!.userId !== result.user.id;
-
-        if (switchedUser) {
-          await clearBiometricEnrollment();
-          if (deviceOk) {
-            setBiometricEnrollmentPending(true);
-            setStatus('authenticated');
-            return;
-          }
-        } else if (!enabled && deviceOk) {
-          setBiometricEnrollmentPending(true);
-          setStatus('authenticated');
-          return;
-        } else if (enabled && deviceOk) {
-          try {
-            await ensureDeviceBiometricUnlock({
-              userId: result.user.id,
-              identifier,
-            });
-          } catch {
-            /* session is already established; biometric can be retried from settings */
-          }
-        }
-
-        if (await maybeOfferPinEnrollment()) {
-          setStatus('authenticated');
-          return;
-        }
+      // Post-login Google link prompt (skip allowed). Only after password/OTP.
+      const shouldPromptGoogle =
+        (result.method === 'password' || result.method === 'otp') &&
+        !result.user.googleLinked &&
+        Boolean(result.user.googleLinkPrompt);
+      if (shouldPromptGoogle) {
+        setGoogleLinkEnrollmentPending(true);
+        setBiometricEnrollmentPending(false);
+        setPinEnrollmentPending(false);
+        setStatus('authenticated');
+        return;
       }
+      setGoogleLinkEnrollmentPending(false);
 
-      setBiometricEnrollmentPending(false);
-      setPinEnrollmentPending(false);
+      await maybeOfferBiometricAndPin(result, identifier, options);
       setStatus('authenticated');
     },
-    [maybeOfferPinEnrollment, session],
+    [maybeOfferBiometricAndPin, session],
   );
 
   const logout = useCallback(async () => {
@@ -245,6 +273,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setError(null);
       setBiometricEnrollmentPending(false);
       setPinEnrollmentPending(false);
+      setGoogleLinkEnrollmentPending(false);
       setForcePasswordChangePending(false);
       setStatus('unauthenticated');
     }
@@ -518,6 +547,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setPinEnrollmentPending(false);
   }, []);
 
+  const continueAfterGoogleLinkStep = useCallback(async () => {
+    setGoogleLinkEnrollmentPending(false);
+    const resultUser = user;
+    if (!resultUser) {
+      return;
+    }
+    const creds = lastCredentialsRef.current;
+    const identifier = creds?.identifier || resultUser.email || resultUser.phone || undefined;
+    await maybeOfferBiometricAndPin(
+      {
+        token: session.token || '',
+        user: resultUser,
+        method: lastAuthMethod === 'otp' ? 'otp' : 'password',
+        expiresAt: null,
+      },
+      identifier,
+    );
+  }, [lastAuthMethod, maybeOfferBiometricAndPin, session.token, user]);
+
+  const completeGoogleLinkEnrollment = useCallback(
+    async (idToken: string) => {
+      const res = await accountApi.linkGoogle({ id_token: idToken });
+      if (!res.success) {
+        throw new Error(res.message || 'Could not link Google account.');
+      }
+      const mapped = user
+        ? {
+            ...user,
+            googleLinked: true,
+            googleEmail: res.data?.google_email ?? user.googleEmail,
+            googleLinkPrompt: false,
+            googleLinkRequired: false,
+          }
+        : null;
+      if (mapped) {
+        setUser(mapped);
+        await saveUser(mapped);
+      }
+      setGoogleIdentity({
+        sub: '',
+        email: res.data?.google_email ?? undefined,
+      });
+      await continueAfterGoogleLinkStep();
+    },
+    [continueAfterGoogleLinkStep, user],
+  );
+
+  const skipGoogleLinkEnrollment = useCallback(() => {
+    void continueAfterGoogleLinkStep();
+  }, [continueAfterGoogleLinkStep]);
+
   const disablePin = useCallback(async () => {
     await clearPinEnrollment();
     await accountApi.clearUnlockPin().catch(() => undefined);
@@ -574,6 +654,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       submitting,
       biometricEnrollmentPending,
       pinEnrollmentPending,
+      googleLinkEnrollmentPending,
       forcePasswordChangePending,
       clearForcePasswordChange,
       recordPasswordForUnlock,
@@ -590,6 +671,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       enablePin,
       skipPinEnrollment,
       disablePin,
+      completeGoogleLinkEnrollment,
+      skipGoogleLinkEnrollment,
       logout,
       refreshUser,
     }),
@@ -602,6 +685,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       submitting,
       biometricEnrollmentPending,
       pinEnrollmentPending,
+      googleLinkEnrollmentPending,
       forcePasswordChangePending,
       clearForcePasswordChange,
       recordPasswordForUnlock,
@@ -618,6 +702,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       enablePin,
       skipPinEnrollment,
       disablePin,
+      completeGoogleLinkEnrollment,
+      skipGoogleLinkEnrollment,
       logout,
       refreshUser,
     ],

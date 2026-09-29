@@ -696,14 +696,14 @@ class ApiStudentController extends Controller
             $parts = [];
             if ($assignment->morningTrip) {
                 $parts[] = 'Morning: '.$assignment->morningTrip->trip_name
-                    .($assignment->morningDropOffPoint?->name ? ' ┬╖ '.$assignment->morningDropOffPoint->name : '');
+                    .($assignment->morningDropOffPoint?->name ? ' · '.$assignment->morningDropOffPoint->name : '');
             }
             if ($assignment->eveningTrip) {
                 $parts[] = 'Evening: '.$assignment->eveningTrip->trip_name
-                    .($assignment->eveningDropOffPoint?->name ? ' ┬╖ '.$assignment->eveningDropOffPoint->name : '');
+                    .($assignment->eveningDropOffPoint?->name ? ' · '.$assignment->eveningDropOffPoint->name : '');
             }
 
-            return implode(' ┬╖ ', $parts);
+            return implode(' · ', $parts);
         }
 
         if ($s->drop_off_point_other && strtoupper(trim((string) $s->drop_off_point_other)) === 'OWN MEANS') {
@@ -717,7 +717,7 @@ class ApiStudentController extends Controller
             $s->drop_off_point_other,
         ]);
 
-        return $bits ? implode(' ┬╖ ', $bits) : 'No transport assigned';
+        return $bits ? implode(' · ', $bits) : 'No transport assigned';
     }
 
     /**

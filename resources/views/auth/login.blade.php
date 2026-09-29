@@ -269,6 +269,10 @@
             <button type="submit" class="btn btn-primary w-100 mb-2">Login</button>
             <button type="button" class="btn btn-outline-info w-100" onclick="showOtpRequestForm()">Login with OTP</button>
             <button type="button" class="btn btn-outline-dark w-100 mt-2" onclick="loginWithPasskey()">Sign in with Passkey</button>
+            <a href="{{ route('auth.google.redirect') }}" class="btn btn-outline-danger w-100 mt-2">
+                Continue with Google
+            </a>
+            <p class="text-muted small mt-2 mb-0">Staff only. Parents should use the mobile app. Google must match an existing account email.</p>
         </form>
 
         {{-- ✅ OTP Request Form (username/email/phone first, then request OTP) --}}

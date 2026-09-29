@@ -55,5 +55,9 @@ export function mapApiUser(raw: ApiUser): User {
       raw.can_mark_class_attendance ?? Boolean(raw.class_teacher_classroom_ids?.length),
     canViewStudentProfiles:
       raw.can_view_student_profiles ?? Boolean(raw.class_teacher_classroom_ids?.length),
+    googleLinked: raw.google_linked ?? Boolean(raw.google_email),
+    googleEmail: raw.google_email ?? null,
+    googleLinkRequired: raw.google_link_required ?? false,
+    googleLinkPrompt: raw.google_link_prompt ?? false,
   };
 }

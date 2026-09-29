@@ -11,4 +11,5 @@ export { ParentClaimPasswordScreen } from './screens/ParentClaimPasswordScreen';
 export { ParentProfileReviewScreen } from './screens/ParentProfileReviewScreen';
 export { ParentIdentityGateScreen } from './screens/ParentIdentityGateScreen';
 export { ForceChangePasswordScreen } from './screens/ForceChangePasswordScreen';
+export { LinkGooglePromptScreen } from './screens/LinkGooglePromptScreen';
 export { SchoolCodeScreen } from './screens/SchoolCodeScreen';

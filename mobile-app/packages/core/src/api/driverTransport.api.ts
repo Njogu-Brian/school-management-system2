@@ -6,13 +6,19 @@ export type DriverTripStatus = 'not_started' | 'in_progress' | 'completed' | str
 export interface DriverTripSummary {
   id: number;
   name?: string | null;
+  route_name?: string | null;
   direction?: string | null;
+  type?: string | null;
   departure_time?: string | null;
   vehicle_registration?: string | null;
   student_count?: number;
+  students_on_route?: number;
   status?: DriverTripStatus;
   start_time?: string | null;
   end_time?: string | null;
+  last_latitude?: number | null;
+  last_longitude?: number | null;
+  last_location_at?: string | null;
 }
 
 export interface DriverTripDetail extends DriverTripSummary {

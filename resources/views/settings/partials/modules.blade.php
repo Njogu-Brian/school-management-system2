@@ -79,6 +79,19 @@
                         <input class="form-check-input" type="checkbox" name="enable_communication_logs" value="1" {{ setting('enable_communication_logs') ? 'checked' : '' }}>
                     </div>
                 </div>
+                @php $googleLinkMode = setting('google_link_prompt_mode', 'all'); @endphp
+                <div class="p-3 border rounded">
+                    <div class="fw-semibold mb-1">Mobile Google link prompt</div>
+                    <div class="form-note mb-2">
+                        After password/OTP login, ask users to link Google (Skip always available).
+                        Fine-tune specific users under Students → Google sign-in prompt.
+                    </div>
+                    <select name="google_link_prompt_mode" class="form-select" style="max-width: 28rem;">
+                        <option value="all" @selected($googleLinkMode === 'all')>Everyone not yet linked</option>
+                        <option value="selected" @selected($googleLinkMode === 'selected')>Selected users only</option>
+                        <option value="off" @selected($googleLinkMode === 'off')>Off</option>
+                    </select>
+                </div>
                 <div class="d-flex gap-2 align-items-center flex-wrap">
                     <button class="btn btn-settings-primary px-4">
                         <i class="bi bi-save"></i> Save Feature Toggles

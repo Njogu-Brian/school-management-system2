@@ -704,6 +704,8 @@ class ApiStaffController extends Controller
             'password_option' => 'required|in:id_number,random,custom',
             'new_password' => 'nullable|string|min:6',
             'share' => 'nullable|boolean',
+            'reset_pin' => 'nullable|boolean',
+            'include_pin' => 'nullable|boolean',
         ]);
 
         if ($validated['password_option'] === 'custom' && ! empty($validated['new_password'])) {
@@ -719,10 +721,20 @@ class ApiStaffController extends Controller
             'must_change_password' => true,
         ]);
 
+        $pinPlain = null;
+        $shouldResetPin = (bool) ($validated['reset_pin'] ?? false) || (bool) ($validated['include_pin'] ?? false);
+        if ($shouldResetPin && \Illuminate\Support\Facades\Schema::hasColumn('users', 'unlock_pin_hash')) {
+            $pinPlain = str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
+            $user->forceFill([
+                'unlock_pin_hash' => \Illuminate\Support\Facades\Hash::make($pinPlain),
+                'unlock_pin_set_at' => now(),
+            ])->saveQuietly();
+        }
+
         $share = (bool) ($validated['share'] ?? false);
         $sharedVia = [];
         if ($share) {
-            $sharedVia = $this->shareStaffCredentials($staff, $user, $newPassword);
+            $sharedVia = $this->shareStaffCredentials($staff, $user->fresh(), $newPassword, $pinPlain);
         }
 
         return response()->json([
@@ -733,9 +745,12 @@ class ApiStaffController extends Controller
             'data' => [
                 'login' => $user->email,
                 'temporary_password' => $newPassword,
+                'app_pin' => $pinPlain,
                 'must_change_password' => true,
                 'shared_via' => $sharedVia,
-                'note' => 'Device app PIN stays on their phone — they reset it in Settings.',
+                'note' => $pinPlain
+                    ? 'A new app PIN was generated and included when shared.'
+                    : 'Device app PIN stays on their phone unless reset_pin is requested.',
             ],
         ]);
     }
@@ -779,23 +794,46 @@ class ApiStaffController extends Controller
             return response()->json(['success' => false, 'message' => 'Staff has no user account.'], 422);
         }
 
-        $passwordPlain = $staff->id_number ?: null;
-        if (! $passwordPlain) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No ID number on file to use as the shared password. Use Reset password instead.',
-            ], 422);
+        $validated = $request->validate([
+            'reset_pin' => 'nullable|boolean',
+            'include_pin' => 'nullable|boolean',
+        ]);
+
+        $passwordPlain = $staff->id_number ?: \Illuminate\Support\Str::random(8);
+        $user->update([
+            'password' => \Illuminate\Support\Facades\Hash::make($passwordPlain),
+            'must_change_password' => true,
+        ]);
+
+        $pinPlain = null;
+        $shouldResetPin = (bool) ($validated['reset_pin'] ?? false) || (bool) ($validated['include_pin'] ?? false);
+        $pinAlreadySet = \Illuminate\Support\Facades\Schema::hasColumn('users', 'unlock_pin_hash')
+            && filled($user->unlock_pin_hash);
+        if ($shouldResetPin && \Illuminate\Support\Facades\Schema::hasColumn('users', 'unlock_pin_hash')) {
+            $pinPlain = str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
+            $user->forceFill([
+                'unlock_pin_hash' => \Illuminate\Support\Facades\Hash::make($pinPlain),
+                'unlock_pin_set_at' => now(),
+            ])->saveQuietly();
         }
 
-        $sharedVia = $this->shareStaffCredentials($staff, $user, $passwordPlain);
+        $sharedVia = $this->shareStaffCredentials(
+            $staff,
+            $user->fresh(),
+            $passwordPlain,
+            $pinPlain,
+            (! $pinPlain && $pinAlreadySet) ? 'Your existing app PIN still works for quick login.' : null
+        );
 
         return response()->json([
             'success' => true,
             'message' => empty($sharedVia)
                 ? 'Could not send — check email/phone and communication credits.'
-                : 'Credentials shared via: ' . implode(', ', $sharedVia),
+                : 'Credentials shared via: '.implode(', ', $sharedVia),
             'data' => [
                 'login' => $user->email,
+                'temporary_password' => $passwordPlain,
+                'app_pin' => $pinPlain,
                 'shared_via' => $sharedVia,
             ],
         ]);
@@ -804,12 +842,23 @@ class ApiStaffController extends Controller
     /**
      * @return list<string>
      */
-    protected function shareStaffCredentials(Staff $staff, $user, string $password): array
-    {
+    protected function shareStaffCredentials(
+        Staff $staff,
+        $user,
+        string $password,
+        ?string $pinPlain = null,
+        ?string $pinNote = null,
+    ): array {
         $shared = [];
         $schoolName = DB::table('settings')->where('key', 'school_name')->value('value')
             ?? config('app.name', 'School');
-        $body = "{$schoolName}: Your staff login is {$user->email}. Temporary password: {$password}. Change it after signing in.";
+        $login = $user->email ?: ($user->phone_number ?? '');
+        $body = "{$schoolName}: Your staff login is {$login}. Temporary password: {$password}. Change it after signing in.";
+        if ($pinPlain) {
+            $body .= " App PIN: {$pinPlain}.";
+        } elseif ($pinNote) {
+            $body .= ' '.$pinNote;
+        }
 
         $comm = app(\App\Services\CommunicationService::class);
 

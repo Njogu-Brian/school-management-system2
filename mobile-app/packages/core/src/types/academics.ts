@@ -39,6 +39,8 @@ export interface ExamMarkingOption {
 
 export interface ExamListFilters {
   status?: string;
+  /** When true, server returns exams in statuses the user may enter marks for. */
+  for_mark_entry?: boolean;
   search?: string;
   academic_year_id?: number;
   term_id?: number;
@@ -109,12 +111,25 @@ export interface MarksMatrixContext {
   exam_types: { id: number; name: string; code?: string }[];
   classrooms: { id: number; name: string }[];
   streams: { id: number; name: string; classroom_id: number }[];
+  academic_years?: { id: number; year?: string | number; label?: string; is_active?: boolean }[];
+  active_academic_year_id?: number | null;
+  terms?: { id: number; name: string; academic_year_id: number; is_current?: boolean }[];
+  current_term_id?: number | null;
 }
 
 export interface MarksMatrixFilters {
   exam_type_id: number;
   classroom_id: number;
   stream_id?: number;
+  academic_year_id?: number;
+  term_id?: number;
+}
+
+export interface AcademicContext {
+  academic_years: { id: number; year?: string | number; label?: string; is_active?: boolean }[];
+  active_academic_year_id: number | null;
+  terms: { id: number; name: string; academic_year_id: number; is_current?: boolean }[];
+  current_term_id: number | null;
 }
 
 export interface ExamTrendPoint {

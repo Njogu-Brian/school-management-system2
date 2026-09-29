@@ -74,13 +74,27 @@ export const GOOGLE_WEB_CLIENT_ID =
   process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
   '';
 
+/**
+ * Maps SDK API key (Android/iOS). Do not use a Cloud Map ID — that bills Dynamic Maps.
+ * @see docs/GOOGLE_MAPS_AND_SIGNIN_SETUP.md
+ */
+export const GOOGLE_MAPS_API_KEY =
+  (typeof extra?.GOOGLE_MAPS_API_KEY === 'string' && extra.GOOGLE_MAPS_API_KEY) ||
+  process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
+  '';
+
+export function hasGoogleMapsConfig(): boolean {
+  return Boolean(GOOGLE_MAPS_API_KEY);
+}
+
 /** Whether Google OAuth client IDs are configured for the current platform. */
 export function hasGoogleOAuthConfig(platformOs: string): boolean {
   if (platformOs === 'android') {
+    // expo-auth-session requires androidClientId on Android (web-only is not enough).
     return Boolean(GOOGLE_ANDROID_CLIENT_ID);
   }
   if (platformOs === 'ios') {
-    return Boolean(GOOGLE_IOS_CLIENT_ID);
+    return Boolean(GOOGLE_IOS_CLIENT_ID || GOOGLE_WEB_CLIENT_ID);
   }
   return Boolean(GOOGLE_WEB_CLIENT_ID);
 }

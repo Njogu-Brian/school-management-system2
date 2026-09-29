@@ -1,9 +1,8 @@
 import {
-  useAcademicYearsSettings,
+  useAcademicContext,
+  useClassroomSubjects,
+  useClassrooms,
   useCreateLessonPlan,
-  useSettingsClasses,
-  useSettingsSubjects,
-  useTermsSettings,
 } from '@erp/core';
 import {
   AcademicScreenHeader,
@@ -16,7 +15,7 @@ import {
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, Text } from 'react-native';
 import type { TeacherStackParamList } from '../../../navigation/teacher/teacherStackTypes';
 import { showError, showSuccess } from '../../shared/utils/feedback';
@@ -26,9 +25,7 @@ type Nav = StackNavigationProp<TeacherStackParamList>;
 export const CreateLessonPlanScreen: React.FC = () => {
   const navigation = useNavigation<Nav>();
   const { palette, spacing, typography } = useTheme();
-  const yearsQuery = useAcademicYearsSettings();
-  const classesQuery = useSettingsClasses();
-  const subjectsQuery = useSettingsSubjects();
+  const classesQuery = useClassrooms();
   const createMutation = useCreateLessonPlan();
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -49,17 +46,27 @@ export const CreateLessonPlanScreen: React.FC = () => {
   const [yearId, setYearId] = useState<number | null>(null);
   const [termId, setTermId] = useState<number | null>(null);
 
-  const termsQuery = useTermsSettings(yearId ?? undefined, { enabled: (yearId ?? 0) > 0 });
+  const academicQuery = useAcademicContext(yearId ?? undefined);
+  const subjectsQuery = useClassroomSubjects(classroomId);
 
-  const activeYear = useMemo(() => {
-    const years = yearsQuery.data ?? [];
-    return years.find((y) => (y as { is_current?: boolean; is_active?: boolean }).is_current
-      || (y as { is_active?: boolean }).is_active) ?? years[0];
-  }, [yearsQuery.data]);
+  const years = academicQuery.data?.academic_years ?? [];
+  const terms = academicQuery.data?.terms ?? [];
 
-  React.useEffect(() => {
-    if (!yearId && activeYear?.id) setYearId(activeYear.id);
-  }, [activeYear, yearId]);
+  useEffect(() => {
+    if (yearId != null) return;
+    const active = academicQuery.data?.active_academic_year_id;
+    if (active) setYearId(active);
+  }, [academicQuery.data?.active_academic_year_id, yearId]);
+
+  useEffect(() => {
+    if (termId != null) return;
+    const current = academicQuery.data?.current_term_id;
+    if (current) setTermId(current);
+  }, [academicQuery.data?.current_term_id, termId]);
+
+  useEffect(() => {
+    setSubjectId(null);
+  }, [classroomId]);
 
   const submit = async () => {
     if (!title.trim() || !plannedDate || !classroomId || !subjectId || !yearId || !termId) {
@@ -95,7 +102,7 @@ export const CreateLessonPlanScreen: React.FC = () => {
       <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
         <AcademicScreenHeader title="Create lesson plan" onBack={() => navigation.goBack()} />
         <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
-          Drafts are limited to today or tomorrow (school policy).
+          Drafts are limited to today or tomorrow. Year and term default to what is active in the system.
         </Text>
         <TextField label="Title / topic" value={title} onChangeText={setTitle} />
         <FilterChipRow label="Planned date">
@@ -106,11 +113,11 @@ export const CreateLessonPlanScreen: React.FC = () => {
             onPress={() => setPlannedDate(tomorrow)}
           />
         </FilterChipRow>
-        <FilterChipRow label="Academic year">
-          {(yearsQuery.data ?? []).slice(0, 8).map((y) => (
+        <FilterChipRow label="Academic year" wrap>
+          {years.map((y) => (
             <FilterChip
               key={y.id}
-              label={(y as { name?: string }).name ?? `Year ${y.id}`}
+              label={`${y.label ?? y.year ?? y.id}${y.is_active ? ' (active)' : ''}`}
               active={yearId === y.id}
               onPress={() => {
                 setYearId(y.id);
@@ -119,26 +126,54 @@ export const CreateLessonPlanScreen: React.FC = () => {
             />
           ))}
         </FilterChipRow>
-        <FilterChipRow label="Term">
-          {(termsQuery.data ?? []).map((t) => (
+        {academicQuery.isError ? (
+          <Text style={{ color: palette.textSecondary, marginBottom: spacing.sm }}>
+            Could not load academic year/term. Check your connection and try again.
+          </Text>
+        ) : null}
+        <FilterChipRow label="Term" wrap>
+          {terms.map((t) => (
             <FilterChip
               key={t.id}
-              label={(t as { name?: string }).name ?? `Term ${t.id}`}
+              label={`${t.name}${t.is_current ? ' (current)' : ''}`}
               active={termId === t.id}
               onPress={() => setTermId(t.id)}
             />
           ))}
         </FilterChipRow>
-        <FilterChipRow label="Class">
-          {(classesQuery.data ?? []).slice(0, 24).map((c) => (
-            <FilterChip key={c.id} label={c.name} active={classroomId === c.id} onPress={() => setClassroomId(c.id)} />
+        <FilterChipRow label="Your class" wrap>
+          {(classesQuery.data ?? []).map((c) => (
+            <FilterChip
+              key={c.id}
+              label={c.name}
+              active={classroomId === c.id}
+              onPress={() => setClassroomId(c.id)}
+            />
           ))}
         </FilterChipRow>
-        <FilterChipRow label="Subject">
-          {(subjectsQuery.data ?? []).slice(0, 30).map((s) => (
-            <FilterChip key={s.id} label={s.name} active={subjectId === s.id} onPress={() => setSubjectId(s.id)} />
-          ))}
+        {classesQuery.isLoading ? (
+          <Text style={{ color: palette.textSecondary, marginBottom: spacing.sm }}>Loading your classes…</Text>
+        ) : null}
+        {classesQuery.isError ? (
+          <Text style={{ color: palette.textSecondary, marginBottom: spacing.sm }}>
+            Could not load your assigned classes.
+          </Text>
+        ) : null}
+        <FilterChipRow label="Subject you teach in this class" wrap>
+          {!classroomId
+            ? null
+            : (subjectsQuery.data ?? []).map((s) => (
+                <FilterChip key={s.id} label={s.name} active={subjectId === s.id} onPress={() => setSubjectId(s.id)} />
+              ))}
         </FilterChipRow>
+        {classroomId && subjectsQuery.isLoading ? (
+          <Text style={{ color: palette.textSecondary, marginBottom: spacing.sm }}>Loading subjects…</Text>
+        ) : null}
+        {classroomId && !subjectsQuery.isLoading && (subjectsQuery.data ?? []).length === 0 ? (
+          <Text style={{ color: palette.textSecondary, marginBottom: spacing.sm }}>
+            No subjects assigned to you in this class.
+          </Text>
+        ) : null}
         <TextField label="Learning outcomes" value={outcomes} onChangeText={setOutcomes} multiline />
         <TextField label="Introduction" value={introduction} onChangeText={setIntroduction} multiline />
         <TextField label="Lesson development" value={development} onChangeText={setDevelopment} multiline />

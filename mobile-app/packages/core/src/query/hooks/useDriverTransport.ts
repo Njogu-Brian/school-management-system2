@@ -23,7 +23,26 @@ export function useDriverTrip(tripId: number, options?: { enabled?: boolean; dat
     queryFn: async () => {
       const res = await driverTransportApi.getTrip(tripId, { date });
       if (!res.success || !res.data) throw new Error(res.message || 'Failed to load trip.');
-      return res.data;
+      const payload = res.data as DriverTripDetail & {
+        trip?: DriverTripDetail;
+        students?: DriverTripDetail['students'];
+        run?: { status?: string | null; latitude?: number | null; longitude?: number | null };
+      };
+      // API returns { trip, students, run }; older clients expected a flat trip row.
+      if (payload.trip) {
+        return {
+          ...payload.trip,
+          name: payload.trip.name ?? (payload.trip as { route_name?: string }).route_name ?? null,
+          students: payload.students ?? payload.trip.students,
+          status: payload.trip.status ?? payload.run?.status ?? 'scheduled',
+          last_latitude: (payload.trip as { last_latitude?: number }).last_latitude ?? payload.run?.latitude,
+          last_longitude: (payload.trip as { last_longitude?: number }).last_longitude ?? payload.run?.longitude,
+        } as DriverTripDetail & { last_latitude?: number | null; last_longitude?: number | null };
+      }
+      return {
+        ...payload,
+        name: payload.name ?? (payload as { route_name?: string }).route_name ?? null,
+      };
     },
     enabled: (options?.enabled !== false) && tripId > 0,
     staleTime: 30_000,

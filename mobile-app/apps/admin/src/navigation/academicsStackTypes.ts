@@ -28,9 +28,14 @@ export type AcademicsStackParamList = {
     examTypeId: number;
     classroomId: number;
     streamId?: number;
+    academicYearId?: number;
+    termId?: number;
     examTypeName?: string;
     classroomName?: string;
     streamName?: string;
+    academicYearName?: string;
+    termName?: string;
+    selectedExamIds?: number[];
   };
   ReportCards: undefined;
   ReportCardHistory: { studentId: number; studentName: string };

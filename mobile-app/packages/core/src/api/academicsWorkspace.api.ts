@@ -25,6 +25,7 @@ export const academicsWorkspaceApi = {
   ): Promise<ApiResponse<PaginatedResponse<ExamListRecord>>> {
     const query: Record<string, string | number> = {};
     if (params?.status) query.status = params.status;
+    if (params?.for_mark_entry) query.for_mark_entry = 1;
     if (params?.academic_year_id != null) query.academic_year_id = params.academic_year_id;
     if (params?.term_id != null) query.term_id = params.term_id;
     if (params?.classroom_id != null) query.classroom_id = params.classroom_id;
@@ -65,10 +66,20 @@ export const academicsWorkspaceApi = {
     });
   },
 
-  getMarksMatrixContext(classroomId?: number): Promise<ApiResponse<MarksMatrixContext>> {
+  getMarksMatrixContext(
+    classroomId?: number,
+    academicYearId?: number,
+  ): Promise<ApiResponse<MarksMatrixContext>> {
     const query: Record<string, number> = {};
     if (classroomId != null) query.classroom_id = classroomId;
+    if (academicYearId != null) query.academic_year_id = academicYearId;
     return apiClient.get<MarksMatrixContext>('/marks/matrix/context', query);
+  },
+
+  getAcademicContext(academicYearId?: number): Promise<ApiResponse<import('../types/academics').AcademicContext>> {
+    const query: Record<string, number> = {};
+    if (academicYearId != null) query.academic_year_id = academicYearId;
+    return apiClient.get('/academic-context', query);
   },
 
   getMarksMatrix(params: MarksMatrixFilters): Promise<
@@ -76,6 +87,8 @@ export const academicsWorkspaceApi = {
       students: MarksMatrixStudent[];
       exams: MarksMatrixExam[];
       existing_marks: MarksMatrixExistingMark[];
+      academic_year_id?: number | null;
+      term_id?: number | null;
     }>
   > {
     const query: Record<string, number> = {
@@ -83,6 +96,8 @@ export const academicsWorkspaceApi = {
       classroom_id: params.classroom_id,
     };
     if (params.stream_id != null) query.stream_id = params.stream_id;
+    if (params.academic_year_id != null) query.academic_year_id = params.academic_year_id;
+    if (params.term_id != null) query.term_id = params.term_id;
     return apiClient.get('/marks/matrix', query);
   },
 

@@ -6,4 +6,5 @@ export { BiometricEnableScreen } from './screens/BiometricEnableScreen';
 export { PinEnableScreen } from './screens/PinEnableScreen';
 export { PinUnlockPanel, PinUnlockScreen } from './screens/PinUnlockPanel';
 export { ForceChangePasswordScreen } from './screens/ForceChangePasswordScreen';
+export { LinkGooglePromptScreen } from './screens/LinkGooglePromptScreen';
 export { SchoolCodeScreen } from './screens/SchoolCodeScreen';

@@ -15,12 +15,9 @@
                 <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#resetPasswordModal{{ $staff->id }}">
                     <i class="bi bi-key"></i> Reset Password
                 </button>
-                <form action="{{ route('staff.resend-credentials', $staff->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to resend login credentials to {{ $staff->full_name }}? This will send an email and SMS with their login details.');">
-                    @csrf
-                    <button type="submit" class="btn btn-outline-info">
-                        <i class="bi bi-envelope-paper"></i> Resend Credentials
-                    </button>
-                </form>
+                <button type="button" class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#resendCredentialsModal{{ $staff->id }}">
+                    <i class="bi bi-envelope-paper"></i> Resend Credentials
+                </button>
             @endif
             <a href="{{ route('staff.edit', $staff->id) }}" class="btn btn-primary">
                 <i class="bi bi-pencil"></i> Edit
@@ -397,6 +394,14 @@
                         <input type="text" name="new_password" class="form-control" placeholder="Enter custom password (min 6 characters)" minlength="6">
                         <small class="text-muted">Minimum 6 characters required</small>
                     </div>
+
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" name="reset_pin" value="1" id="resetPin{{ $staff->id }}">
+                        <label class="form-check-label" for="resetPin{{ $staff->id }}">
+                            Also set a new app PIN and include it in the message
+                        </label>
+                        <div class="form-text">If unchecked and a PIN already exists, the message notes that their existing PIN still works. PINs cannot be recovered — only reset.</div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -409,16 +414,59 @@
     </div>
 </div>
 
+{{-- Resend Credentials Modal --}}
+<div class="modal fade" id="resendCredentialsModal{{ $staff->id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-envelope-paper"></i> Resend Credentials for {{ $staff->full_name }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ route('staff.resend-credentials', $staff->id) }}" method="POST" onsubmit="return confirm('Resend login credentials to {{ $staff->full_name }}? This resets their password to the ID number (or a temporary password) and sends email/SMS.');">
+                @csrf
+                <div class="modal-body">
+                    <div class="alert alert-info mb-3">
+                        Login and temporary password will be sent via email and SMS using the staff credential templates.
+                        @if($staff->id_number)
+                            Password will be set to ID number <strong>{{ $staff->id_number }}</strong>.
+                        @else
+                            A random temporary password will be generated (no ID number on file).
+                        @endif
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="reset_pin" value="1" id="resendResetPin{{ $staff->id }}" @if($staff->user && $staff->user->unlock_pin_hash) checked @endif>
+                        <label class="form-check-label" for="resendResetPin{{ $staff->id }}">
+                            Include / reset app PIN in the message
+                        </label>
+                        <div class="form-text">
+                            @if($staff->user && $staff->user->unlock_pin_hash)
+                                A PIN is already set. Leave checked to issue a new PIN; uncheck to keep the existing PIN and only note that it still works.
+                            @else
+                                Generates a new 4-digit app PIN and includes it in the message.
+                            @endif
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-outline-info">
+                        <i class="bi bi-envelope-paper"></i> Resend Credentials
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const customField = document.getElementById('customPasswordField{{ $staff->id }}');
-    const customRadio = document.getElementById('customPassword{{ $staff->id }}');
-    const idNumberRadio = document.getElementById('useIdNumber{{ $staff->id }}');
-    const randomRadio = document.getElementById('generateRandom{{ $staff->id }}');
 
     // Show/hide custom password field
-    document.querySelectorAll('input[name="password_option"]').forEach(radio => {
+    document.querySelectorAll('#resetPasswordModal{{ $staff->id }} input[name="password_option"]').forEach(radio => {
         radio.addEventListener('change', function() {
             if (this.value === 'custom') {
                 customField.style.display = 'block';
@@ -433,10 +481,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Handle form submission
     document.querySelector('#resetPasswordModal{{ $staff->id }} form').addEventListener('submit', function(e) {
-        const selectedOption = document.querySelector('input[name="password_option"]:checked').value;
+        const selectedOption = document.querySelector('#resetPasswordModal{{ $staff->id }} input[name="password_option"]:checked').value;
         
         if (selectedOption === 'custom') {
-            const customPassword = document.querySelector('input[name="new_password"]').value;
+            const customPassword = document.querySelector('#resetPasswordModal{{ $staff->id }} input[name="new_password"]').value;
             if (!customPassword || customPassword.length < 6) {
                 e.preventDefault();
                 alert('Custom password must be at least 6 characters long.');

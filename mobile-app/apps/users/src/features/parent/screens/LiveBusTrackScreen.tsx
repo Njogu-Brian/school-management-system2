@@ -7,7 +7,9 @@ import {
   SkeletonListRows,
   StatusBadge,
   SurfaceCard,
+  TransportMapView,
   useTheme,
+  type MapPin,
 } from '@erp/ui';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import React, { useMemo } from 'react';
@@ -36,7 +38,7 @@ function liveMessage(data: { live?: boolean; status?: string | null; message?: s
     return {
       label: 'Completed',
       tone: 'info',
-      detail: data.message ?? 'Today\'s trip has finished.',
+      detail: data.message ?? "Today's trip has finished.",
     };
   }
   return {
@@ -60,6 +62,33 @@ export const LiveBusTrackScreen: React.FC = () => {
   const live = liveQuery.data;
   const statusInfo = useMemo(() => liveMessage(live), [live]);
   const hasCoords = live?.latitude != null && live?.longitude != null;
+  const ageSeconds = live?.age_seconds ?? live?.freshness_seconds ?? null;
+
+  const mapPins: MapPin[] = useMemo(() => {
+    const pins: MapPin[] = [];
+    if (live?.latitude != null && live?.longitude != null) {
+      pins.push({
+        id: 'bus',
+        latitude: live.latitude,
+        longitude: live.longitude,
+        title: live.trip_name ?? 'School bus',
+        subtitle: live.vehicle_registration ?? undefined,
+        tone: 'bus',
+      });
+    }
+    const stop = live?.child_stop;
+    if (stop?.latitude != null && stop?.longitude != null) {
+      pins.push({
+        id: 'child-stop',
+        latitude: stop.latitude,
+        longitude: stop.longitude,
+        title: student.data?.fullName ?? 'Your child',
+        subtitle: stop.kind === 'evening_dropoff' ? 'Drop-off' : 'Pickup',
+        tone: 'stop',
+      });
+    }
+    return pins;
+  }, [live, student.data?.fullName]);
 
   const openMaps = async () => {
     if (!hasCoords) {
@@ -106,14 +135,18 @@ export const LiveBusTrackScreen: React.FC = () => {
         <>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
             <StatusBadge label={statusInfo.label} tone={statusInfo.tone} />
-            {live?.age_seconds != null ? (
+            {ageSeconds != null ? (
               <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
-                Updated {live.age_seconds}s ago
+                Updated {ageSeconds}s ago
               </Text>
             ) : null}
           </View>
 
           <Text style={{ color: palette.textSecondary, marginBottom: spacing.md }}>{statusInfo.detail}</Text>
+
+          <TransportMapView pins={mapPins} height={300} />
+
+          <View style={{ height: spacing.md }} />
 
           <SurfaceCard accent={statusInfo.tone === 'success' ? 'success' : statusInfo.tone === 'warning' ? 'warning' : 'info'}>
             <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>
@@ -134,16 +167,20 @@ export const LiveBusTrackScreen: React.FC = () => {
                 Driver: {live.driver_name}
               </Text>
             ) : null}
-            {hasCoords ? (
-              <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 4 }}>
-                {live!.latitude!.toFixed(5)}, {live!.longitude!.toFixed(5)}
+            {live?.child_stop ? (
+              <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 4 }}>
+                Child stop: {live.child_stop.kind === 'evening_dropoff' ? 'evening drop-off' : 'morning pickup'} pin on map
               </Text>
-            ) : null}
+            ) : (
+              <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 4 }}>
+                No saved pickup/drop-off pin for this child yet.
+              </Text>
+            )}
           </SurfaceCard>
 
           <Button
             label="Open in Google Maps"
-            variant="primary"
+            variant="secondary"
             disabled={!hasCoords}
             onPress={() => void openMaps()}
           />

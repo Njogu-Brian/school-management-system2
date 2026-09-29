@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Student;
+use App\Models\StudentTransportStop;
 use App\Models\Trip;
 use App\Models\TripRun;
 use App\Models\User;
@@ -113,6 +114,20 @@ class ApiTransportTrackingController extends Controller
 
         $freshness = $run->last_location_at ? now()->diffInSeconds($run->last_location_at) : null;
 
+        $stopKind = StudentTransportStop::kindForTripDirection($direction);
+        if ($trip) {
+            $stopKind = StudentTransportStop::kindForTrip($trip);
+            // Prefer request direction when explicitly provided.
+            if ($request->filled('direction')) {
+                $stopKind = StudentTransportStop::kindForTripDirection($direction);
+            }
+        }
+        $childStop = StudentTransportStop::where('student_id', $student->id)
+            ->where('kind', $stopKind)
+            ->first();
+
+        $vehicleNumber = $trip->vehicle?->vehicle_number;
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -125,9 +140,11 @@ class ApiTransportTrackingController extends Controller
                 'started_at' => $run->started_at?->toIso8601String(),
                 'vehicle' => $trip->vehicle ? [
                     'id' => $trip->vehicle->id,
-                    'vehicle_number' => $trip->vehicle->vehicle_number,
+                    'vehicle_number' => $vehicleNumber,
                     'type' => $trip->vehicle->type,
                 ] : null,
+                // Mobile clients historically expected a flat registration field.
+                'vehicle_registration' => $vehicleNumber,
                 'driver_name' => $trip->driver?->full_name,
                 'latitude' => $run->last_latitude,
                 'longitude' => $run->last_longitude,
@@ -135,6 +152,13 @@ class ApiTransportTrackingController extends Controller
                 'speed_kmh' => $run->last_speed_kmh,
                 'last_location_at' => $run->last_location_at?->toIso8601String(),
                 'freshness_seconds' => $freshness,
+                'age_seconds' => $freshness,
+                'child_stop' => $childStop ? [
+                    'kind' => $childStop->kind,
+                    'latitude' => $childStop->latitude,
+                    'longitude' => $childStop->longitude,
+                    'updated_at' => $childStop->updated_at?->toIso8601String(),
+                ] : null,
             ],
         ]);
     }
@@ -178,6 +202,7 @@ class ApiTransportTrackingController extends Controller
                 'longitude' => $run->last_longitude,
                 'last_location_at' => $run->last_location_at?->toIso8601String(),
                 'freshness_seconds' => $freshness,
+                'age_seconds' => $freshness,
                 'student_count' => $studentCount,
             ];
         })->values();

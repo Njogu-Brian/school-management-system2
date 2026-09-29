@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\GoogleAccountService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -34,30 +35,18 @@ class SocialAuthController extends Controller
             return redirect()->route('login')->withErrors(['identifier' => 'Google did not return an email address.']);
         }
 
-        // If this Google account is already linked, login directly.
-        $linked = User::where('google_id', $googleId)->first();
-        if ($linked) {
-            Auth::login($linked, true);
-
-            return $this->afterSocialLogin($linked);
-        }
-
-        // If a local account exists for this email, link then login.
-        $user = User::whereRaw('LOWER(TRIM(email)) = ?', [$googleEmail])->first();
-        if (! $user) {
+        $resolved = app(GoogleAccountService::class)->resolveUserForLogin($googleId, $googleEmail);
+        if (! ($resolved['ok'] ?? false)) {
             return redirect()->route('login')->withErrors([
-                'identifier' => 'No account found for this Google email. Please sign in with password/OTP first, then link Google in your profile.',
+                'identifier' => $resolved['message'] ?? 'No account found for this Google email.',
             ]);
         }
 
-        $user->forceFill([
-            'google_id' => $googleId,
-            'google_email' => $googleEmail,
-        ])->save();
-
+        /** @var User $user */
+        $user = $resolved['user'];
         Auth::login($user, true);
 
-        return $this->afterSocialLogin($user, 'Google account linked. You can now sign in with Google.');
+        return $this->afterSocialLogin($user, 'Signed in with Google.');
     }
 
     protected function afterSocialLogin(User $user, ?string $status = null): RedirectResponse
@@ -72,4 +61,3 @@ class SocialAuthController extends Controller
         return $status ? $redirect->with('status', $status) : $redirect;
     }
 }
-

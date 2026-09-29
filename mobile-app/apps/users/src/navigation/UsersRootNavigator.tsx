@@ -21,6 +21,7 @@ import {
   AuthLoadingScreen,
   BiometricEnableScreen,
   // ForceChangePasswordScreen — kept in features/auth; re-enable gate below when ready
+  LinkGooglePromptScreen,
   LoginScreen,
   ParentIdentityGateScreen,
   PinEnableScreen,
@@ -35,6 +36,7 @@ const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
     user,
     biometricEnrollmentPending,
     pinEnrollmentPending,
+    googleLinkEnrollmentPending,
     // forcePasswordChangePending — kept for when ForceChangePasswordScreen is re-enabled
   } = useAuth();
   const school = useSchool();
@@ -70,6 +72,9 @@ const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
   // if (forcePasswordChangePending || user?.mustChangePassword) {
   //   return <ForceChangePasswordScreen />;
   // }
+  if (googleLinkEnrollmentPending) {
+    return <LinkGooglePromptScreen />;
+  }
   if (biometricEnrollmentPending) {
     return <BiometricEnableScreen />;
   }

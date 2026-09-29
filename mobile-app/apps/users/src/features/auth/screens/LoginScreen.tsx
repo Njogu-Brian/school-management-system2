@@ -13,12 +13,17 @@ import {
   useBiometricAuth,
   useBranding,
   useSchoolOptional,
+  GOOGLE_ANDROID_CLIENT_ID,
+  GOOGLE_IOS_CLIENT_ID,
+  GOOGLE_WEB_CLIENT_ID,
+  hasGoogleOAuthConfig,
 } from '@erp/core';
 import {
   Button,
   ChangeSchoolLink,
   EdulynkMark,
   ForgotPasswordForm,
+  GoogleSignInButton,
   KeyboardScrollProvider,
   Soft3DIcon,
   buildLoginChrome,
@@ -66,6 +71,7 @@ export const LoginScreen: React.FC = () => {
     login,
     requestLoginOtp,
     verifyLoginOtp,
+    loginWithGoogleIdToken,
     submitting,
     error,
   } = useAuth();
@@ -405,6 +411,38 @@ export const LoginScreen: React.FC = () => {
           ) : null}
         </>
       )}
+      <View
+        style={{
+          marginTop: spacing.lg,
+          marginBottom: spacing.sm,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: spacing.sm,
+        }}
+      >
+        <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: chrome.line }} />
+        <Text style={{ color: chrome.muted, fontSize: typography.caption.fontSize }}>or</Text>
+        <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: chrome.line }} />
+      </View>
+      <GoogleSignInButton
+        clientIds={{
+          androidClientId: GOOGLE_ANDROID_CLIENT_ID,
+          iosClientId: GOOGLE_IOS_CLIENT_ID,
+          webClientId: GOOGLE_WEB_CLIENT_ID,
+        }}
+        configured={hasGoogleOAuthConfig(Platform.OS)}
+        disabled={busy}
+        onIdToken={async (idToken) => {
+          try {
+            await loginWithGoogleIdToken(idToken);
+          } catch (err) {
+            showError(
+              'Google sign-in failed',
+              err instanceof Error ? err.message : 'Try password or OTP instead.',
+            );
+          }
+        }}
+      />
     </>
   );
 

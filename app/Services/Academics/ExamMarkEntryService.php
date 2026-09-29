@@ -209,6 +209,10 @@ class ExamMarkEntryService
                     $fill['subject_remark'] = trim((string) $remarkInput);
                 }
 
+                $previousScore = $mark->exists && ! $mark->is_absent && $mark->score_raw !== null
+                    ? (float) $mark->score_raw
+                    : null;
+
                 $mark->fill($fill);
                 app(ExamMarkEntryAuditService::class)->recordMarkSave(
                     $mark,
@@ -218,6 +222,16 @@ class ExamMarkEntryService
                 );
                 $mark->save();
                 $saved++;
+
+                if ($hasScore && $previousScore !== null && abs($previousScore - (float) $score) > 0.0001) {
+                    $this->notifyMarkChange(
+                        $exam,
+                        $student,
+                        $previousScore,
+                        (float) $score,
+                        $user
+                    );
+                }
             }
 
             if ($finalize && $saved > 0) {
@@ -226,6 +240,53 @@ class ExamMarkEntryService
         });
 
         return ['saved' => $saved, 'skipped' => $skipped];
+    }
+
+    protected function notifyMarkChange(
+        Exam $exam,
+        Student $student,
+        float $from,
+        float $to,
+        ?User $user = null,
+    ): void {
+        try {
+            $exam->loadMissing(['subject', 'classroom']);
+            $editor = $user?->name ?? 'A teacher';
+            $subject = $exam->subject?->name ?? 'Subject';
+            $class = $exam->classroom?->name ?? 'Class';
+            $studentName = person_display_name($student, 'full');
+            $title = 'Exam mark changed';
+            $message = "{$editor} changed {$studentName}'s {$subject} mark ({$exam->name}, {$class}) from {$from} to {$to}.";
+
+            app(\App\Services\SystemAlertService::class)->raiseForRoles(
+                [
+                    'Super Admin', 'Admin', 'System Admin',
+                    'Senior Teacher', 'senior teacher', 'Senior teacher',
+                    'Deputy Senior Teacher', 'deputy senior teacher',
+                ],
+                $title,
+                $message,
+                'academics',
+                'warning',
+                'mark_change_'.sha1($exam->id.'|'.$student->id.'|'.$from.'|'.$to.'|'.now()->format('YmdHi')),
+                '/academics/exams/'.$exam->id,
+                [
+                    'exam_id' => $exam->id,
+                    'student_id' => $student->id,
+                    'from' => $from,
+                    'to' => $to,
+                    'edited_by' => $user?->id,
+                ],
+                true,
+                false
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Failed to raise mark-change alert', [
+                'exam_id' => $exam->id,
+                'student_id' => $student->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

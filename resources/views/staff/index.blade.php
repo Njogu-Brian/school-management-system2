@@ -297,8 +297,9 @@
                                                                 </button>
                                                             </li>
                                                             <li>
-                                                                <form action="{{ route('staff.resend-credentials', $s->id) }}" method="POST" onsubmit="return confirm('Resend login credentials to {{ $s->full_name }}? This will send an email and SMS with their login details.');">
+                                                                <form action="{{ route('staff.resend-credentials', $s->id) }}" method="POST" onsubmit="return confirm('Resend login credentials to {{ $s->full_name }}? This resets their password to the ID number (or a temporary password) and sends email/SMS.');">
                                                                     @csrf
+                                                                    <input type="hidden" name="reset_pin" value="1">
                                                                     <button type="submit" class="dropdown-item">
                                                                         <i class="bi bi-envelope-paper"></i> Resend Login Credentials
                                                                     </button>
@@ -376,6 +377,13 @@
                                                                 <label class="form-label">Custom Password</label>
                                                                 <input type="text" name="new_password" class="form-control" placeholder="Enter custom password (min 6 characters)" minlength="6">
                                                                 <small class="text-muted">Minimum 6 characters required</small>
+                                                            </div>
+
+                                                            <div class="form-check">
+                                                                <input class="form-check-input" type="checkbox" name="reset_pin" value="1" id="resetPinIndex{{ $s->id }}">
+                                                                <label class="form-check-label" for="resetPinIndex{{ $s->id }}">
+                                                                    Also set a new app PIN and include it in the message
+                                                                </label>
                                                             </div>
                                                         </div>
                                                         <div class="modal-footer">

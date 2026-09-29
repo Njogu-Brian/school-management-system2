@@ -44,10 +44,10 @@ class CommunicationTemplateSeeder extends Seeder
                 'title'   => 'Welcome Staff (SMS/WA)',
                 'type'    => 'sms',
                 'subject' => null,
-                'content' => "Dear {{staff_name}},\n\nWelcome to {{school_name}}!\nYour staff account has been created successfully.\n\nLogin URL: {{app_url}}\nEmail: {{login_email}}\n\nWe are excited to have you join our team.\n\nRegards,\n{{school_name}}",
+                'content' => "Dear {{staff_name}},\n\nWelcome to {{school_name}}!\nYour staff account has been created successfully.\n\nLogin URL: {{app_url}}\nEmail: {{login_email}}\nTemporary Password: {{temporary_password}}\n\nWe are excited to have you join our team.\n\nRegards,\n{{school_name}}",
             ],
             [
-                'code'    => 'password_reset_staff',
+                'code'    => 'password_reset_staff_sms',
                 'title'   => 'Password Reset (Staff) (SMS)',
                 'type'    => 'sms',
                 'subject' => null,
@@ -58,7 +58,7 @@ class CommunicationTemplateSeeder extends Seeder
                 'title'   => 'Welcome Staff (WhatsApp)',
                 'type'    => 'whatsapp',
                 'subject' => null,
-                'content' => "Dear {{staff_name}},\n\nWelcome to {{school_name}}!\nYour staff account has been created successfully.\n\nLogin URL: {{app_url}}\nEmail: {{login_email}}\n\nWe are excited to have you join our team.\n\nRegards,\n{{school_name}}",
+                'content' => "Dear {{staff_name}},\n\nWelcome to {{school_name}}!\nYour staff account has been created successfully.\n\nLogin URL: {{app_url}}\nEmail: {{login_email}}\nTemporary Password: {{temporary_password}}\n\nWe are excited to have you join our team.\n\nRegards,\n{{school_name}}",
             ],
             [
                 'code'    => 'staff_welcome_email',

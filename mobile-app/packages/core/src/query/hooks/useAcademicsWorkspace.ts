@@ -130,13 +130,32 @@ export function useMarks(filters: MarksListFilters | null, options?: { enabled?:
   });
 }
 
-export function useMarksMatrixContext(classroomId?: number, options?: { enabled?: boolean }) {
+export function useMarksMatrixContext(
+  classroomId?: number,
+  academicYearId?: number,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
-    queryKey: queryKeys.academics.marksMatrixContext(classroomId),
+    queryKey: queryKeys.academics.marksMatrixContext(classroomId, academicYearId),
     queryFn: async () => {
-      const res = await academicsWorkspaceApi.getMarksMatrixContext(classroomId);
+      const res = await academicsWorkspaceApi.getMarksMatrixContext(classroomId, academicYearId);
       if (!res.success || !res.data) {
         throw new Error(res.message || 'Failed to load matrix context.');
+      }
+      return res.data;
+    },
+    enabled: options?.enabled !== false,
+    staleTime: 120_000,
+  });
+}
+
+export function useAcademicContext(academicYearId?: number, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['academic-context', academicYearId ?? 'active'],
+    queryFn: async () => {
+      const res = await academicsWorkspaceApi.getAcademicContext(academicYearId);
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load academic context.');
       }
       return res.data;
     },

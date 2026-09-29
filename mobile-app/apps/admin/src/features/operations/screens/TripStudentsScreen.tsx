@@ -1,7 +1,9 @@
 import {
   useInfiniteStudentList,
+  useMarkTransportStop,
   useTransportRoute,
   useTripMutations,
+  useTripStops,
   type RouteStudentRecord,
 } from '@erp/core';
 import {
@@ -15,6 +17,7 @@ import {
   useTheme,
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
+import * as Location from 'expo-location';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -39,6 +42,8 @@ export const TripStudentsScreen: React.FC<Props> = ({ route, navigation }) => {
   const { colors, palette, spacing, typography, radius } = useTheme();
   const query = useTransportRoute(tripId);
   const { assignRouteStudent } = useTripMutations();
+  const stopsQuery = useTripStops(tripId, { enabled: true });
+  const markStop = useMarkTransportStop(tripId);
 
   const [assignOpen, setAssignOpen] = useState(false);
   const [studentSearch, setStudentSearch] = useState('');
@@ -49,6 +54,7 @@ export const TripStudentsScreen: React.FC<Props> = ({ route, navigation }) => {
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
   const [endDate, setEndDate] = useState('');
   const [reason, setReason] = useState('');
+  const [markingStudentId, setMarkingStudentId] = useState<number | null>(null);
 
   const studentsQuery = useInfiniteStudentList(
     {
@@ -67,6 +73,37 @@ export const TripStudentsScreen: React.FC<Props> = ({ route, navigation }) => {
   );
 
   const students: RouteStudentRecord[] = query.data?.students ?? [];
+  const stopByStudent = useMemo(() => {
+    const map = new Map<number, { latitude?: number | null; longitude?: number | null; marked_today?: boolean }>();
+    for (const s of stopsQuery.data?.stops ?? []) {
+      map.set(s.student_id, s);
+    }
+    return map;
+  }, [stopsQuery.data?.stops]);
+
+  const markStopHere = async (studentId: number, studentName: string) => {
+    setMarkingStudentId(studentId);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        showError('Location needed', 'Allow location to mark this child’s stop.');
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      await markStop.mutateAsync({
+        student_id: studentId,
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        kind: stopsQuery.data?.kind,
+      });
+      showSuccess('Stop saved', `${studentName}: coordinates and time recorded.`);
+      void stopsQuery.refetch();
+    } catch (e) {
+      showError('Could not mark stop', (e as Error).message);
+    } finally {
+      setMarkingStudentId(null);
+    }
+  };
 
   const submitAssign = async () => {
     if (!selectedStudentId) {
@@ -150,7 +187,9 @@ export const TripStudentsScreen: React.FC<Props> = ({ route, navigation }) => {
               onAction={() => setAssignOpen(true)}
             />
           }
-          renderItem={({ item }) => (
+          renderItem={({ item }) => {
+            const stop = stopByStudent.get(item.id);
+            return (
             <View
               style={[
                 styles.card,
@@ -175,9 +214,19 @@ export const TripStudentsScreen: React.FC<Props> = ({ route, navigation }) => {
                   : item.leg
                     ? `Permanent · ${item.leg}`
                     : 'Permanent'}
+                {stop?.latitude != null ? ' · pin saved' : ' · no pin'}
+                {stop?.marked_today ? ' · marked today' : ''}
               </Text>
+              <Button
+                label="Mark stop here"
+                variant="secondary"
+                loading={markingStudentId === item.id && markStop.isPending}
+                onPress={() => void markStopHere(item.id, item.full_name)}
+                style={{ marginTop: spacing.sm, alignSelf: 'flex-start' }}
+              />
             </View>
-          )}
+            );
+          }}
         />
       )}
 

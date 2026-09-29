@@ -12,6 +12,7 @@ import {
   AuthLoadingScreen,
   BiometricEnableScreen,
   ForceChangePasswordScreen,
+  LinkGooglePromptScreen,
   LoginScreen,
   SchoolCodeScreen,
 } from '../features/auth';
@@ -24,7 +25,8 @@ import { OfflineShell } from '../providers/OfflineShell';
  * Route guard (build plan §5.1). Resolves authentication + enrollment states.
  */
 const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
-  const { status, user, biometricEnrollmentPending, forcePasswordChangePending } = useAuth();
+  const { status, user, biometricEnrollmentPending, forcePasswordChangePending, googleLinkEnrollmentPending } =
+    useAuth();
   const { mode } = useAppMode();
   const school = useSchool();
 
@@ -45,6 +47,9 @@ const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
   }
   if (forcePasswordChangePending || user?.mustChangePassword) {
     return <ForceChangePasswordScreen />;
+  }
+  if (googleLinkEnrollmentPending) {
+    return <LinkGooglePromptScreen />;
   }
   if (biometricEnrollmentPending) {
     return <BiometricEnableScreen />;

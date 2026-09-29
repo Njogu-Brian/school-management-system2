@@ -211,6 +211,8 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::delete('/account/unlock-pin', [ApiAccountController::class, 'clearUnlockPin']);
     Route::put('/account/biometric-unlock', [ApiAccountController::class, 'registerBiometricUnlock']);
     Route::delete('/account/biometric-unlock', [ApiAccountController::class, 'revokeBiometricUnlock']);
+    Route::post('/account/google/link', [ApiAccountController::class, 'linkGoogle']);
+    Route::delete('/account/google', [ApiAccountController::class, 'unlinkGoogle']);
     Route::get('/users/password-change-targets', [\App\Http\Controllers\Api\ApiForcePasswordChangeController::class, 'targets']);
     Route::post('/users/require-password-change', [\App\Http\Controllers\Api\ApiForcePasswordChangeController::class, 'requireChange']);
     Route::post('/device-tokens', [\App\Http\Controllers\Api\ApiDeviceTokenController::class, 'store']);
@@ -523,6 +525,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::put('/speed-tests/{batchKey}/marks', [\App\Http\Controllers\Api\ApiSpeedTestController::class, 'saveMarks']);
 
     Route::get('/exams', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'exams']);
+    Route::get('/academic-context', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'academicContext']);
     Route::get('/exam-sessions', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'examSessions']);
     Route::get('/exams/{id}/marking-options', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'examMarkingOptions']);
     Route::get('/exams/{id}', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'showExam']);
@@ -598,6 +601,12 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::post('/driver/trips/{trip}/boarding', [\App\Http\Controllers\Api\ApiDriverTransportController::class, 'markBoarding']);
     Route::post('/driver/trips/{trip}/location', [\App\Http\Controllers\Api\ApiDriverTransportController::class, 'pingLocation']);
     Route::get('/driver/vehicle', [\App\Http\Controllers\Api\ApiDriverTransportController::class, 'vehicle']);
+
+    Route::get('/driver/trips/{trip}/stops', [\App\Http\Controllers\Api\ApiStudentTransportStopController::class, 'forTrip']);
+    Route::post('/driver/trips/{trip}/stops', [\App\Http\Controllers\Api\ApiStudentTransportStopController::class, 'mark']);
+    Route::get('/transport/students/{studentId}/stops', [\App\Http\Controllers\Api\ApiStudentTransportStopController::class, 'forStudent']);
+    Route::get('/transport/trips/{trip}/stops', [\App\Http\Controllers\Api\ApiStudentTransportStopController::class, 'forTrip']);
+    Route::post('/transport/trips/{trip}/stops', [\App\Http\Controllers\Api\ApiStudentTransportStopController::class, 'mark']);
 
     Route::get('/transport/live/students/{studentId}', [\App\Http\Controllers\Api\ApiTransportTrackingController::class, 'liveForStudent']);
     Route::get('/transport/live/fleet', [\App\Http\Controllers\Api\ApiTransportTrackingController::class, 'liveFleet']);

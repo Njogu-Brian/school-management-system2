@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Student;
+use App\Models\AcademicYear;
+use App\Models\Term;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Exam;
 use App\Models\Academics\ExamSession;
@@ -19,6 +21,56 @@ use Illuminate\Support\Facades\DB;
 
 class ApiAcademicsController extends Controller
 {
+    /**
+     * Current academic calendar context for teachers (no settings.view required).
+     */
+    public function academicContext(Request $request)
+    {
+        $years = AcademicYear::query()
+            ->orderByDesc('is_active')
+            ->orderByDesc('id')
+            ->get(['id', 'year', 'is_active'])
+            ->map(fn (AcademicYear $y) => [
+                'id' => (int) $y->id,
+                'year' => $y->year,
+                'label' => (string) ($y->year ?? $y->id),
+                'is_active' => (bool) $y->is_active,
+            ])
+            ->values();
+
+        $activeYearId = $request->filled('academic_year_id')
+            ? (int) $request->input('academic_year_id')
+            : (int) ($years->firstWhere('is_active', true)['id'] ?? $years->first()['id'] ?? 0);
+
+        $terms = collect();
+        if ($activeYearId > 0) {
+            $terms = Term::query()
+                ->where('academic_year_id', $activeYearId)
+                ->orderByDesc('is_current')
+                ->orderBy('id')
+                ->get(['id', 'name', 'academic_year_id', 'is_current'])
+                ->map(fn (Term $t) => [
+                    'id' => (int) $t->id,
+                    'name' => $t->name,
+                    'academic_year_id' => (int) $t->academic_year_id,
+                    'is_current' => (bool) $t->is_current,
+                ])
+                ->values();
+        }
+
+        $currentTerm = $terms->firstWhere('is_current', true) ?? $terms->first();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'academic_years' => $years,
+                'active_academic_year_id' => $activeYearId > 0 ? $activeYearId : null,
+                'terms' => $terms,
+                'current_term_id' => $currentTerm['id'] ?? null,
+            ],
+        ]);
+    }
+
     public function exams(Request $request)
     {
         $perPage = (int) $request->input('per_page', 30);
@@ -43,7 +95,10 @@ class ApiAcademicsController extends Controller
             }
         }
 
-        if ($request->filled('status')) {
+        if ($request->boolean('for_mark_entry')) {
+            $statuses = app(ExamMarkEntryService::class)->entryVisibleStatuses($user);
+            $query->whereIn('status', $statuses);
+        } elseif ($request->filled('status')) {
             $query->where('status', $request->status);
         }
         if ($request->filled('academic_year_id')) {
@@ -381,6 +436,7 @@ class ApiAcademicsController extends Controller
     {
         $user = $request->user();
         $classroomId = $request->filled('classroom_id') ? (int) $request->input('classroom_id') : null;
+        $yearId = $request->filled('academic_year_id') ? (int) $request->input('academic_year_id') : null;
 
         $classrooms = Classroom::query()
             ->when($user && $user->hasTeacherLikeRole(), function ($q) use ($user) {
@@ -412,12 +468,47 @@ class ApiAcademicsController extends Controller
                 ->get(['id', 'name', 'classroom_id']);
         }
 
+        $years = AcademicYear::query()
+            ->orderByDesc('is_active')
+            ->orderByDesc('id')
+            ->get(['id', 'year', 'is_active'])
+            ->map(fn (AcademicYear $y) => [
+                'id' => (int) $y->id,
+                'year' => $y->year,
+                'label' => (string) ($y->year ?? $y->id),
+                'is_active' => (bool) $y->is_active,
+            ])
+            ->values();
+
+        $activeYearId = $yearId
+            ?: (int) ($years->firstWhere('is_active', true)['id'] ?? $years->first()['id'] ?? 0);
+
+        $terms = collect();
+        if ($activeYearId > 0) {
+            $terms = Term::query()
+                ->where('academic_year_id', $activeYearId)
+                ->orderByDesc('is_current')
+                ->orderBy('id')
+                ->get(['id', 'name', 'academic_year_id', 'is_current'])
+                ->map(fn (Term $t) => [
+                    'id' => (int) $t->id,
+                    'name' => $t->name,
+                    'academic_year_id' => (int) $t->academic_year_id,
+                    'is_current' => (bool) $t->is_current,
+                ])
+                ->values();
+        }
+
         return response()->json([
             'success' => true,
             'data' => [
                 'exam_types' => $examTypes,
                 'classrooms' => $classrooms,
                 'streams' => $streams,
+                'academic_years' => $years,
+                'active_academic_year_id' => $activeYearId > 0 ? $activeYearId : null,
+                'terms' => $terms,
+                'current_term_id' => ($terms->firstWhere('is_current', true)['id'] ?? $terms->first()['id'] ?? null),
             ],
         ]);
     }
@@ -428,15 +519,31 @@ class ApiAcademicsController extends Controller
             'exam_type_id' => 'required|exists:exam_types,id',
             'classroom_id' => 'required|exists:classrooms,id',
             'stream_id' => 'nullable|exists:streams,id',
+            'academic_year_id' => 'nullable|exists:academic_years,id',
+            'term_id' => 'nullable|exists:terms,id',
         ]);
 
         $examTypeId = (int) $v['exam_type_id'];
         $classroomId = (int) $v['classroom_id'];
         $streamId = $request->filled('stream_id') ? (int) $request->input('stream_id') : null;
+        $yearId = $request->filled('academic_year_id') ? (int) $request->input('academic_year_id') : null;
+        $termId = $request->filled('term_id') ? (int) $request->input('term_id') : null;
         $user = $request->user();
 
         if (!$this->canAccessClassroom($user, $classroomId)) {
             return response()->json(['success' => false, 'message' => 'You do not have access to this classroom.'], 403);
+        }
+
+        // Default to the system's active year + current term when omitted.
+        if ($yearId === null) {
+            $yearId = AcademicYear::query()->where('is_active', true)->value('id')
+                ?? AcademicYear::query()->orderByDesc('id')->value('id');
+            $yearId = $yearId ? (int) $yearId : null;
+        }
+        if ($termId === null && $yearId) {
+            $termId = Term::query()->where('academic_year_id', $yearId)->where('is_current', true)->value('id')
+                ?? Term::query()->where('academic_year_id', $yearId)->orderBy('id')->value('id');
+            $termId = $termId ? (int) $termId : null;
         }
 
         $studentsQuery = Student::query()
@@ -456,6 +563,8 @@ class ApiAcademicsController extends Controller
             ->where('classroom_id', $classroomId)
             ->whereIn('status', $entryService->entryVisibleStatuses($user))
             ->whereNotNull('subject_id')
+            ->when($yearId, fn ($q) => $q->where('academic_year_id', $yearId))
+            ->when($termId, fn ($q) => $q->where('term_id', $termId))
             ->when($streamId, function ($q) use ($streamId) {
                 $q->where(function ($subQ) use ($streamId) {
                     $subQ->whereNull('stream_id')->orWhere('stream_id', $streamId);
@@ -497,18 +606,16 @@ class ApiAcademicsController extends Controller
                 'exams' => $exams->map(fn ($e) => [
                     'id' => (int) $e->id,
                     'name' => $e->name,
-                    'status' => $e->status,
-                    'marking_submitted_at' => $e->marking_submitted_at?->toIso8601String(),
-                    'marking_submitted_by' => $e->marking_submitted_by
-                        ? User::query()->where('id', $e->marking_submitted_by)->value('name')
-                        : null,
-                    'can_edit' => app(ExamMarkEntryService::class)->examAcceptsTeacherEntry($e, $user),
                     'subject_id' => (int) $e->subject_id,
-                    'subject_name' => $e->subject->name ?? null,
+                    'subject_name' => $e->subject?->name,
                     'max_marks' => (float) ($e->examType?->default_max_mark ?? $e->max_marks ?? 100),
                     'min_marks' => (float) ($e->examType?->default_min_mark ?? 0),
+                    'academic_year_id' => $e->academic_year_id ? (int) $e->academic_year_id : null,
+                    'term_id' => $e->term_id ? (int) $e->term_id : null,
                 ])->values(),
                 'existing_marks' => $existing,
+                'academic_year_id' => $yearId,
+                'term_id' => $termId,
             ],
         ]);
     }

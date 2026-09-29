@@ -68,6 +68,12 @@ export interface ApiUser {
   must_change_password?: boolean;
   /** When true, parent must complete their own name/phone and any missing child name/DOB. */
   identity_gate_required?: boolean;
+  google_linked?: boolean;
+  google_email?: string | null;
+  /** Admin marked this user to always see the post-login Google link prompt. */
+  google_link_required?: boolean;
+  /** Server-computed: show Link Google screen after password/OTP login. */
+  google_link_prompt?: boolean;
   branches?: Array<{
     id: number;
     name: string;
