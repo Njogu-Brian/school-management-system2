@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\ActivityFeeAllocation;
 use App\Models\BankStatementTransaction;
 use App\Models\ExtraIncomeItem;
+use App\Models\Invoice;
+use App\Models\InvoiceItem;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\Student;
@@ -14,7 +16,6 @@ use Illuminate\Support\Facades\Schema;
 class ActivityFeeSplitService
 {
     public function __construct(
-        protected ExtraIncomeService $extraIncome,
         protected PaymentAllocationService $allocationService,
         protected SwimmingTransactionService $swimmingTransactions,
         protected SwimmingWalletService $swimmingWallets,
@@ -130,6 +131,13 @@ class ActivityFeeSplitService
     }
 
     /**
+     * Record activity-fee income without adding it to the school-fee invoice/balance.
+     * Same idea as swimming daily attendance: income is tracked off the fee ledger.
+     *
+     * If the activity was already billed via "Charge selected classes", any open
+     * invoice balance is paid down (without raising the charge). Otherwise the
+     * split is income-only via ActivityFeeAllocation.
+     *
      * @param  array{item: ExtraIncomeItem, student: Student, student_id:int, amount:float}  $row
      */
     protected function applyCharge(object $transaction, bool $isC2B, array $row): float
@@ -140,22 +148,62 @@ class ActivityFeeSplitService
         $student = $row['student'];
         $amount = $row['amount'];
 
-        if (!$item->votehead_id) {
-            $this->extraIncome->ensureVotehead($item);
-            $item->refresh();
+        $line = $this->findExistingOpenCharge($item, $student);
+        $paymentId = null;
+        $invoiceItemId = null;
+        $notes = "Recorded as {$item->name} income (not added to fee invoice).";
+
+        if ($line) {
+            $openBalance = round((float) $line->getBalance(), 2);
+            $applyToInvoice = round(min($amount, max(0, $openBalance)), 2);
+
+            if ($applyToInvoice > 0.009) {
+                $payment = $this->createActivityPayment($transaction, $isC2B, $student, $item, $applyToInvoice);
+                $this->allocationService->allocatePayment($payment, [[
+                    'invoice_item_id' => $line->id,
+                    'amount' => $applyToInvoice,
+                ]]);
+                $paymentId = $payment->id;
+                $invoiceItemId = $line->id;
+                $notes = $applyToInvoice + 0.009 < $amount
+                    ? "Paid Ksh " . number_format($applyToInvoice, 2) . " of existing {$item->name} charge; remainder recorded as income only."
+                    : "Applied to existing {$item->name} charge (no new invoice amount).";
+            }
         }
 
-        $line = $this->extraIncome->ensureStudentCharge($item, $student, $amount);
-        $payment = $this->createActivityPayment($transaction, $isC2B, $student, $item, $amount);
-
-        $this->allocationService->allocatePayment($payment, [[
-            'invoice_item_id' => $line->id,
-            'amount' => $amount,
-        ]]);
-
-        $this->record($transaction, $isC2B, $row, $payment->id, $line->id, "Allocated to {$item->name}.");
+        $this->record($transaction, $isC2B, $row, $paymentId, $invoiceItemId, $notes);
 
         return $amount;
+    }
+
+    /**
+     * Existing billed activity line only — never create or raise invoice amounts here.
+     */
+    protected function findExistingOpenCharge(ExtraIncomeItem $item, Student $student): ?InvoiceItem
+    {
+        if (!$item->votehead_id) {
+            return null;
+        }
+
+        $invoice = Invoice::query()
+            ->where('student_id', $student->id)
+            ->where('year', $item->year)
+            ->where('term', $item->term)
+            ->whereNull('reversed_at')
+            ->where(function ($q) {
+                $q->whereNull('status')->orWhere('status', '!=', 'reversed');
+            })
+            ->first();
+
+        if (!$invoice) {
+            return null;
+        }
+
+        return InvoiceItem::query()
+            ->where('invoice_id', $invoice->id)
+            ->where('votehead_id', $item->votehead_id)
+            ->where('status', 'active')
+            ->first();
     }
 
     protected function createActivityPayment(

@@ -29,10 +29,13 @@
                     </p>
                 @else
                     <p class="mb-3">
-                        Students in {{ $extraIncome->classroomNames() }} can have part of a fees payment applied to this {{ strtolower($extraIncome->kindLabel()) }}.
-                        The amount is posted on their term invoice as <strong>{{ $extraIncome->votehead->name ?? $extraIncome->name }}</strong>, separate from school fees.
+                        Students in {{ $extraIncome->classroomNames() }} can have part of a fees payment split onto this {{ strtolower($extraIncome->kindLabel()) }}.
+                        Split amounts are recorded as extra income only — they are <strong>not</strong> added to the school-fee invoice or fee balance (same as swimming daily attendance).
                     </p>
                     @if($extraIncome->hasClassRestriction())
+                        <p class="small text-muted mb-2">
+                            Optional: charge the class first if you want a billed line on the invoice. Splitting then pays that existing charge down without raising it.
+                        </p>
                         <form method="POST" action="{{ route('finance.extra-income.charge', $extraIncome) }}" class="d-inline">
                             @csrf
                             <button type="submit" class="btn btn-finance btn-finance-primary">
@@ -66,7 +69,11 @@
                                     @php
                                         $line = $invoiceItems[$student->id] ?? null;
                                         $charged = $line ? (float) $line->amount : (float) ($optionalFees[$student->id]->amount ?? 0);
-                                        $paid = $line ? (float) $line->getAllocatedAmount() : (float) ($received[$student->id] ?? 0);
+                                        // Prefer split allocations (income-only + invoice) as source of truth
+                                        $paid = (float) ($received[$student->id] ?? 0);
+                                        if ($paid <= 0 && $line) {
+                                            $paid = (float) $line->getAllocatedAmount();
+                                        }
                                         if ($extraIncome->isSwimming()) {
                                             $paid = (float) ($received[$student->id] ?? 0);
                                             $charged = (float) $extraIncome->amount;

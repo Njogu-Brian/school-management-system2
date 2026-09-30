@@ -3687,7 +3687,42 @@ class BankStatementController extends Controller
                 }
             }
 
-            // 3. Log audit while transaction still has previous state
+            // 3. Reverse activity-fee split allocations; drop orphaned extra_income invoice lines
+            if (Schema::hasTable('activity_fee_allocations')) {
+                $activityAllocations = \App\Models\ActivityFeeAllocation::query()
+                    ->when(
+                        $isC2B,
+                        fn ($q) => $q->where('mpesa_c2b_transaction_id', $transaction->id),
+                        fn ($q) => $q->where('bank_statement_transaction_id', $transaction->id)
+                    )
+                    ->where('status', '!=', \App\Models\ActivityFeeAllocation::STATUS_REVERSED)
+                    ->get();
+
+                foreach ($activityAllocations as $activityAllocation) {
+                    $invoiceItemId = $activityAllocation->invoice_item_id;
+                    $activityAllocation->update([
+                        'status' => \App\Models\ActivityFeeAllocation::STATUS_REVERSED,
+                        'notes' => trim(($activityAllocation->notes ?? '') . "\nReversed on transaction reject."),
+                    ]);
+
+                    if ($invoiceItemId) {
+                        $invoiceItem = \App\Models\InvoiceItem::find($invoiceItemId);
+                        if (
+                            $invoiceItem
+                            && ($invoiceItem->source ?? null) === 'extra_income'
+                            && round((float) $invoiceItem->getAllocatedAmount(), 2) < 0.01
+                        ) {
+                            $invoice = $invoiceItem->invoice;
+                            $invoiceItem->delete();
+                            if ($invoice) {
+                                \App\Services\InvoiceService::recalc($invoice);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. Log audit while transaction still has previous state
             try {
                 if (!$isC2B) {
                     \App\Services\FinancialAuditService::logTransactionRejection($transaction);
@@ -3699,7 +3734,7 @@ class BankStatementController extends Controller
                 ]);
             }
 
-            // 4. Reset transaction to unassigned (draft + unmatched) – no MANUALLY_REJECTED so it can be re-matched
+            // 5. Reset transaction to unassigned (draft + unmatched) – no MANUALLY_REJECTED so it can be re-matched
             if ($isC2B) {
                 $transaction->update([
                     'student_id' => null,

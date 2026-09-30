@@ -808,8 +808,10 @@
                                         · Ksh {{ number_format($allocation->amount, 2) }}
                                         @if($allocation->extraIncomeItem?->isSwimming())
                                             <span class="badge bg-info text-dark ms-1">Swimming wallet</span>
-                                        @else
+                                        @elseif($allocation->invoice_item_id)
                                             <span class="badge bg-primary ms-1">{{ $allocation->extraIncomeItem?->kindLabel() ?? 'Activity' }}</span>
+                                        @else
+                                            <span class="badge bg-secondary ms-1">Income only</span>
                                         @endif
                                     </li>
                                 @endforeach
