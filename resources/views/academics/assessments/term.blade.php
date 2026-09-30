@@ -81,7 +81,7 @@
                         <span class="text-muted ms-2">
                             Adm: {{ $student->admission_number ?? '-' }} |
                             Class: {{ $student->classroom->name ?? '-' }}
-                            @if($student->stream) — Stream: {{ $student->stream->name }} @endif
+                            @if($student->stream) · Stream: {{ $student->stream->name }} @endif
                         </span>
                     </div>
                     <div class="d-flex gap-3 small text-muted">

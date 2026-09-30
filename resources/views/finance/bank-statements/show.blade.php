@@ -449,7 +449,7 @@
                             <p class="text-muted mb-0">
                                 Admission: <code>{{ $rawTransaction->student->admission_number }}</code>
                                 @if($rawTransaction->student->classroom)
-                                    | Class: {{ $rawTransaction->student->classroom->name }}@if($rawTransaction->student->stream) – {{ $rawTransaction->student->stream->name }}@endif
+                                    | Class: {{ $rawTransaction->student->classroom->name }}@if($rawTransaction->student->stream) · {{ $rawTransaction->student->stream->name }}@endif
                                 @endif
                             </p>
                         </div>
@@ -2178,7 +2178,7 @@ function updateModalTotal() {
                     }
                     data.forEach((stu) => {
                         const classPart = (stu.class_display && stu.class_display.trim()) ? stu.class_display : (stu.classroom_name || '');
-                        const label = stu.label || `${stu.full_name} (${stu.admission_number})${classPart ? ' – ' + classPart : ''}`;
+                        const label = stu.label || `${stu.full_name} (${stu.admission_number})${classPart ? ' · ' + classPart : ''}`;
                         const btn = document.createElement('button');
                         btn.type = 'button';
                         btn.className = 'list-group-item list-group-item-action split-pick';

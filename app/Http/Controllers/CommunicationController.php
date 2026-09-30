@@ -1453,7 +1453,7 @@ class CommunicationController extends Controller
                 $parentName = trim($entity->parent->father_name ?? $entity->parent->guardian_name ?? $entity->parent->mother_name ?? '');
             }
             $parts = array_filter([$studentName, $parentName ? "({$parentName})" : null]);
-            return $parts ? implode(' – ', $parts) : ($studentName ?: $contact);
+            return $parts ? implode(' · ', $parts) : ($studentName ?: $contact);
         }
         if ($entity instanceof \App\Models\Staff) {
             return person_display_name($entity, 'full') ?: $contact;

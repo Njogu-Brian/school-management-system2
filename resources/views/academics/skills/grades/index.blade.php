@@ -74,7 +74,7 @@
                 <td>
                   <input type="hidden" name="rows[{{ $i }}][student_id]" value="{{ $st->id }}">
                   <div class="fw-semibold">{{ $st->full_name }}</div>
-                  <div class="text-muted small">Adm: {{ $st->admission_number ?? '-' }} | Class: {{ $st->classroom->name ?? '-' }} @if($st->stream) — {{ $st->stream->name }} @endif</div>
+                  <div class="text-muted small">Adm: {{ $st->admission_number ?? '-' }} | Class: {{ $st->classroom->name ?? '-' }}@if($st->stream) · {{ $st->stream->name }}@endif</div>
                 </td>
                 @foreach($skills as $sk)
                   @php $existing = ($grades[$st->id][$sk->id] ?? collect())->first(); @endphp

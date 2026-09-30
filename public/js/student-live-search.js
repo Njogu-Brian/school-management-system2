@@ -62,7 +62,7 @@
                     hidden.value = stu.id;
                     hidden.dispatchEvent(new Event('change', { bubbles: true }));
                     const displayValue = classText
-                        ? `${stu.full_name} (${stu.admission_number}) – ${classText}`
+                        ? `${stu.full_name} (${stu.admission_number}) · ${classText}`
                         : `${stu.full_name} (${stu.admission_number})`;
                     input.value = displayValue;
                     if (enableBtn) enableBtn.disabled = false;

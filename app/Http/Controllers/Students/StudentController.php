@@ -2003,7 +2003,7 @@ class StudentController extends Controller
                                 $sib->last_name,
                             ])));
                             $classDisplay = $sib->classroom
-                                ? ($sib->stream ? $sib->classroom->name . ' ΓÇô ' . $sib->stream->name : $sib->classroom->name)
+                                ? ($sib->stream ? $sib->classroom->name . ' · ' . $sib->stream->name : $sib->classroom->name)
                                 : null;
                             return [
                                 'id' => $sib->id,
@@ -2030,7 +2030,7 @@ class StudentController extends Controller
                 }
                 
                 $classDisplay = $st->classroom
-                    ? ($st->stream ? $st->classroom->name . ' ΓÇô ' . $st->stream->name : $st->classroom->name)
+                    ? ($st->stream ? $st->classroom->name . ' · ' . $st->stream->name : $st->classroom->name)
                     : null;
                 
                 return [
@@ -2045,7 +2045,7 @@ class StudentController extends Controller
                     'stream_name' => $st->stream ? $st->stream->name : null,
                     'class_display' => $classDisplay,
                     'label' => $classDisplay
-                        ? "{$full} ({$st->admission_number}) ΓÇô {$classDisplay}"
+                        ? "{$full} ({$st->admission_number}) · {$classDisplay}"
                         : "{$full} ({$st->admission_number})",
                     'family_id' => $st->family_id,
                     'is_alumni' => $st->is_alumni ?? false,
@@ -2081,7 +2081,7 @@ class StudentController extends Controller
                     'title' => 'Welcome Student (SMS/WA)',
                     'type' => 'sms',
                     'subject' => null,
-                    'content' => "Dear {{parent_name}},\n\nWelcome to {{school_name}}! ≡ƒÄë\nWe are delighted to inform you that {{student_name}} has been successfully admitted.\n\nAdmission Number: {{admission_number}}\nClass: {{class_name}} {{stream_name}}\n\nUpdate your profile here: {{profile_update_link}}\n\nWarm regards,\n{{school_name}}",
+                    'content' => "Dear {{parent_name}},\n\nWelcome to {{school_name}}!\nWe are delighted to inform you that {{student_name}} has been successfully admitted.\n\nAdmission Number: {{admission_number}}\nClass: {{class_name}} {{stream_name}}\n\nUpdate your profile here: {{profile_update_link}}\n\nWarm regards,\n{{school_name}}",
                 ]
             );
         }
@@ -2092,7 +2092,7 @@ class StudentController extends Controller
                 [
                     'title' => 'Welcome Student (Email)',
                     'type' => 'email',
-                    'subject' => 'Welcome to {{school_name}} ΓÇô Admission Confirmation',
+                    'subject' => 'Welcome to {{school_name}} - Admission Confirmation',
                     'content' => "Dear {{parent_name}},\n\nWe are pleased to welcome you and your child, {{student_name}}, to the {{school_name}} family.\n\nStudent Name: {{student_name}}\nAdmission Number: {{admission_number}}\nClass & Stream: {{class_name}} {{stream_name}}\n\nYou may update your profile or access student information using the link below:\n{{profile_update_link}}\n\nFor any assistance, contact us at {{school_phone}} or {{school_email}}.\n\nWarm regards,\n{{school_name}} Administration",
                 ]
             );

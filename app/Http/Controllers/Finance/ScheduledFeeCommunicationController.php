@@ -642,7 +642,7 @@ class ScheduledFeeCommunicationController extends Controller
                 'admission_number' => $entity->admission_number ?? $entity->admission_no ?? '-',
                 'class_name' => $entity->classroom->name ?? 'Unassigned',
                 'classroom_id' => $entity->classroom_id,
-                'stream_name' => $entity->stream->name ?? '—',
+                'stream_name' => $entity->stream->name ?? '-',
                 'stream_id' => $entity->stream_id,
                 'parent_contact' => $contact,
                 'fee_balance' => number_format($balance, 2),
@@ -676,8 +676,8 @@ class ScheduledFeeCommunicationController extends Controller
         $grouped = [];
         foreach ($recipients as $r) {
             $className = $r['class_name'] ?? 'Unassigned';
-            $streamName = $r['stream_name'] ?? '—';
-            $k = $className . ' — ' . $streamName;
+            $streamName = $r['stream_name'] ?? '-';
+            $k = $className . ' · ' . $streamName;
             if (!isset($grouped[$k])) {
                 $grouped[$k] = [
                     'class_name' => $className,

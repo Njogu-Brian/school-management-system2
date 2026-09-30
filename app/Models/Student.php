@@ -260,7 +260,8 @@ class Student extends Model
     }
 
     /**
-     * Display label for student search / dropdowns: "Name (Admission) – Class" or with stream.
+     * Display label for student search / dropdowns: "Name (Admission) · Class · Stream".
+     * Use middot (not en-dash) so labels stay readable when encodings differ.
      */
     public function getSearchDisplayAttribute()
     {
@@ -272,9 +273,9 @@ class Student extends Model
             $this->load('stream');
         }
         $classPart = $this->classroom
-            ? ($this->stream ? $this->classroom->name . ' – ' . $this->stream->name : $this->classroom->name)
+            ? ($this->stream ? $this->classroom->name . ' · ' . $this->stream->name : $this->classroom->name)
             : null;
-        return $classPart ? $base . ' – ' . $classPart : $base;
+        return $classPart ? $base . ' · ' . $classPart : $base;
     }
 
     public function classroom()
