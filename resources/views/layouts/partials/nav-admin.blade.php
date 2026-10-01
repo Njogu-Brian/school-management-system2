@@ -62,9 +62,13 @@ $studentRecordsActive = Request::is('students/*/medical-records*') || Request::i
     <a href="{{ route('users.require-google-link') }}" class="{{ Request::is('users/require-google-link*') ? 'active' : '' }}"><i class="bi bi-google"></i> Google sign-in prompt</a>
     @endif
     <a href="{{ route('students.create') }}" class="{{ Request::is('students/create') ? 'active' : '' }}">Admissions</a>
+    @if(submodule_enabled('students.categories'))
     <a href="{{ route('students.bulk.assign-categories') }}" class="{{ Request::is('students/bulk-assign-categories*') ? 'active' : '' }}"><i class="bi bi-tag"></i> Assign Categories</a>
+    @endif
+    @if(submodule_enabled('students.bulk'))
     <a href="{{ route('students.bulk') }}" class="{{ Request::is('students/bulk*') && !Request::is('students/update-import*') ? 'active' : '' }}">Bulk Upload</a>
     <a href="{{ route('students.update-import') }}" class="{{ Request::is('students/update-import*') ? 'active' : '' }}"><i class="bi bi-arrow-repeat"></i> Update Import</a>
+    @endif
     @if(Route::has('students.archived'))
     <a href="{{ route('students.archived') }}" class="{{ Request::is('students/archived*') ? 'active' : '' }}">
         <i class="bi bi-archive-fill"></i> Archived Only
@@ -85,7 +89,10 @@ $studentRecordsActive = Request::is('students/*/medical-records*') || Request::i
         <i class="bi bi-person-exclamation"></i> Duplicate admissions
     </a>
     @endif
+    @if(submodule_enabled('students.categories'))
     <a href="{{ route('student-categories.index') }}" class="{{ Request::is('student-categories*') ? 'active' : '' }}"><i class="bi bi-collection"></i> Student Categories</a>
+    @endif
+    @if(submodule_enabled('students.families'))
     <a href="{{ route('families.index') }}" class="{{ Request::is('families*') && !request()->routeIs('families.integrity-report') && !request()->routeIs('families.integrity-report.missing-contacts') ? 'active' : '' }}"><i class="bi bi-people"></i> Families (Siblings)</a>
     @if(Route::has('families.integrity-report'))
     <a href="{{ route('families.integrity-report') }}" class="{{ request()->routeIs('families.integrity-report') ? 'active' : '' }}"><i class="bi bi-shield-exclamation"></i> Family integrity report</a>
@@ -94,12 +101,15 @@ $studentRecordsActive = Request::is('students/*/medical-records*') || Request::i
     <a href="{{ route('families.integrity-report.missing-contacts') }}" class="{{ request()->routeIs('families.integrity-report.missing-contacts') ? 'active' : '' }}"><i class="bi bi-person-lines-fill"></i> Missing contacts</a>
     @endif
     <a href="{{ route('family-update.admin.index') }}" class="{{ Request::is('admin/family-update*') ? 'active' : '' }}"><i class="bi bi-link-45deg"></i> Profile Update Links</a>
+    @endif
+    @if(feature_enabled('enable_online_admission') && submodule_enabled('students.online_admission'))
     <a href="{{ route('online-admissions.index') }}" class="{{ Request::is('online-admissions*') && !Request::is('online-admissions/apply*') ? 'active' : '' }}">
         <i class="bi bi-globe"></i> Online Admissions
     </a>
     <a href="{{ route('online-admissions.public-form') }}" target="_blank" class="text-muted small" style="padding-left: 2rem; font-size: 0.85rem;">
         <i class="bi bi-box-arrow-up-right"></i> View Public Form
     </a>
+    @endif
     @if($studentRecordsActive)
     <div class="px-3 py-2 mt-2 bg-light rounded">
         <small class="text-muted fw-bold d-block mb-1">Student Records</small>
@@ -127,6 +137,7 @@ class="{{ $isAttendanceActive ? 'parent-active' : '' }}">
     class="sublink {{ Request::is('attendance/records*') ? 'active' : '' }}">
     <i class="bi bi-journal-text"></i> Reports
     </a>
+    @if(submodule_enabled('attendance.at_risk'))
     <a href="{{ route('attendance.at-risk') }}" 
     class="sublink {{ Request::is('attendance/at-risk*') ? 'active' : '' }}">
     <i class="bi bi-exclamation-triangle"></i> At-Risk Students
@@ -143,6 +154,7 @@ class="{{ $isAttendanceActive ? 'parent-active' : '' }}">
     class="sublink {{ Request::is('attendance/notifications*') ? 'active' : '' }}">
     <i class="bi bi-people"></i> Recipients
     </a>
+    @endif
     <a href="{{ route('attendance.reason-codes.index') }}" 
     class="sublink {{ Request::is('attendance/reason-codes*') ? 'active' : '' }}">
     <i class="bi bi-tags"></i> Reason Codes
@@ -212,15 +224,19 @@ class="{{ $isAttendanceActive ? 'parent-active' : '' }}">
     <a href="{{ route('academics.competencies.index') }}" class="sublink {{ Request::is('academics/competencies*') ? 'active' : '' }}">
         <i class="bi bi-star"></i> Competencies
     </a>
+    @if(submodule_enabled('cbc.planning'))
     <a href="{{ route('academics.schemes-of-work.index') }}" class="sublink {{ Request::is('academics/schemes-of-work') ? 'active' : '' }}">
         <i class="bi bi-journal-text"></i> Schemes of Work
     </a>
     <a href="{{ route('academics.lesson-plans.index') }}" class="sublink {{ Request::is('academics/lesson-plans') ? 'active' : '' }}">
         <i class="bi bi-calendar-check"></i> Lesson Plans
     </a>
+    @endif
+    @if(submodule_enabled('cbc.portfolios'))
     <a href="{{ route('academics.portfolio-assessments.index') }}" class="sublink {{ Request::is('academics/portfolio-assessments*') ? 'active' : '' }}">
         <i class="bi bi-folder"></i> Portfolio Assessments
     </a>
+    @endif
     <a href="{{ route('academics.exam-analytics.index') }}" class="sublink {{ Request::is('academics/exam-analytics*') ? 'active' : '' }}">
         <i class="bi bi-graph-up"></i> Exam Analytics
     </a>
@@ -468,6 +484,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     <a href="{{ route('finance.payments.index') }}" class="{{ Request::is('finance/payments*') && !Request::is('finance/mpesa*') ? 'active' : '' }}"><i class="bi bi-cash-stack"></i> Payments</a>
     
     {{-- M-PESA Payments --}}
+    @if(submodule_enabled('finance.mpesa'))
     @php
         $mpesaActive = Request::is('finance/mpesa*');
     @endphp
@@ -477,8 +494,10 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
         <a href="{{ route('finance.mpesa.prompt-payment.form') }}" class="sublink {{ Request::is('finance/mpesa/prompt-payment*') ? 'active' : '' }}"><i class="bi bi-phone-vibrate"></i> Prompt Parent to Pay</a>
         <a href="{{ route('finance.mpesa.links.index') }}" class="sublink {{ Request::is('finance/mpesa/links*') ? 'active' : '' }}"><i class="bi bi-link-45deg"></i> Payment Links</a>
     </div>
+    @endif
     
     {{-- Bank Statements --}}
+    @if(submodule_enabled('finance.banking'))
     @php
         $bankStatementsActive = Request::is('finance/bank-statements*');
     @endphp
@@ -491,8 +510,10 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     {{-- Payment Setup --}}
     <a href="{{ route('finance.bank-accounts.index') }}" class="{{ Request::is('finance/bank-accounts*') ? 'active' : '' }}"><i class="bi bi-bank"></i> Bank Accounts</a>
     <a href="{{ route('finance.payment-methods.index') }}" class="{{ Request::is('finance/payment-methods*') ? 'active' : '' }}"><i class="bi bi-credit-card"></i> Payment Methods</a>
+    @endif
     
     {{-- Extra income: trips/activities, swimming, uniforms --}}
+    @if(submodule_enabled('finance.extra_income'))
     @php
         $extraIncomeNavActive = Request::is('finance/extra-income*')
             || Request::is('activity-fees*')
@@ -513,6 +534,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
             <a href="{{ route('pos.uniforms.index') }}" class="sublink {{ Request::is('pos/uniforms*') ? 'active' : '' }}"><i class="bi bi-person-badge"></i> Uniforms</a>
         @endif
     </div>
+    @endif
     
     {{-- Legacy Imports (Payment Related) --}}
     <a href="{{ route('finance.legacy-imports.index') }}" class="{{ Request::is('finance/legacy-imports*') ? 'active' : '' }}"><i class="bi bi-upload"></i> Legacy Imports</a>
@@ -539,6 +561,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
             || Request::is('finance/fiscal-periods*')
             || Request::is('finance/budgets*');
     @endphp
+    @if(submodule_enabled('finance.expenses'))
     <span class="small text-muted text-uppercase px-3 d-block mt-3 mb-1 fw-bold">Accounting</span>
     <a href="#expensesMenu" data-bs-toggle="collapse" aria-expanded="{{ $expensesActive ? 'true' : 'false' }}" class="{{ $expensesActive ? 'parent-active' : '' }}"><i class="bi bi-wallet2"></i> Expense Management</a>
     <div class="collapse {{ $expensesActive ? 'show' : '' }}" id="expensesMenu" style="padding-left: 20px;">
@@ -600,6 +623,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
         @endif
         <a href="{{ route('finance.vendors.index') }}" class="sublink {{ Request::is('finance/vendors*') ? 'active' : '' }}"><i class="bi bi-building"></i> Vendors</a>
     </div>
+    @endif
     
     {{-- ============================================ --}}
     {{-- REPORTS RELATED --}}
@@ -723,17 +747,19 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
     class="sublink {{ Request::is('communication/sms-dlr*') ? 'active' : '' }}">
     <i class="bi bi-file-earmark-arrow-up"></i> SMS DLR (HostPinnacle)
     </a>
+    @if(submodule_enabled('communication.whatsapp'))
     <a href="{{ route('communication.send.whatsapp') }}" 
     class="sublink {{ Request::is('communication/send-whatsapp*') ? 'active' : '' }}">
     <i class="bi bi-whatsapp"></i> Send WhatsApp
     </a>
-    <a href="{{ route('communication.notes.create') }}" 
-    class="sublink {{ Request::is('communication/notes*') ? 'active' : '' }}">
-    <i class="bi bi-file-earmark-text"></i> Print Notes
-    </a>
     <a href="{{ route('communication.wasender.sessions') }}" 
     class="sublink {{ Request::is('communication/whatsapp-sessions*') ? 'active' : '' }}">
     <i class="bi bi-hdd-network"></i> WhatsApp Setup
+    </a>
+    @endif
+    <a href="{{ route('communication.notes.create') }}" 
+    class="sublink {{ Request::is('communication/notes*') ? 'active' : '' }}">
+    <i class="bi bi-file-earmark-text"></i> Print Notes
     </a>
     <a href="{{ route('communication-templates.index') }}" 
     class="sublink {{ Request::is('communication/communication-templates*') ? 'active' : '' }}">
@@ -755,10 +781,12 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
     <i class="bi bi-chat-square-text"></i> Conversations
     </a>
     @endif
+    @if(feature_enabled('enable_communication_logs'))
     <a href="{{ route('communication.logs') }}" 
     class="sublink {{ Request::is('communication/logs*') ? 'active' : '' }}">
     <i class="bi bi-clock-history"></i> Logs
     </a>
+    @endif
     <a href="{{ route('communication.app-adoption') }}"
     class="sublink {{ Request::is('communication/app-adoption*') ? 'active' : '' }}">
     <i class="bi bi-phone"></i> App adoption
@@ -775,10 +803,12 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
     class="sublink {{ Request::is('communication/parent-notification-blocks*') ? 'active' : '' }}">
     <i class="bi bi-person-slash"></i> Parent notification prefs
     </a>
+    @if(submodule_enabled('communication.announcements'))
     <a href="{{ route('announcements.index') }}" 
     class="sublink {{ Request::is('communication/announcements*') ? 'active' : '' }}">
     <i class="bi bi-megaphone"></i> Announcements
     </a>
+    @endif
 </div>
 @endif
 
@@ -832,6 +862,7 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
       <i class="bi bi-person-badge"></i> Senior Teacher Assignments
     </a>
   @endif
+  @if(submodule_enabled('hr.leave'))
   <a href="{{ route('staff.leave-types.index') }}" class="{{ Request::is('staff/leave-types*') ? 'active' : '' }}">
     <i class="bi bi-calendar-check"></i> Leave Types
   </a>
@@ -841,6 +872,7 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
   <a href="{{ route('staff.leave-balances.index') }}" class="{{ Request::is('staff/leave-balances*') ? 'active' : '' }}">
     <i class="bi bi-calendar-minus"></i> Leave Balances
   </a>
+  @endif
   <a href="{{ route('staff.attendance.index') }}" class="{{ Request::is('staff/attendance*') ? 'active' : '' }}">
     <i class="bi bi-clock-history"></i> Staff Attendance
   </a>
@@ -922,6 +954,7 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
 @endif
 
 <!-- School Operations -->
+@if(nav_can('school_operations'))
 @include('layouts.partials.nav-section', ['label' => 'Operations'])
 @php
   $opsActive = Request::is('operations/*');
@@ -932,16 +965,23 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
   <i class="bi bi-building"></i> School Operations
 </a>
 <div class="collapse {{ $opsActive ? 'show' : '' }}" id="schoolOpsMenu">
+  @if(submodule_enabled('school_operations.concerns'))
   <a href="{{ route('operations.concerns.index') }}" class="sublink {{ Request::is('operations/concerns*') ? 'active' : '' }}">
     <i class="bi bi-exclamation-triangle"></i> Concerns
   </a>
+  @endif
+  @if(submodule_enabled('school_operations.visitors'))
   <a href="{{ route('operations.visitors.index') }}" class="sublink {{ Request::is('operations/visitors*') ? 'active' : '' }}">
     <i class="bi bi-person-badge"></i> Visitor log
   </a>
+  @endif
+  @if(submodule_enabled('school_operations.assets'))
   <a href="{{ route('operations.assets.index') }}" class="sublink {{ Request::is('operations/assets*') ? 'active' : '' }}">
     <i class="bi bi-hdd-stack"></i> Fixed assets
   </a>
+  @endif
 </div>
+@endif
 
 <!-- Inventory & Requirements -->
 @if(nav_can('inventory'))
@@ -956,6 +996,7 @@ class="{{ $inventoryActive ? 'parent-active' : '' }}">
     class="sublink {{ Request::is('inventory/items*') ? 'active' : '' }}">
         <i class="bi bi-box"></i> Inventory Items
     </a>
+    @if(submodule_enabled('inventory.requirements'))
     <a href="{{ route('inventory.requirement-types.index') }}" 
     class="sublink {{ Request::is('inventory/requirement-types*') ? 'active' : '' }}">
         <i class="bi bi-list-check"></i> Requirement Types
@@ -980,6 +1021,7 @@ class="{{ $inventoryActive ? 'parent-active' : '' }}">
     class="sublink {{ Request::is('inventory/reports/receipts*') ? 'active' : '' }}">
         <i class="bi bi-box-arrow-in-down"></i> What we received
     </a>
+    @endif
     <a href="{{ route('inventory.requisitions.index') }}" 
     class="sublink {{ Request::is('inventory/requisitions*') ? 'active' : '' }}">
         <i class="bi bi-cart-check"></i> Requisitions
@@ -1008,10 +1050,12 @@ class="{{ $posActive ? 'parent-active' : '' }}">
     class="sublink {{ Request::is('pos/discounts*') ? 'active' : '' }}">
         <i class="bi bi-tag"></i> Discounts
     </a>
+    @if(submodule_enabled('pos.public_links'))
     <a href="{{ route('pos.public-links.index') }}" 
     class="sublink {{ Request::is('pos/public-links*') ? 'active' : '' }}">
         <i class="bi bi-link-45deg"></i> Public Links
     </a>
+    @endif
 </div>
 @endif
 
@@ -1038,12 +1082,14 @@ class="{{ $posActive ? 'parent-active' : '' }}">
     <i class="bi bi-grid-3x3-gap"></i> Campus & Weekly Reports
 </a>
 <div class="collapse {{ $campusReportsActive ? 'show' : '' }}" id="campusReportsMenu">
+    @if(submodule_enabled('campus_reports.heatmaps'))
     <a href="{{ route('reports.heatmaps.show', 'lower') }}" class="sublink {{ Request::is('reports/heatmaps/lower*') ? 'active' : '' }}">
         <i class="bi bi-thermometer-half"></i> Heatmap – Lower
     </a>
     <a href="{{ route('reports.heatmaps.show', 'upper') }}" class="sublink {{ Request::is('reports/heatmaps/upper*') ? 'active' : '' }}">
         <i class="bi bi-thermometer-half"></i> Heatmap – Upper
     </a>
+    @endif
     <a href="{{ route('reports.class-reports.index') }}" class="sublink {{ Request::is('weekly-reports/class-reports*') ? 'active' : '' }}">
         <i class="bi bi-journal-text"></i> Class Reports
     </a>

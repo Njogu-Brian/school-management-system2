@@ -162,13 +162,16 @@ export function PhotoGrid({
 }) {
   return (
     <div className="grid gap-rk-5 sm:grid-cols-2 lg:grid-cols-3">
-      {photos.map((photo) => (
+      {photos.map((photo, index) => (
         <figure key={photo.title + photo.src} className="rk-photo-card group overflow-hidden rounded-rk-xl">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={photo.src}
             alt={photo.title}
             className="aspect-[4/3] w-full object-cover transition duration-500 group-hover:scale-105"
+            loading={index < 3 ? "eager" : "lazy"}
+            decoding="async"
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           />
           <figcaption className="bg-rk-white p-rk-4">
             <h3 className="font-serif font-semibold text-rk-deep-purple">{photo.title}</h3>

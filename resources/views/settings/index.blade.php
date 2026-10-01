@@ -52,7 +52,7 @@
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="tab-gallery-tab" data-bs-toggle="pill" data-bs-target="#tab-gallery" type="button" role="tab">
-                    <i class="bi bi-images"></i> Gallery
+                    <i class="bi bi-image"></i> Login Backgrounds
                 </button>
             </li>
             <li class="nav-item" role="presentation">

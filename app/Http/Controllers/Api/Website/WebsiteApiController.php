@@ -32,7 +32,7 @@ class WebsiteApiController extends Controller
 
     public function settings(): JsonResponse
     {
-        $data = Cache::remember('website.api.settings', 600, fn () => WebsiteSettingResource::make(WebsiteSetting::current())->resolve());
+        $data = Cache::remember('website.api.settings.v2', 600, fn () => WebsiteSettingResource::make(WebsiteSetting::current())->resolve());
 
         return response()->json(['data' => $data]);
     }

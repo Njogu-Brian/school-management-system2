@@ -67,6 +67,17 @@ return [
         'senior_teacher' => 'Senior Teacher',
         'extra_curricular' => 'Extra Curricular',
         'website_cms' => 'Website CMS',
+        'pos' => 'Point of Sale',
+        'documents' => 'Documents',
+        'campus_reports' => 'Campus & Weekly Reports',
+        'school_operations' => 'School Operations',
+        'payroll' => 'Payroll',
+        'cbc' => 'CBC Curriculum',
+        'assessments' => 'Assessments',
+        'behaviours' => 'Behaviours',
+        'hr' => 'HR / Staff',
+        'gallery' => 'Gallery',
+        'profile' => 'My Profile',
     ],
 
     'dashboards' => [
@@ -106,5 +117,6 @@ return [
         'documents' => ['Super Admin', 'Director', 'Admin', 'Secretary'],
         'settings' => ['Super Admin', 'Director', 'Admin', 'Secretary'],
         'website_cms' => ['Super Admin', 'Director', 'Admin', 'Secretary'],
+        'school_operations' => ['Super Admin', 'Director', 'Admin', 'Secretary'],
     ],
 ];

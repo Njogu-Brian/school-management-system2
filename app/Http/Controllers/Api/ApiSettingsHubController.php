@@ -27,12 +27,13 @@ class ApiSettingsHubController extends Controller
 
         $schoolName = trim((string) (Setting::get('school_name') ?: config('app.name', 'School'))) ?: 'School';
 
-        $enabledModules = [];
-        $raw = Setting::get('enabled_modules');
-        if ($raw) {
-            $decoded = is_string($raw) ? json_decode($raw, true) : $raw;
-            $enabledModules = is_array($decoded) ? array_values($decoded) : [];
-        }
+        $enabledModules = \App\Support\ModuleAccess::enabledKeys();
+        $features = [
+            'enable_online_admission' => feature_enabled('enable_online_admission'),
+            'enable_communication_logs' => feature_enabled('enable_communication_logs'),
+            'google_link_prompt_mode' => Setting::get('google_link_prompt_mode', 'all'),
+            'communication_name_style' => Setting::get('communication_name_style', 'full'),
+        ];
 
         return response()->json([
             'success' => true,
@@ -47,6 +48,7 @@ class ApiSettingsHubController extends Controller
                 'login_background_url' => $this->resolvePublicImageUrl(Setting::get('login_background')),
                 'colors' => $this->portalColors(),
                 'enabled_modules' => $enabledModules,
+                'features' => $features,
                 'system_version' => Setting::get('system_version'),
             ],
         ]);

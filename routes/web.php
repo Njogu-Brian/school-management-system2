@@ -171,6 +171,11 @@ Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
     Route::post('/login', [AuthController::class, 'login']);
 
+    Route::post('/demo/login-as/{persona}', [\App\Http\Controllers\Auth\DemoQuickLoginController::class, 'loginAs'])
+        ->where('persona', 'super_admin|director|teacher|accountant|senior_teacher|academic_admin')
+        ->middleware('throttle:30,1')
+        ->name('demo.login-as');
+
     Route::get('/auth/google/redirect', [SocialAuthController::class, 'redirectToGoogle'])->name('auth.google.redirect');
     Route::get('/auth/google/callback', [SocialAuthController::class, 'handleGoogleCallback'])->name('auth.google.callback');
     
@@ -1089,8 +1094,9 @@ Route::middleware('auth')->group(function () {
         ->group(function () {
             Route::get('/', [SettingController::class, 'index'])->name('index');
 
-            // Gallery management
+            // Gallery management (login backgrounds)
             Route::post('/gallery/upload', [GalleryController::class, 'upload'])->name('gallery.upload');
+            Route::post('/gallery/{galleryImage}/set-login', [GalleryController::class, 'setLoginBackground'])->name('gallery.set-login');
             Route::delete('/gallery/{galleryImage}', [GalleryController::class, 'destroy'])->name('gallery.destroy');
             Route::post('/gallery/reorder', [GalleryController::class, 'reorder'])->name('gallery.reorder');
 

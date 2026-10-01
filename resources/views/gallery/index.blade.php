@@ -102,8 +102,8 @@
 <div class="gallery-page">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <div>
-            <h1 class="h4 mb-1"><i class="bi bi-images"></i> Gallery</h1>
-            <p class="text-muted small mb-0">{{ $images->count() }} image(s)</p>
+            <h1 class="h4 mb-1"><i class="bi bi-image"></i> Login Backgrounds</h1>
+            <p class="text-muted small mb-0">{{ $images->count() }} candidate(s)@if(!empty($active)) · active: <code>{{ $active }}</code>@endif</p>
         </div>
         @auth
         <a href="{{ route('settings.index') }}#tab-gallery" class="btn btn-outline-primary btn-sm"><i class="bi bi-gear"></i> Manage</a>
@@ -113,8 +113,8 @@
     @if($images->isEmpty())
         <div class="card">
             <div class="card-body text-center py-5 text-muted">
-                <i class="bi bi-images" style="font-size: 3rem;"></i>
-                <p class="mt-2 mb-0">No gallery images yet.</p>
+                <i class="bi bi-image" style="font-size: 3rem;"></i>
+                <p class="mt-2 mb-0">No login background images yet.</p>
             </div>
         </div>
     @else

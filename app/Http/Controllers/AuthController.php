@@ -13,6 +13,7 @@ use App\Services\ParentCredentialsService;
 use App\Services\SMSService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use App\Http\Controllers\Auth\DemoQuickLoginController;
 use App\Support\ParentWebPortalGate;
 
 class AuthController extends Controller
@@ -33,6 +34,12 @@ class AuthController extends Controller
             ->latest()
             ->take(5)
             ->get(['id', 'title', 'content']);
+
+        if (config('demo.quick_login_enabled')) {
+            $demoPersonas = DemoQuickLoginController::availablePersonas();
+
+            return view('auth.login-demo', compact('settings', 'announcements', 'demoPersonas'));
+        }
 
         return view('auth.login', compact('settings', 'announcements'));
     }

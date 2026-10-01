@@ -29,27 +29,18 @@ class SettingController extends Controller
     {
         $settings = Setting::all()->keyBy('key');
 
-        $availableModules = [
-            'attendance',
-            'transport',
-            'kitchen',
-            'communication',
-            'reports',
-            'fees',
-            'admissions',
-            'settings',
-            'users',
-        ];
-
-        $enabledModules = [];
-        if (isset($settings['enabled_modules'])) {
-            $enabledModules = json_decode($settings['enabled_modules']->value, true);
-        }
+        $moduleCatalog = \App\Support\ModuleAccess::moduleCatalog();
+        $submoduleCatalog = \App\Support\ModuleAccess::submoduleCatalog();
+        $featureCatalog = \App\Support\ModuleAccess::featureCatalog();
+        $enabledModules = \App\Support\ModuleAccess::enabledKeys();
 
         return view('settings.index', [
             'settings'        => $settings,
-            'modules'         => $availableModules,
-            'enabledModules'  => $enabledModules ?? [],
+            'moduleCatalog'   => $moduleCatalog,
+            'submoduleCatalog'=> $submoduleCatalog,
+            'featureCatalog'  => $featureCatalog,
+            'modules'         => array_keys($moduleCatalog),
+            'enabledModules'  => $enabledModules,
             'galleryImages'   => GalleryImage::orderBy('sort_order')->orderBy('id')->get(),
             'backupSchedule'  => Setting::getJson('backup_schedule', [
                 'frequency' => 'weekly',
@@ -118,13 +109,18 @@ class SettingController extends Controller
      */
     public function updateModules(Request $request)
     {
-        $request->validate(['modules' => 'array']);
+        $allowed = array_merge(
+            array_keys(\App\Support\ModuleAccess::moduleCatalog()),
+            array_keys(\App\Support\ModuleAccess::submoduleCatalog())
+        );
+
+        $request->validate([
+            'modules' => 'nullable|array',
+            'modules.*' => ['string', \Illuminate\Validation\Rule::in($allowed)],
+        ]);
 
         try {
-            Setting::updateOrCreate(
-                ['key' => 'enabled_modules'],
-                ['value' => json_encode($request->modules ?? [])]
-            );
+            \App\Support\ModuleAccess::saveEnabled($request->input('modules', []));
         } catch (\Exception $e) {
             Log::error("Failed to update modules: " . $e->getMessage());
             return back()->withErrors('Error updating modules.');
@@ -154,6 +150,7 @@ class SettingController extends Controller
                     (string) $request->input('google_link_prompt_mode')
                 );
             }
+            \App\Support\ModuleAccess::forgetCache();
         } catch (\Exception $e) {
             Log::error("Failed to update feature toggles: " . $e->getMessage());
             return back()->withErrors('Error updating feature toggles.');

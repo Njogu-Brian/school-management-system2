@@ -23,7 +23,7 @@ export const BRAND = {
   purpleDark: "#5C0D96",
   purpleDeep: "#4A0078",
   gold: "#D4AF37",
-  logoUrl: `${BASE}/royal-logo-small-192x192.png`,
+  logoUrl: "https://erp.royalkingsschools.sc.ke/images/logo.png",
 };
 
 export const SOCIAL = {
@@ -50,7 +50,7 @@ export const CONTACT = {
 };
 
 export const LEGACY_IMAGES = {
-  logo: `${BASE}/royal-logo-small-192x192.png`,
+  logo: "https://erp.royalkingsschools.sc.ke/images/logo.png",
   campus: LEGACY_HEROES.homeMural,
   admissions: LEGACY_HEROES.admissionsPromo,
   classroom: LEGACY_HEROES.classroom,

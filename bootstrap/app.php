@@ -10,6 +10,9 @@ return Application::configure(basePath: dirname(__DIR__))
         web: __DIR__.'/../routes/web.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
+        then: function () {
+            require base_path('routes/operator.php');
+        },
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
@@ -23,11 +26,19 @@ return Application::configure(basePath: dirname(__DIR__))
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
             'password.changed' => \App\Http\Middleware\EnsurePasswordChanged::class,
             'parent.claim.enabled' => \App\Http\Middleware\EnsureParentClaimEnabled::class,
+            'ensure.control_plane' => \App\Http\Middleware\EnsureControlPlane::class,
+            'ensure.operator' => \App\Http\Middleware\EnsureOperator::class,
+            'resolve.tenant' => \App\Http\Middleware\ResolveTenantFromPath::class,
         ]);
 
         $middleware->web(append: [
+            \App\Http\Middleware\ResolveTenantFromPath::class,
             \App\Http\Middleware\RedirectParentToMobileApp::class,
             \App\Http\Middleware\EnsurePasswordChanged::class,
+        ]);
+
+        $middleware->api(prepend: [
+            \App\Http\Middleware\ResolveTenantFromPath::class,
         ]);
 
         // Exempt M-PESA webhook endpoints from CSRF verification

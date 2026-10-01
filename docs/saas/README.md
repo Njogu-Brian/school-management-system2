@@ -66,15 +66,17 @@ Fill `submit.production.ios` in each `eas.json` (`appleId`, `ascAppId`, `appleTe
 
 ## Next steps
 
-**Source of truth for taking the first external school:** [`CLIENT_LAUNCH_PLAN.md`](./CLIENT_LAUNCH_PLAN.md)
+**cPanel multi-school (current product path):** [`CPANEL_OPERATOR.md`](./CPANEL_OPERATOR.md)
 
-That plan supersedes the checklist below. Do not put a second school on the Royal Kings EC2. Do not run `deploy-production.sh` on a tenant (it seeds the RK website).
+**Source of truth for AWS / EC2 second school:** [`CLIENT_LAUNCH_PLAN.md`](./CLIENT_LAUNCH_PLAN.md)
+
+That plan supersedes the checklist below for AWS. On cPanel use the operator portal + UAPI path instead.
 
 Legacy notes (kept for context):
 
-- [ ] Dedicated control-plane host (not this RK app) — see launch plan Wave 1
-- [ ] Super-admin / operator UI for creating schools
-- [ ] `scripts/provision-tenant.sh` + `TenantBootstrapSeeder` (not `Comprehensive2025Seeder`)
+- [x] Dedicated control-plane host concept — on cPanel: `APP_ROLE=control_plane` + `edulynk_control`
+- [x] Super-admin / operator UI for creating schools — `/operator`
+- [x] `TenantBootstrapSeeder` + `tenant:bootstrap`
 - [ ] Combined PRODUCT store app with `REQUIRE_SCHOOL_CODE=true`
 - [ ] “Change school” control on login/settings
 - [ ] Apple Developer enrollment + first EAS iOS preview build (if iOS is in the client contract)

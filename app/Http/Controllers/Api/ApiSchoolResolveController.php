@@ -27,6 +27,15 @@ class ApiSchoolResolveController extends Controller
             ], 404);
         }
 
+        if ($school->status === SchoolRegistry::STATUS_SUSPENDED
+            || $school->billing_status === SchoolRegistry::BILLING_SUSPENDED) {
+            return response()->json([
+                'message' => 'This school is suspended. Contact EduLynk support.',
+                'status' => $school->status,
+                'billing_status' => $school->billing_status,
+            ], 403);
+        }
+
         if (! $school->isActive()) {
             return response()->json([
                 'message' => 'This school is not currently active. Contact your school administrator.',

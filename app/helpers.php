@@ -224,11 +224,42 @@ if (!function_exists('can_access')) {
 
 /**
  * Whether the current user should see a sidebar section (role-based, from config/nav_access.php).
+ * Also requires the school module to be enabled in Settings → Modules & Features.
  */
 if (!function_exists('nav_can')) {
     function nav_can(string $section): bool
     {
         return \App\Support\NavAccess::can($section);
+    }
+}
+
+/**
+ * Whether a school module is enabled (Settings → Modules & Features).
+ */
+if (!function_exists('module_enabled')) {
+    function module_enabled(string $key): bool
+    {
+        return \App\Support\ModuleAccess::isModuleEnabled($key);
+    }
+}
+
+/**
+ * Whether a nested sub-module is enabled.
+ */
+if (!function_exists('submodule_enabled')) {
+    function submodule_enabled(string $key): bool
+    {
+        return \App\Support\ModuleAccess::isSubmoduleEnabled($key);
+    }
+}
+
+/**
+ * Whether a feature flag is enabled.
+ */
+if (!function_exists('feature_enabled')) {
+    function feature_enabled(string $key, ?bool $default = null): bool
+    {
+        return \App\Support\ModuleAccess::isFeatureEnabled($key, $default);
     }
 }
 

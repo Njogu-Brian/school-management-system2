@@ -26,11 +26,32 @@ class WebsiteSettingResource extends JsonResource
                 'tiktok' => $this->tiktok,
             ],
             'hero_video' => $this->hero_video,
-            'logo' => $this->logo ? asset('website/'.$this->logo) : null,
-            'favicon' => $this->favicon ? asset('website/'.$this->favicon) : null,
+            'logo' => $this->resolveLogoUrl(),
+            'favicon' => $this->favicon
+                ? asset('website/'.$this->favicon)
+                : $this->resolveLogoUrl(),
             'admissions_open' => $this->admissions_open,
             'current_term' => $this->current_term,
             'seo' => $this->seo_defaults ?? [],
         ];
+    }
+
+    private function resolveLogoUrl(): ?string
+    {
+        if ($this->logo) {
+            return asset('website/'.$this->logo);
+        }
+
+        // Fall back to ERP branding (Settings → Branding) when CMS has no logo.
+        $schoolLogo = \App\Models\Setting::get('school_logo');
+        if ($schoolLogo && function_exists('public_image_url')) {
+            return public_image_url($schoolLogo);
+        }
+
+        if (function_exists('public_image_url')) {
+            return public_image_url('logo.png');
+        }
+
+        return asset('images/logo.png');
     }
 }

@@ -23,8 +23,32 @@ import {
   splitParagraphs,
   useGalleryCatalog,
 } from "@/lib/cmsSections";
-import { LEGACY_GALLERY } from "@/content/legacyGallery";
+import { CatalogPhotoGrid } from "@/components/cms/CatalogPhotoGrid";
 import { STATS } from "@/content/schoolContent";
+import { useGallery } from "@/hooks/useWebsiteData";
+import { mediaUrl } from "@/lib/premiumMedia";
+
+const LEGACY_CDN = "https://royalkingsschools.sc.ke/assets/images";
+
+function isBrokenLegacyUrl(url?: string | null): boolean {
+  return !!url && url.startsWith(LEGACY_CDN);
+}
+
+function CmsPageHero({ section }: { section: PageSection }) {
+  const configured = sectionImage(section);
+  const { data } = useGallery();
+  const first = data?.[0];
+  const fallback = first ? mediaUrl(first, "lg") || first.url : undefined;
+  const image = configured && !isBrokenLegacyUrl(configured) ? configured : fallback;
+
+  return (
+    <PageHero
+      title={section.title || ""}
+      subtitle={section.subtitle}
+      image={image}
+    />
+  );
+}
 
 function RichTextBlock({ section, alt }: { section: PageSection; alt?: boolean }) {
   const image = sectionImage(section);
@@ -211,13 +235,7 @@ export function PageSectionRenderer({
 
   switch (type) {
     case "page_hero":
-      return (
-        <PageHero
-          title={section.title || ""}
-          subtitle={section.subtitle}
-          image={sectionImage(section)}
-        />
-      );
+      return <CmsPageHero section={section} />;
 
     case "rich_text":
       return <RichTextBlock section={section} alt={alt} />;
@@ -250,13 +268,28 @@ export function PageSectionRenderer({
       );
 
     case "photo_grid": {
-      const photos = useGalleryCatalog(section)
-        ? LEGACY_GALLERY.map((p) => ({ src: p.src, title: p.title, caption: p.caption }))
-        : sectionPhotos(section);
-      const grid = photos.length ? photos : LEGACY_GALLERY.map((p) => ({ src: p.src, title: p.title, caption: p.caption }));
+      if (useGalleryCatalog(section)) {
+        return (
+          <CatalogPhotoGrid
+            title={section.title}
+            subtitle={section.subtitle}
+            sectionKey={section.key}
+          />
+        );
+      }
+      const photos = sectionPhotos(section);
+      if (!photos.length) {
+        return (
+          <CatalogPhotoGrid
+            title={section.title}
+            subtitle={section.subtitle}
+            sectionKey={section.key}
+          />
+        );
+      }
       return (
         <SectionBlock title={section.title} intro={section.subtitle} alt={alt} id={section.key}>
-          <PhotoGrid photos={grid} />
+          <PhotoGrid photos={photos} />
         </SectionBlock>
       );
     }

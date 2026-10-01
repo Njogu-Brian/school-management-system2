@@ -25,6 +25,10 @@ class NavAccess
 
     public static function can(string $section): bool
     {
+        if (! ModuleAccess::isModuleEnabled($section)) {
+            return false;
+        }
+
         $user = self::user();
         if (! $user) {
             return false;

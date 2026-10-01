@@ -1283,6 +1283,8 @@ class CommunicationController extends Controller
     /* ========== LOGS ========== */
     public function logs()
     {
+        abort_unless(feature_enabled('enable_communication_logs'), 404);
+
         $logs = CommunicationLog::latest()->paginate(20);
         return view('communication.logs', compact('logs'));
     }

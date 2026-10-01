@@ -34,6 +34,8 @@ class OnlineAdmissionController extends Controller
      */
     public function index(Request $request)
     {
+        abort_unless(feature_enabled('enable_online_admission'), 404);
+
         $query = OnlineAdmission::with(['reviewedBy', 'classroom', 'stream'])
             ->orderByDesc('application_date');
 
@@ -59,6 +61,8 @@ class OnlineAdmissionController extends Controller
      */
     public function showPublicForm()
     {
+        abort_unless(feature_enabled('enable_online_admission'), 404);
+
         $allClassrooms = Classroom::all();
         
         // Get IDs before sorting
@@ -106,6 +110,8 @@ class OnlineAdmissionController extends Controller
      */
     public function storePublicApplication(Request $request)
     {
+        abort_unless(feature_enabled('enable_online_admission'), 404);
+
         if ($request->input('drop_off_point_id') === 'other') {
             $request->merge(['drop_off_point_id' => null]);
         }
