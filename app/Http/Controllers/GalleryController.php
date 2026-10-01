@@ -77,12 +77,12 @@ class GalleryController extends Controller
         }
 
         return redirect()->route('settings.index')
-            ->with('success', $saved.' login background image(s) uploaded. Use “Set as login background” to activate one.')
+            ->with('success', $saved.' login background image(s) uploaded. All of them rotate on /login; use “Start with this” to choose the first slide.')
             ->withFragment('tab-gallery');
     }
 
     /**
-     * Make a gallery image the active login page background.
+     * Make a gallery image the first slide of the login carousel.
      */
     public function setLoginBackground(GalleryImage $galleryImage)
     {
@@ -95,7 +95,7 @@ class GalleryController extends Controller
         Setting::set('login_background', $galleryImage->filename);
 
         return redirect()->route('settings.index')
-            ->with('success', 'Login background updated. Open /login to confirm.')
+            ->with('success', 'Login carousel will start with this image. Open /login to confirm.')
             ->withFragment('tab-gallery');
     }
 

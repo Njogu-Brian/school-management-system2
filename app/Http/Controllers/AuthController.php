@@ -41,7 +41,52 @@ class AuthController extends Controller
             return view('auth.login-demo', compact('settings', 'announcements', 'demoPersonas'));
         }
 
-        return view('auth.login', compact('settings', 'announcements'));
+        $loginBackgrounds = $this->loginBackgroundUrls($settings);
+
+        return view('auth.login', compact('settings', 'announcements', 'loginBackgrounds'));
+    }
+
+    /**
+     * Ordered URLs for the login-page background carousel.
+     * Active setting first, then every Settings → Login Backgrounds upload that exists on disk.
+     *
+     * @param  \Illuminate\Support\Collection<string, Setting>  $settings
+     * @return list<string>
+     */
+    private function loginBackgroundUrls($settings): array
+    {
+        $urls = [];
+        $seen = [];
+
+        $push = static function (?string $filename) use (&$urls, &$seen): void {
+            if (! $filename || isset($seen[$filename])) {
+                return;
+            }
+            if (! function_exists('public_images_path') || ! is_file(public_images_path($filename))) {
+                return;
+            }
+            // Skip thumbnail derivatives in the carousel.
+            if (str_contains($filename, '_thumb.')) {
+                return;
+            }
+            $seen[$filename] = true;
+            $urls[] = public_image_url($filename);
+        };
+
+        $active = $settings['login_background']->value ?? null;
+        $push($active);
+
+        if (class_exists(\App\Models\GalleryImage::class)) {
+            foreach (\App\Models\GalleryImage::query()->orderBy('sort_order')->orderBy('id')->get() as $img) {
+                $push($img->filename);
+            }
+        }
+
+        foreach (['page background.jpg', '1757052514_page background.jpg'] as $fallback) {
+            $push($fallback);
+        }
+
+        return array_values(array_filter($urls));
     }
 
     public function login(Request $request)

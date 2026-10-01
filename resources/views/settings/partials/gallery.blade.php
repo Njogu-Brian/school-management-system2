@@ -4,8 +4,8 @@
             <div>
                 <h5 class="mb-1">Login Backgrounds</h5>
                 <div class="section-note">
-                    Upload and choose the image shown behind the staff login form.
-                    Images are resized automatically (max ~1920×1080) so login stays fast.
+                    Upload as many campus photos as you like. They rotate automatically on the staff login page
+                    (carousel). Use “Use” to pick which image starts first. Images are resized (~1920×1080) so login stays fast.
                     Website photo gallery is managed separately under <strong>Website CMS → Media</strong>.
                 </div>
             </div>
@@ -83,12 +83,12 @@
                                     @if($exists && ! $isActive)
                                         <form method="POST" action="{{ route('settings.gallery.set-login', $img) }}" class="d-inline">
                                             @csrf
-                                            <button type="submit" class="btn btn-sm btn-outline-primary py-0 px-2" title="Use on login page">
-                                                <i class="bi bi-check2-circle"></i> Use
+                                            <button type="submit" class="btn btn-sm btn-outline-primary py-0 px-2" title="Start the login carousel with this image">
+                                                <i class="bi bi-check2-circle"></i> Start with this
                                             </button>
                                         </form>
                                     @elseif($isActive)
-                                        <span class="small text-success fw-semibold">On login page</span>
+                                        <span class="small text-success fw-semibold">Starts carousel</span>
                                     @else
                                         <span></span>
                                     @endif

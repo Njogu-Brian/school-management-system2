@@ -4,65 +4,82 @@
 @php
     $schoolName = isset($settings['school_name']) && $settings['school_name'] ? $settings['school_name']->value : 'School Management System';
     $schoolLogo = isset($settings['school_logo']) && $settings['school_logo'] ? $settings['school_logo']->value : null;
-    $loginBg    = isset($settings['login_background']) && $settings['login_background'] ? $settings['login_background']->value : null;
     $primaryColor = setting('finance_primary_color', '#390754');
     $secondaryColor = setting('finance_secondary_color', '#7d2fca');
-
-    // Use public_images_path / public_image_url so ASSET_URL and PUBLIC_WEB_ROOT work in production
-    $publicStoragePath = static function (?string $file): ?string {
-        if (! $file) {
-            return null;
-        }
-
-        return storage_path('app/public/' . ltrim(str_replace('\\', '/', $file), '/'));
-    };
-    $publicStorageUrl = static function (?string $file): ?string {
-        if (! $file) {
-            return null;
-        }
-
-        return asset('storage/' . ltrim(str_replace('\\', '/', $file), '/'));
-    };
-
-    $bgImage = null;
-    if ($loginBg) {
-        if (file_exists(public_images_path($loginBg))) {
-            $bgImage = public_image_url($loginBg);
-        } elseif (file_exists($publicStoragePath($loginBg))) {
-            $bgImage = $publicStorageUrl($loginBg);
-        }
-    }
-    if (!$bgImage) {
-        $fallbackImages = ['page background.jpg', '1757052514_page background.jpg'];
-        foreach ($fallbackImages as $fallback) {
-            if (file_exists(public_images_path($fallback))) {
-                $bgImage = public_image_url($fallback);
-                break;
-            }
-            if (file_exists($publicStoragePath($fallback))) {
-                $bgImage = $publicStorageUrl($fallback);
-                break;
-            }
-        }
-    }
+    $loginBackgrounds = array_values(array_filter($loginBackgrounds ?? []));
+    $bgImage = $loginBackgrounds[0] ?? null;
 @endphp
 
 <style>
     body {
-        @if($bgImage)
-        background: url('{{ $bgImage }}') no-repeat center center fixed;
-        background-size: cover;
-        @else
+        @if(!$bgImage)
         background: linear-gradient(135deg, {{ $primaryColor }} 0%, {{ $secondaryColor }} 100%);
+        @else
+        background: #111;
         @endif
         min-height: 100vh;
         display: flex;
         align-items: center;
         justify-content: center;
         font-family: 'Poppins', sans-serif;
+        position: relative;
+        overflow-x: hidden;
+    }
+
+    .login-carousel {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+        background: #111;
+    }
+    .login-carousel__slide {
+        position: absolute;
+        inset: 0;
+        background-position: center center;
+        background-size: cover;
+        background-repeat: no-repeat;
+        opacity: 0;
+        transition: opacity 1.2s ease-in-out;
+        transform: scale(1.04);
+    }
+    .login-carousel__slide.is-active {
+        opacity: 1;
+        transform: scale(1);
+        transition: opacity 1.2s ease-in-out, transform 8s ease-out;
+    }
+    .login-carousel__veil {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, rgba(17,17,17,0.12) 0%, rgba(57,7,84,0.32) 55%, rgba(57,7,84,0.5) 100%);
+    }
+    .login-carousel__dots {
+        position: fixed;
+        left: 50%;
+        bottom: 18px;
+        transform: translateX(-50%);
+        z-index: 2;
+        display: flex;
+        gap: 8px;
+        pointer-events: auto;
+    }
+    .login-carousel__dots button {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        border: 0;
+        padding: 0;
+        background: rgba(255,255,255,0.45);
+        cursor: pointer;
+    }
+    .login-carousel__dots button.is-active {
+        background: #fff;
+        box-shadow: 0 0 0 2px rgba(255,255,255,0.35);
     }
 
     .login-box {
+        position: relative;
+        z-index: 1;
         background: rgba(255, 255, 255, 0.96);
         padding: 30px;
         border-radius: 15px;
@@ -170,8 +187,39 @@
             padding: 10px;
             font-size: 14px;
         }
+        .login-carousel__veil {
+            background: rgba(17,17,17,0.35);
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .login-carousel__slide {
+            transition: none;
+            transform: none;
+        }
     }
 </style>
+
+@if(count($loginBackgrounds) > 0)
+<div class="login-carousel" id="loginCarousel" aria-hidden="true">
+    @foreach($loginBackgrounds as $i => $url)
+        <div class="login-carousel__slide {{ $i === 0 ? 'is-active' : '' }}"
+             style="background-image: url('{{ $url }}');"
+             data-index="{{ $i }}"></div>
+    @endforeach
+    <div class="login-carousel__veil"></div>
+</div>
+@if(count($loginBackgrounds) > 1)
+<div class="login-carousel__dots" id="loginCarouselDots" role="tablist" aria-label="Background photos">
+    @foreach($loginBackgrounds as $i => $url)
+        <button type="button"
+                class="{{ $i === 0 ? 'is-active' : '' }}"
+                aria-label="Show background {{ $i + 1 }}"
+                data-index="{{ $i }}"></button>
+    @endforeach
+</div>
+@endif
+@endif
 
 <div class="login-box text-center">
     {{-- Logo: use public_image_url so ASSET_URL works when public files are on another domain --}}
@@ -377,4 +425,61 @@
     </div>
     @endunless
 </div>
+
+@if(count($loginBackgrounds) > 1)
+<script>
+(function () {
+    var slides = Array.prototype.slice.call(document.querySelectorAll('#loginCarousel .login-carousel__slide'));
+    var dots = Array.prototype.slice.call(document.querySelectorAll('#loginCarouselDots button'));
+    if (slides.length < 2) return;
+
+    var current = 0;
+    var intervalMs = 6000;
+    var timer = null;
+    var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function show(index) {
+        current = (index + slides.length) % slides.length;
+        slides.forEach(function (slide, i) {
+            slide.classList.toggle('is-active', i === current);
+        });
+        dots.forEach(function (dot, i) {
+            dot.classList.toggle('is-active', i === current);
+        });
+    }
+
+    function next() { show(current + 1); }
+
+    function start() {
+        if (reduceMotion) return;
+        stop();
+        timer = window.setInterval(next, intervalMs);
+    }
+
+    function stop() {
+        if (timer) {
+            window.clearInterval(timer);
+            timer = null;
+        }
+    }
+
+    dots.forEach(function (dot) {
+        dot.addEventListener('click', function () {
+            show(parseInt(dot.getAttribute('data-index'), 10) || 0);
+            start();
+        });
+    });
+
+    slides.slice(1).forEach(function (slide) {
+        var url = (slide.style.backgroundImage || '').replace(/^url\(["']?/, '').replace(/["']?\)$/, '');
+        if (url) {
+            var img = new Image();
+            img.src = url;
+        }
+    });
+
+    start();
+})();
+</script>
+@endif
 @endsection

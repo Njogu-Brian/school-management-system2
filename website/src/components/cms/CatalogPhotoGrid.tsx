@@ -4,6 +4,12 @@ import { SectionBlock, PhotoGrid } from "@/components/layout/RichPage";
 import { useGallery } from "@/hooks/useWebsiteData";
 import { mediaUrl } from "@/lib/premiumMedia";
 
+type Photo = {
+  src: string;
+  title: string;
+  caption?: string;
+};
+
 export function CatalogPhotoGrid({
   title,
   subtitle,
@@ -15,17 +21,20 @@ export function CatalogPhotoGrid({
 }) {
   const { data, isLoading, isError } = useGallery();
 
-  const photos = (data ?? [])
+  const photos: Photo[] = (data ?? [])
     .map((item) => {
       const src = mediaUrl(item, "md") || item.url;
       if (!src) return null;
-      return {
+      const photo: Photo = {
         src,
         title: item.title || item.alt_text || "Gallery",
-        caption: item.alt_text || undefined,
       };
+      if (item.alt_text) {
+        photo.caption = item.alt_text;
+      }
+      return photo;
     })
-    .filter((p): p is { src: string; title: string; caption?: string } => !!p);
+    .filter((p): p is Photo => p !== null);
 
   if (isLoading) {
     return (
