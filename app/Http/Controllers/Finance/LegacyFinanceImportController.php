@@ -17,11 +17,9 @@ class LegacyFinanceImportController extends Controller
 {
     public function index(Request $request)
     {
-        $batches = LegacyFinanceImportBatch::latest()->paginate(15);
+        session()->reflash();
 
-        return view('finance.legacy-imports.index', [
-            'batches' => $batches,
-        ]);
+        return redirect()->route('finance.payment-settings.index', ['tab' => 'legacy-imports']);
     }
 
     public function show(LegacyFinanceImportBatch $batch)

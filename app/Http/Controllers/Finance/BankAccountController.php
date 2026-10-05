@@ -10,8 +10,9 @@ class BankAccountController extends Controller
 {
     public function index()
     {
-        $bankAccounts = BankAccount::orderBy('name')->get();
-        return view('finance.bank_accounts.index', compact('bankAccounts'));
+        session()->reflash();
+
+        return redirect()->route('finance.payment-settings.index', ['tab' => 'bank-accounts']);
     }
 
     public function create()

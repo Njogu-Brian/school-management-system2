@@ -7,11 +7,26 @@ use Illuminate\Database\Eloquent\Model;
 class ScheduledCommunication extends Model
 {
     protected $fillable = [
-        'type', 'template_id', 'target', 'classroom_id', 'classroom_ids', 'send_at', 'status'
+        'type',
+        'template_id',
+        'message',
+        'target',
+        'sender_id',
+        'classroom_id',
+        'classroom_ids',
+        'fee_balance_only',
+        'no_fee_balance_only',
+        'exclude_staff',
+        'exclude_student_ids',
+        'send_at',
+        'status',
     ];
 
     protected $casts = [
-        'send_at' => 'datetime',   // <-- add this
+        'send_at' => 'datetime',
+        'fee_balance_only' => 'boolean',
+        'no_fee_balance_only' => 'boolean',
+        'exclude_staff' => 'boolean',
     ];
 
     // Optional: keep old blade name working

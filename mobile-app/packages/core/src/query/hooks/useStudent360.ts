@@ -1,4 +1,4 @@
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { studentsApi } from '../../api/students.api';
 import { buildAttendanceTrend, summarizeAttendanceDays } from '../../students/attendance';
 import type { AttendanceCalendarDay } from '../../types/student360';
@@ -46,6 +46,42 @@ export function useStudentStatement(
     },
     enabled: options?.enabled !== false && studentId > 0,
     staleTime: 60_000,
+  });
+}
+
+export function useStudentFinancialNotes(studentId: number, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: [...queryKeys.students.all, 'financial-notes', studentId],
+    queryFn: async () => {
+      const res = await studentsApi.getFinancialNotes(studentId);
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load financial notes.');
+      }
+      return res.data;
+    },
+    enabled: options?.enabled !== false && studentId > 0,
+    staleTime: 30_000,
+  });
+}
+
+export function useCreateFinancialNote(studentId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      body: string;
+      promise_date?: string | null;
+      is_pinned?: boolean;
+      scope?: 'student' | 'family';
+    }) => {
+      const res = await studentsApi.createFinancialNote(studentId, payload);
+      if (!res.success) {
+        throw new Error(res.message || 'Failed to save note.');
+      }
+      return res.data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: [...queryKeys.students.all, 'financial-notes', studentId] });
+    },
   });
 }
 

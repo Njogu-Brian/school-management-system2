@@ -78,6 +78,27 @@ class MarkBankStatementDuplicates extends Command
             }
         }
 
+        // Pass 3: Same description + amount + date even when only one side has a reference
+        // (e.g. Draft N/A + Collected 54106936 for Kimwaki)
+        $descGroups = BankStatementTransaction::query()
+            ->select('description', 'amount', DB::raw('DATE(transaction_date) as txn_date'))
+            ->whereNotNull('description')
+            ->where('description', '!=', '')
+            ->groupBy('description', 'amount', DB::raw('DATE(transaction_date)'))
+            ->havingRaw('COUNT(*) > 1')
+            ->get();
+
+        foreach ($descGroups as $group) {
+            $candidates = BankStatementTransaction::where('description', $group->description)
+                ->where('amount', $group->amount)
+                ->whereDate('transaction_date', $group->txn_date)
+                ->orderByRaw("CASE WHEN reference_number IS NULL OR reference_number = '' OR reference_number = 'N/A' THEN 1 ELSE 0 END")
+                ->orderByRaw("CASE WHEN status IN ('confirmed','collected','allocated') THEN 0 ELSE 1 END")
+                ->orderBy('id')
+                ->get();
+            $marked += $this->markGroup($candidates, $dryRun);
+        }
+
         if ($marked > 0) {
             $this->info(($dryRun ? 'Would mark ' : 'Marked ') . $marked . ' transaction(s) as duplicate.');
         } else {

@@ -77,6 +77,40 @@ export const studentsApi = {
     return apiClient.get<StudentStatementRecord>(`/students/${studentId}/statement`, params);
   },
 
+  getFinancialNotes(studentId: number): Promise<
+    ApiResponse<
+      Array<{
+        id: number;
+        student_id: number | null;
+        family_id: number | null;
+        scope: 'student' | 'family';
+        body: string;
+        promise_date: string | null;
+        is_pinned: boolean;
+        created_by: string | null;
+        created_at: string | null;
+      }>
+    >
+  > {
+    return apiClient.get(`/students/${studentId}/financial-notes`);
+  },
+
+  createFinancialNote(
+    studentId: number,
+    payload: {
+      body: string;
+      promise_date?: string | null;
+      is_pinned?: boolean;
+      scope?: 'student' | 'family';
+    },
+  ): Promise<ApiResponse<{ id: number; body: string }>> {
+    return apiClient.post(`/students/${studentId}/financial-notes`, payload);
+  },
+
+  deleteFinancialNote(studentId: number, noteId: number): Promise<ApiResponse<{ ok: boolean }>> {
+    return apiClient.delete(`/students/${studentId}/financial-notes/${noteId}`);
+  },
+
   searchFinance(q: string): Promise<ApiResponse<StudentFinanceSearchResult[]>> {
     return apiClient.get<StudentFinanceSearchResult[]>('/students/search', { q });
   },

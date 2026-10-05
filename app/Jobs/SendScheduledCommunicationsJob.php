@@ -58,7 +58,7 @@ class SendScheduledCommunicationsJob implements ShouldQueue
                 : null;
             $planJob = app(\App\Services\CommunicationJobService::class)
                 ->findByTrackingId('scheduled_comm_' . $item->id);
-            $message = $template?->content ?: $planJob?->message;
+            $message = $template?->content ?: ($item->message ?: $planJob?->message);
             $title = $template?->title ?: ($planJob?->title ?: ucfirst($item->type));
 
             if (! $message) {
@@ -69,15 +69,13 @@ class SendScheduledCommunicationsJob implements ShouldQueue
                 continue;
             }
 
-            $recipients = CommunicationHelperService::collectRecipients([
-                'target' => $item->target,
-                'classroom_id' => $item->classroom_id,
-                'classroom_ids' => $item->classroom_ids
-                    ? array_filter(array_map('intval', explode(',', $item->classroom_ids)))
-                    : null,
-            ], $item->type);
+            $filterData = CommunicationHelperService::recipientFiltersFromScheduled($item, $message);
+            $recipients = CommunicationHelperService::collectRecipients($filterData, $item->type);
 
             $pairs = CommunicationHelperService::expandRecipientsToPairs($recipients);
+            $chosenSender = ($item->type === 'sms' && ($item->sender_id ?? null) === 'finance')
+                ? 'finance'
+                : ($item->sender_id ?? null);
 
             // For large batches (>10), dispatch bulk job to avoid timeout
             if (count($pairs) > 10) {
@@ -135,7 +133,7 @@ class SendScheduledCommunicationsJob implements ShouldQueue
                             ];
                         }
                     }
-                    \App\Jobs\BulkSendSMS::dispatch($trackingId, $recipientsData, $message, $title, $item->target, null, null);
+                    \App\Jobs\BulkSendSMS::dispatch($trackingId, $recipientsData, $message, $title, $item->target, $chosenSender, null);
                 }
                 try {
                     app(\App\Services\CommunicationJobService::class)->ensureJob(
@@ -148,7 +146,7 @@ class SendScheduledCommunicationsJob implements ShouldQueue
                         'running',
                         null,
                         $item,
-                        ['target' => $item->target]
+                        ['target' => $item->target, 'sender_id' => $chosenSender, 'fee_balance_only' => (bool) ($filterData['fee_balance_only'] ?? false)]
                     );
                     // Complete the pre-registered scheduled hub row if present
                     if ($planJob && in_array($planJob->status, ['scheduled', 'pending', 'paused'], true)) {
@@ -189,7 +187,10 @@ class SendScheduledCommunicationsJob implements ShouldQueue
                             ?? data_get($whatsAppResponse, 'body.id');
                         $providerStatus = data_get($whatsAppResponse, 'body.status') ?? data_get($whatsAppResponse, 'status');
                     } else {
-                        $smsResponse = $smsService->sendSMS($contact, $personalized);
+                        $smsSender = $chosenSender === 'finance'
+                            ? $smsService->getFinanceSenderId()
+                            : null;
+                        $smsResponse = $smsService->sendSMS($contact, $personalized, $smsSender);
                         $response = $smsResponse;
                         $providerStatus = strtolower(data_get($smsResponse, 'status', 'sent'));
                         $providerId = data_get($smsResponse,'id') 

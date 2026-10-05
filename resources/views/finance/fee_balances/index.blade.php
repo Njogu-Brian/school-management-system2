@@ -91,7 +91,7 @@
         @include('finance.partials.header', [
             'title' => 'Fee Balance Report',
             'icon' => 'bi bi-cash-stack',
-            'subtitle' => 'Track student fee balances and attendance status',
+            'subtitle' => 'Year-wide balances (matches Student Statements), plus attendance',
             'actions' => '
                 <div class="d-flex flex-wrap align-items-center gap-2">
                     <div class="form-check mb-0">

@@ -7,6 +7,8 @@ import {
   useStudentPaymentLink,
   useStudentStatement,
   useStudentStats,
+  useStudentFinancialNotes,
+  useCreateFinancialNote,
   type StudentDetail,
   type StudentSummary,
 } from '@erp/core';
@@ -135,6 +137,10 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const detailQuery = useStudentDetail(studentId);
   const statsQuery = useStudentStats(studentId);
+  const financialNotesQuery = useStudentFinancialNotes(studentId, {
+    enabled: canViewFees && studentId > 0,
+  });
+  const createFinancialNote = useCreateFinancialNote(studentId);
   const statementQuery = useStudentStatement(
     studentId,
     { detailed: true },
@@ -324,6 +330,15 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             onSharePaymentLink={() => void sharePaymentLink()}
             sharePaymentLinkLoading={paymentLinkQuery.isFetching}
             onPromptParent={() => setPromptOpen(true)}
+            financialNotes={financialNotesQuery.data ?? []}
+            financialNotesLoading={financialNotesQuery.isLoading}
+            onAddFinancialNote={async (body) => {
+              try {
+                await createFinancialNote.mutateAsync({ body, scope: 'student' });
+              } catch (e) {
+                showError(e instanceof Error ? e.message : 'Could not save note.');
+              }
+            }}
           />
         );
       case 'family':

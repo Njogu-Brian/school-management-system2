@@ -1534,6 +1534,11 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('fee-structures/import', [FeeStructureController::class, 'processImport'])->name('fee-structures.process-import');
         Route::get('fee-structures/template/download', [FeeStructureController::class, 'downloadTemplate'])->name('fee-structures.download-template');
 
+        // Financial notes (student / family)
+        Route::post('financial-notes', [\App\Http\Controllers\Finance\FinancialNoteController::class, 'store'])->name('financial-notes.store');
+        Route::put('financial-notes/{financialNote}', [\App\Http\Controllers\Finance\FinancialNoteController::class, 'update'])->name('financial-notes.update');
+        Route::delete('financial-notes/{financialNote}', [\App\Http\Controllers\Finance\FinancialNoteController::class, 'destroy'])->name('financial-notes.destroy');
+
         // Legacy finance imports (PDF → staging)
         Route::get('legacy-imports', [LegacyFinanceImportController::class, 'index'])->name('legacy-imports.index');
         Route::post('legacy-imports', [LegacyFinanceImportController::class, 'store'])->name('legacy-imports.store');
@@ -1718,8 +1723,11 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         // Bank Accounts
         Route::resource('bank-accounts', BankAccountController::class)->parameters(['bank-accounts' => 'bankAccount']);
 
-        // Combined Accounts & Payment Methods hub
-        Route::get('accounts-methods', [\App\Http\Controllers\Finance\AccountsMethodsController::class, 'index'])->name('accounts-methods.index');
+        // Payment Settings hub (Bank Accounts | Payment Methods | Legacy Imports)
+        Route::get('payment-settings', [\App\Http\Controllers\Finance\PaymentSettingsController::class, 'index'])->name('payment-settings.index');
+        Route::get('accounts-methods', function () {
+            return redirect()->route('finance.payment-settings.index');
+        })->name('accounts-methods.index');
         
         // Payment Methods
         Route::resource('payment-methods', PaymentMethodController::class)->parameters(['payment-methods' => 'paymentMethod']);
@@ -1838,7 +1846,10 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
 
         // M-PESA Payments
         Route::prefix('mpesa')->name('mpesa.')->group(function () {
-            // Dashboard
+            // Prompt hub (Dashboard | Prompt Parent | Payment Links)
+            Route::get('prompt', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'promptHub'])->name('prompt');
+
+            // Legacy entry points → hub tabs
             Route::get('dashboard', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'dashboard'])->name('dashboard');
             
             // Admin-prompted STK Push

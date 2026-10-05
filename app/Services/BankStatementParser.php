@@ -231,6 +231,26 @@ class BankStatementParser
                     }
                 }
             }
+
+            // STEP 1b: Same description + amount + date (catches draft/no-ref vs collected/with-ref pairs)
+            if (!$isDuplicate && is_string($particulars) && trim($particulars) !== '') {
+                $existingByDesc = BankStatementTransaction::where('description', $particulars)
+                    ->where('amount', $amount)
+                    ->whereDate('transaction_date', $transactionDate)
+                    ->where('is_duplicate', false)
+                    ->first();
+                if ($existingByDesc) {
+                    $isDuplicate = true;
+                    \Log::info('Skipping duplicate bank statement transaction (description match)', [
+                        'description' => $particulars,
+                        'amount' => $amount,
+                        'transaction_date' => $transactionDate,
+                        'existing_transaction_id' => $existingByDesc->id,
+                        'incoming_reference' => $transactionCode,
+                        'existing_reference' => $existingByDesc->reference_number,
+                    ]);
+                }
+            }
             
             // Skip if duplicate found in either transaction table
             if ($isDuplicate) {
@@ -263,6 +283,7 @@ class BankStatementParser
             ]);
 
             // If another transaction already exists with same reference+amount+date (duplicate slipped through), mark this one as duplicate
+            $existingOther = null;
             if ($transactionCode) {
                 $existingOther = BankStatementTransaction::where('reference_number', $transactionCode)
                     ->where('amount', $amount)
@@ -270,24 +291,33 @@ class BankStatementParser
                     ->whereDate('transaction_date', $transactionDate)
                     ->where('is_duplicate', false)
                     ->first();
-                if ($existingOther) {
-                    $update = [
-                        'is_duplicate' => true,
-                        'duplicate_of_payment_id' => $existingOther->payment_id,
-                    ];
-                    if (\Schema::hasColumn('bank_statement_transactions', 'duplicate_of_transaction_id')) {
-                        $update['duplicate_of_transaction_id'] = $existingOther->id;
-                    }
-                    $transaction->update($update);
-                    \Log::info('Marked bank statement transaction as duplicate (post-create check)', [
-                        'transaction_id' => $transaction->id,
-                        'original_id' => $existingOther->id,
-                        'reference_number' => $transactionCode,
-                    ]);
-                    // Skip payment linking and matching for duplicates
-                    $created[] = $transaction->id;
-                    continue;
+            }
+            if (!$existingOther && is_string($particulars) && trim($particulars) !== '') {
+                $existingOther = BankStatementTransaction::where('description', $particulars)
+                    ->where('amount', $amount)
+                    ->where('id', '!=', $transaction->id)
+                    ->whereDate('transaction_date', $transactionDate)
+                    ->where('is_duplicate', false)
+                    ->first();
+            }
+            if ($existingOther) {
+                $update = [
+                    'is_duplicate' => true,
+                    'duplicate_of_payment_id' => $existingOther->payment_id,
+                ];
+                if (\Schema::hasColumn('bank_statement_transactions', 'duplicate_of_transaction_id')) {
+                    $update['duplicate_of_transaction_id'] = $existingOther->id;
                 }
+                $transaction->update($update);
+                \Log::info('Marked bank statement transaction as duplicate (post-create check)', [
+                    'transaction_id' => $transaction->id,
+                    'original_id' => $existingOther->id,
+                    'reference_number' => $transactionCode,
+                    'match' => $transactionCode && $existingOther->reference_number === $transactionCode ? 'reference' : 'description',
+                ]);
+                // Skip payment linking and matching for duplicates
+                $created[] = $transaction->id;
+                continue;
             }
             
             // STEP 3: Check if a payment exists with this transaction reference number

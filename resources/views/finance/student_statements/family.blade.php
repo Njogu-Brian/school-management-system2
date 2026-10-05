@@ -36,6 +36,11 @@
         </form>
     </div>
 
+    @include('finance.partials.financial-notes', [
+        'studentId' => $students->first()?->id,
+        'familyId' => $family->id,
+    ])
+
     <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4">
         <div class="finance-card-header d-flex align-items-center gap-2">
             <i class="bi bi-people"></i> <span>Children Covered</span>

@@ -12,14 +12,9 @@ class PaymentMethodController extends Controller
 {
     public function index()
     {
-        $paymentMethods = PaymentMethod::with('bankAccount')
-            ->orderBy('display_order')
-            ->orderBy('name')
-            ->get();
-        
-        $bankAccounts = BankAccount::active()->get();
-        
-        return view('finance.payment_methods.index', compact('paymentMethods', 'bankAccounts'));
+        session()->reflash();
+
+        return redirect()->route('finance.payment-settings.index', ['tab' => 'payment-methods']);
     }
 
     public function create()

@@ -140,7 +140,8 @@ class CommunicationHelperService
             $out = array_filter($out);
         }
 
-        // Only recipients with fee balance (outstanding due balance > 0)
+        // Only recipients with a real outstanding fee balance.
+        // Excludes cleared (0) and overpaid (credit) statements, and students with nothing yet due.
         if (!empty($data['fee_balance_only'])) {
             $out = array_map(function ($entities) {
                 $filtered = array_filter(self::entitiesFromOutValue($entities), function ($e) {
@@ -148,7 +149,10 @@ class CommunicationHelperService
                         return false;
                     }
 
-                    return StudentBalanceService::getTotalOutstandingBalance($e, true) > 0.01;
+                    $dueOutstanding = StudentBalanceService::getTotalOutstandingBalance($e, true);
+                    $statementOutstanding = StudentBalanceService::getTotalOutstandingBalance($e, false);
+
+                    return $dueOutstanding > 0.01 && $statementOutstanding > 0.01;
                 });
 
                 return self::rebuildOutValue($entities, $filtered);
@@ -493,5 +497,47 @@ class CommunicationHelperService
             'whatsapp' => $parent->schoolNotificationWhatsAppRecipients(),
             default => $parent->schoolNotificationSmsRecipients(),
         };
+    }
+
+    /**
+     * True when the message personalizes fee outstanding / balance placeholders.
+     */
+    public static function messageRequiresOutstandingBalance(?string $message): bool
+    {
+        if (! $message) {
+            return false;
+        }
+
+        return (bool) preg_match(
+            '/\{\{?\s*(outstanding_amount|total_fee_balance|prior_term_balance)\s*\}\}?/i',
+            $message
+        );
+    }
+
+    /**
+     * Recipient filters stored on a scheduled communication (+ auto outstanding filter from message).
+     */
+    public static function recipientFiltersFromScheduled($scheduled, ?string $message = null): array
+    {
+        $feeBalanceOnly = (bool) ($scheduled->fee_balance_only ?? false);
+        if (! $feeBalanceOnly && self::messageRequiresOutstandingBalance($message)) {
+            $feeBalanceOnly = true;
+        }
+
+        return [
+            'target' => $scheduled->target,
+            'classroom_id' => $scheduled->classroom_id,
+            'classroom_ids' => $scheduled->classroom_ids
+                ? array_filter(array_map('intval', explode(',', $scheduled->classroom_ids)))
+                : null,
+            'fee_balance_only' => $feeBalanceOnly,
+            'no_fee_balance_only' => (bool) ($scheduled->no_fee_balance_only ?? false),
+            'exclude_staff' => (bool) ($scheduled->exclude_staff ?? false),
+            'exclude_student_ids' => $scheduled->exclude_student_ids ?? null,
+            'selected_student_ids' => null,
+            'student_id' => null,
+            'custom_numbers' => null,
+            'custom_emails' => null,
+        ];
     }
 }

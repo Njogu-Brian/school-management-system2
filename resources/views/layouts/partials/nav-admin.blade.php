@@ -479,39 +479,20 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     {{-- PAYMENT RELATED --}}
     {{-- ============================================ --}}
     <span class="small text-muted text-uppercase px-3 d-block mt-3 mb-1 fw-bold">Payments</span>
-    
-    {{-- Payment Processing --}}
+
     <a href="{{ route('finance.payments.index') }}" class="{{ Request::is('finance/payments*') && !Request::is('finance/mpesa*') ? 'active' : '' }}"><i class="bi bi-cash-stack"></i> Payments</a>
-    
-    {{-- M-PESA Payments --}}
-    @if(submodule_enabled('finance.mpesa'))
-    @php
-        $mpesaActive = Request::is('finance/mpesa*');
-    @endphp
-    <a href="#mpesaMenu" data-bs-toggle="collapse" aria-expanded="{{ $mpesaActive ? 'true' : 'false' }}" class="{{ $mpesaActive ? 'parent-active' : '' }}"><i class="bi bi-phone text-success"></i> M-PESA Payments</a>
-    <div class="collapse {{ $mpesaActive ? 'show' : '' }}" id="mpesaMenu" style="padding-left: 20px;">
-        <a href="{{ route('finance.mpesa.dashboard') }}" class="sublink {{ Request::is('finance/mpesa/dashboard') ? 'active' : '' }}"><i class="bi bi-speedometer2"></i> Dashboard</a>
-        <a href="{{ route('finance.mpesa.prompt-payment.form') }}" class="sublink {{ Request::is('finance/mpesa/prompt-payment*') ? 'active' : '' }}"><i class="bi bi-phone-vibrate"></i> Prompt Parent to Pay</a>
-        <a href="{{ route('finance.mpesa.links.index') }}" class="sublink {{ Request::is('finance/mpesa/links*') ? 'active' : '' }}"><i class="bi bi-link-45deg"></i> Payment Links</a>
-    </div>
-    @endif
-    
-    {{-- Bank Statements --}}
+
     @if(submodule_enabled('finance.banking'))
-    @php
-        $bankStatementsActive = Request::is('finance/bank-statements*');
-    @endphp
-    <a href="#bankStatementsMenu" data-bs-toggle="collapse" aria-expanded="{{ $bankStatementsActive ? 'true' : 'false' }}" class="{{ $bankStatementsActive ? 'parent-active' : '' }}"><i class="bi bi-file-earmark-pdf"></i> Bank Statements</a>
-    <div class="collapse {{ $bankStatementsActive ? 'show' : '' }}" id="bankStatementsMenu" style="padding-left: 20px;">
-        <a href="{{ route('finance.bank-statements.index') }}" class="sublink {{ Request::is('finance/bank-statements') && !Request::is('finance/bank-statements/create') && !Request::is('finance/bank-statements/statements') ? 'active' : '' }}"><i class="bi bi-list-ul"></i> View Statements & Transactions</a>
-        <a href="{{ route('finance.bank-statements.create') }}" class="sublink {{ Request::is('finance/bank-statements/create') ? 'active' : '' }}"><i class="bi bi-upload"></i> Upload Statement</a>
-    </div>
-    
-    {{-- Payment Setup --}}
-    <a href="{{ route('finance.bank-accounts.index') }}" class="{{ Request::is('finance/bank-accounts*') ? 'active' : '' }}"><i class="bi bi-bank"></i> Bank Accounts</a>
-    <a href="{{ route('finance.payment-methods.index') }}" class="{{ Request::is('finance/payment-methods*') ? 'active' : '' }}"><i class="bi bi-credit-card"></i> Payment Methods</a>
+    <a href="{{ route('finance.bank-statements.index') }}" class="{{ Request::is('finance/bank-statements*') && !Request::is('finance/bank-statements/statements*') && !Request::is('finance/bank-statements/create') ? 'active' : '' }}"><i class="bi bi-list-ul"></i> Transactions</a>
+    <a href="{{ route('finance.bank-statements.statements') }}" class="{{ Request::is('finance/bank-statements/statements*') || Request::is('finance/bank-statements/create') ? 'active' : '' }}"><i class="bi bi-file-earmark-pdf"></i> Statements</a>
     @endif
-    
+
+    @if(submodule_enabled('finance.mpesa'))
+    <a href="{{ route('finance.mpesa.prompt') }}" class="{{ Request::is('finance/mpesa*') ? 'active' : '' }}"><i class="bi bi-phone text-success"></i> Mpesa Prompt</a>
+    @endif
+
+    <a href="{{ route('finance.payment-settings.index') }}" class="{{ Request::is('finance/payment-settings*') || Request::is('finance/bank-accounts*') || Request::is('finance/payment-methods*') || Request::is('finance/legacy-imports*') || Request::is('finance/accounts-methods*') ? 'active' : '' }}"><i class="bi bi-gear"></i> Payment Settings</a>
+
     {{-- Extra income: trips/activities, swimming, uniforms --}}
     @if(submodule_enabled('finance.extra_income'))
     @php
@@ -535,9 +516,6 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
         @endif
     </div>
     @endif
-    
-    {{-- Legacy Imports (Payment Related) --}}
-    <a href="{{ route('finance.legacy-imports.index') }}" class="{{ Request::is('finance/legacy-imports*') ? 'active' : '' }}"><i class="bi bi-upload"></i> Legacy Imports</a>
 
     {{-- ============================================ --}}
     {{-- EXPENSES --}}

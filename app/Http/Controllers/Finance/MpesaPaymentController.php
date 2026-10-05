@@ -56,11 +56,15 @@ class MpesaPaymentController extends Controller
     }
 
     /**
-     * Show admin dashboard for M-PESA payments
+     * M-PESA Prompt hub (Dashboard | Prompt Parent | Payment Links).
      */
-    public function dashboard(Request $request)
+    public function promptHub(Request $request)
     {
-        // Get statistics
+        $tab = $request->get('tab', 'dashboard');
+        if (! in_array($tab, ['dashboard', 'prompt', 'links'], true)) {
+            $tab = 'dashboard';
+        }
+
         $stats = [
             'today_transactions' => PaymentTransaction::where('gateway', 'mpesa')
                 ->whereDate('created_at', today())
@@ -75,37 +79,26 @@ class MpesaPaymentController extends Controller
             'active_payment_links' => PaymentLink::active()->count(),
         ];
 
-        // Validate M-PESA configuration
         $configValidation = $this->mpesaGateway->validateCredentials();
 
-        // Recent transactions
-        $recentTransactions = PaymentTransaction::with(['student', 'invoice'])
+        $dashboardRecentTransactions = PaymentTransaction::with(['student', 'invoice'])
             ->where('gateway', 'mpesa')
             ->latest()
             ->take(20)
             ->get();
 
-        // Active payment links
         $activeLinks = PaymentLink::with(['student', 'invoice'])
             ->active()
             ->latest()
             ->take(10)
             ->get();
 
-        return view('finance.mpesa.dashboard', compact('stats', 'recentTransactions', 'activeLinks', 'configValidation'));
-    }
-
-    /**
-     * Show form to initiate admin-prompted STK push
-     */
-    public function promptPaymentForm(Request $request)
-    {
         $student = null;
         $invoice = null;
         $recentTransactions = collect();
 
         if ($request->filled('student_id')) {
-            $student = Student::with(['family', 'invoices' => function($q) {
+            $student = Student::with(['family', 'invoices' => function ($q) {
                 $q->where('status', '!=', 'paid')->latest();
             }])->findOrFail($request->student_id);
         }
@@ -114,25 +107,97 @@ class MpesaPaymentController extends Controller
             $invoice = Invoice::with('student')->findOrFail($request->invoice_id);
             $student = $invoice->student;
         }
-        
-        // Get recent transactions if student is available
+
         if ($student) {
             $query = PaymentTransaction::with(['invoice'])
                 ->where('gateway', 'mpesa')
                 ->where('student_id', $student->id);
-            
-            // If invoice is specified, filter by invoice as well
+
             if ($invoice) {
-                $query->where(function($q) use ($invoice) {
+                $query->where(function ($q) use ($invoice) {
                     $q->where('invoice_id', $invoice->id)
-                      ->orWhereNull('invoice_id'); // Include transactions without invoice
+                      ->orWhereNull('invoice_id');
                 });
             }
-            
+
             $recentTransactions = $query->latest()->take(5)->get();
         }
 
-        return view('finance.mpesa.prompt-payment', compact('student', 'invoice', 'recentTransactions'));
+        $linksQuery = PaymentLink::with(['student', 'invoice', 'creator', 'family.students']);
+
+        if ($request->filled('status')) {
+            if ($request->status === 'active') {
+                $linksQuery->active();
+            } else {
+                $linksQuery->where('status', $request->status);
+            }
+        }
+
+        if ($request->filled('student_id') && $tab === 'links') {
+            $linksQuery->where('student_id', $request->student_id);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $linksQuery->where(function ($q) use ($search) {
+                $q->where('token', 'like', "%{$search}%")
+                  ->orWhere('payment_reference', 'like', "%{$search}%")
+                  ->orWhereHas('student', function ($q2) use ($search) {
+                      $q2->where('first_name', 'like', "%{$search}%")
+                         ->orWhere('last_name', 'like', "%{$search}%")
+                         ->orWhere('admission_number', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('family.students', function ($q2) use ($search) {
+                      $q2->where('first_name', 'like', "%{$search}%")
+                         ->orWhere('last_name', 'like', "%{$search}%")
+                         ->orWhere('admission_number', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        $links = $linksQuery->latest()->paginate(20)->appends(
+            array_merge($request->except('page'), ['tab' => 'links'])
+        );
+
+        // Dashboard tab expects $recentTransactions as the recent list
+        if ($tab === 'dashboard') {
+            $recentTransactions = $dashboardRecentTransactions;
+        }
+
+        return view('finance.mpesa.prompt-hub', compact(
+            'tab',
+            'stats',
+            'recentTransactions',
+            'activeLinks',
+            'configValidation',
+            'student',
+            'invoice',
+            'links'
+        ));
+    }
+
+    /**
+     * Show admin dashboard for M-PESA payments
+     */
+    public function dashboard(Request $request)
+    {
+        session()->reflash();
+
+        return redirect()->route('finance.mpesa.prompt', ['tab' => 'dashboard']);
+    }
+
+    /**
+     * Show form to initiate admin-prompted STK push
+     */
+    public function promptPaymentForm(Request $request)
+    {
+        session()->reflash();
+
+        return redirect()->route('finance.mpesa.prompt', array_filter([
+            'tab' => 'prompt',
+            'student_id' => $request->get('student_id'),
+            'invoice_id' => $request->get('invoice_id'),
+        ]));
     }
 
     /**
@@ -391,42 +456,12 @@ class MpesaPaymentController extends Controller
      */
     public function listLinks(Request $request)
     {
-        $query = PaymentLink::with(['student', 'invoice', 'creator', 'family.students']);
+        session()->reflash();
 
-        // Apply filters
-        if ($request->filled('status')) {
-            if ($request->status === 'active') {
-                $query->active();
-            } else {
-                $query->where('status', $request->status);
-            }
-        }
-
-        if ($request->filled('student_id')) {
-            $query->where('student_id', $request->student_id);
-        }
-
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('token', 'like', "%{$search}%")
-                  ->orWhere('payment_reference', 'like', "%{$search}%")
-                  ->orWhereHas('student', function($q2) use ($search) {
-                      $q2->where('first_name', 'like', "%{$search}%")
-                         ->orWhere('last_name', 'like', "%{$search}%")
-                         ->orWhere('admission_number', 'like', "%{$search}%");
-                  })
-                  ->orWhereHas('family.students', function($q2) use ($search) {
-                      $q2->where('first_name', 'like', "%{$search}%")
-                         ->orWhere('last_name', 'like', "%{$search}%")
-                         ->orWhere('admission_number', 'like', "%{$search}%");
-                  });
-            });
-        }
-
-        $links = $query->latest()->paginate(20)->appends($request->all());
-
-        return view('finance.mpesa.links', compact('links'));
+        return redirect()->route('finance.mpesa.prompt', array_merge(
+            $request->query(),
+            ['tab' => 'links']
+        ));
     }
 
     /**

@@ -149,15 +149,24 @@ class CommunicationController extends Controller
             return back()->with('error', 'Please select at least one classroom.');
         }
 
+        if (CommunicationHelperService::messageRequiresOutstandingBalance($messageBody)) {
+            $data['fee_balance_only'] = true;
+        }
+
         // === HANDLE SCHEDULED EMAIL ===
         if ($request->schedule === 'later' && $request->send_at) {
             $classroomIds = \App\Services\CommunicationHelperService::normalizeClassroomIds($data);
             $scheduled = ScheduledCommunication::create([
                 'type'          => 'email',
                 'template_id'   => $data['template_id'] ?? null,
+                'message'       => $messageBody,
                 'target'        => $data['target'],
                 'classroom_id'  => $classroomIds[0] ?? null,
                 'classroom_ids' => !empty($classroomIds) ? implode(',', $classroomIds) : null,
+                'fee_balance_only' => !empty($data['fee_balance_only']),
+                'no_fee_balance_only' => !empty($data['no_fee_balance_only']),
+                'exclude_staff' => !empty($data['exclude_staff']),
+                'exclude_student_ids' => $data['exclude_student_ids'] ?? null,
                 'send_at'       => $data['send_at'],
                 'status'        => 'pending',
             ]);
@@ -345,6 +354,10 @@ class CommunicationController extends Controller
             return back()->with('error', 'Message content is required.');
         }
 
+        if (CommunicationHelperService::messageRequiresOutstandingBalance($message)) {
+            $data['fee_balance_only'] = true;
+        }
+
         if (\App\Services\CommunicationPauseService::isPaused() || ! $smsService->hasSufficientCredits(1)) {
             $estimate = $smsService->estimateCost($message, 1);
             $balance = $estimate['balance'];
@@ -363,12 +376,19 @@ class CommunicationController extends Controller
         // === HANDLE SCHEDULED SMS ===
         if ($request->schedule === 'later' && $request->send_at) {
             $classroomIds = \App\Services\CommunicationHelperService::normalizeClassroomIds($data);
+            $senderId = $request->input('sender_id') === 'finance' ? 'finance' : null;
             $scheduled = ScheduledCommunication::create([
                 'type'          => 'sms',
                 'template_id'   => $data['template_id'] ?? null,
+                'message'       => $message,
                 'target'        => $data['target'],
+                'sender_id'     => $senderId,
                 'classroom_id'  => $classroomIds[0] ?? null,
                 'classroom_ids' => !empty($classroomIds) ? implode(',', $classroomIds) : null,
+                'fee_balance_only' => !empty($data['fee_balance_only']),
+                'no_fee_balance_only' => !empty($data['no_fee_balance_only']),
+                'exclude_staff' => !empty($data['exclude_staff']),
+                'exclude_student_ids' => $data['exclude_student_ids'] ?? null,
                 'send_at'       => $data['send_at'],
                 'status'        => 'pending',
             ]);
@@ -654,6 +674,10 @@ class CommunicationController extends Controller
             return back()->with('error', 'Please select at least one classroom.');
         }
 
+        if (CommunicationHelperService::messageRequiresOutstandingBalance($message)) {
+            $data['fee_balance_only'] = true;
+        }
+
         // === HANDLE SCHEDULED WHATSAPP ===
         if ($request->schedule === 'later' && $request->send_at) {
             if ($request->hasFile('media')) {
@@ -663,9 +687,14 @@ class CommunicationController extends Controller
             $scheduled = ScheduledCommunication::create([
                 'type'          => 'whatsapp',
                 'template_id'   => $data['template_id'] ?? null,
+                'message'       => $message,
                 'target'        => $data['target'],
                 'classroom_id'  => $classroomIds[0] ?? null,
                 'classroom_ids' => !empty($classroomIds) ? implode(',', $classroomIds) : null,
+                'fee_balance_only' => !empty($data['fee_balance_only']),
+                'no_fee_balance_only' => !empty($data['no_fee_balance_only']),
+                'exclude_staff' => !empty($data['exclude_staff']),
+                'exclude_student_ids' => $data['exclude_student_ids'] ?? null,
                 'send_at'       => $data['send_at'],
                 'status'        => 'pending',
             ]);
@@ -1357,13 +1386,11 @@ class CommunicationController extends Controller
     ): void {
         try {
             $channel = $scheduled->type === 'whatsapp' ? 'whatsapp' : ($scheduled->type === 'email' ? 'email' : 'sms');
-            $raw = CommunicationHelperService::collectRecipients([
-                'target' => $scheduled->target,
-                'classroom_id' => $scheduled->classroom_id,
-                'classroom_ids' => $scheduled->classroom_ids
-                    ? array_filter(array_map('intval', explode(',', $scheduled->classroom_ids)))
-                    : null,
-            ], $scheduled->type === 'whatsapp' ? 'whatsapp' : $scheduled->type);
+            $filterData = CommunicationHelperService::recipientFiltersFromScheduled($scheduled, $message);
+            $raw = CommunicationHelperService::collectRecipients(
+                $filterData,
+                $scheduled->type === 'whatsapp' ? 'whatsapp' : $scheduled->type
+            );
 
             $pairs = CommunicationHelperService::expandRecipientsToPairs($raw);
             $recipients = [];
@@ -1401,7 +1428,11 @@ class CommunicationController extends Controller
                 $scheduled->send_at,
                 auth()->id(),
                 $scheduled,
-                ['target' => $scheduled->target]
+                [
+                    'target' => $scheduled->target,
+                    'sender_id' => $scheduled->sender_id,
+                    'fee_balance_only' => (bool) ($filterData['fee_balance_only'] ?? false),
+                ]
             );
         } catch (\Throwable $e) {
             \Log::warning('Failed to register scheduled communication job', [

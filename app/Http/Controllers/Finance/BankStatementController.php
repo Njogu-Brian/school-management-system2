@@ -2599,7 +2599,20 @@ class BankStatementController extends Controller
         
         // Check for existing payments
         $ref = $c2bTransaction->trans_id;
-        
+
+        // Serialize collect attempts for the same M-Pesa TransID (double-click / confirm+create).
+        $lock = \Illuminate\Support\Facades\Cache::lock('c2b-collect-' . $ref, 30);
+
+        return $lock->block(15, function () use ($c2bTransaction, $ref) {
+            return $this->createPaymentForC2BLocked($c2bTransaction, $ref);
+        });
+    }
+
+    /**
+     * Inner C2B payment creator (must run under c2b-collect-{trans_id} lock).
+     */
+    protected function createPaymentForC2BLocked($c2bTransaction, string $ref)
+    {
         // Shared allocations: create a payment per student
         if ($c2bTransaction->is_shared && !empty($c2bTransaction->shared_allocations)) {
             $allocations = $c2bTransaction->shared_allocations;
@@ -2623,12 +2636,17 @@ class BankStatementController extends Controller
                 }
 
                 $student = Student::findOrFail($studentId);
-                $baseCode = $index === 0 ? $ref : $ref . '-' . ($index + 1);
-                $transactionCode = $this->ensureUniqueTransactionCode($baseCode, $studentId);
 
-                $existingPayment = \App\Models\Payment::where('transaction_code', $transactionCode)
-                    ->where('student_id', $studentId)
+                // Idempotent: if this student already has an active payment for this TransID, reuse it.
+                // Do NOT mint -R- suffixes for active sibling splits (that caused Noel/Ivanna double-post).
+                $existingPayment = \App\Models\Payment::where('student_id', $studentId)
                     ->where('reversed', false)
+                    ->where(function ($q) use ($ref) {
+                        $q->where('transaction_code', $ref)
+                          ->orWhere('transaction_code', 'LIKE', $ref . '-%')
+                          ->orWhere('base_transaction_code', $ref);
+                    })
+                    ->orderBy('id')
                     ->first();
 
                 if ($existingPayment) {
@@ -2639,22 +2657,9 @@ class BankStatementController extends Controller
                     continue;
                 }
 
-                $anyPaymentWithCode = \App\Models\Payment::withTrashed()
-                    ->where('transaction_code', $transactionCode)
-                    ->where('student_id', $studentId)
-                    ->first();
-                if ($anyPaymentWithCode) {
-                    $baseCode = $transactionCode . '-R';
-                    $transactionCode = $baseCode;
-                    $attempt = 0;
-                    while (\App\Models\Payment::withTrashed()
-                        ->where('transaction_code', $transactionCode)
-                        ->where('student_id', $studentId)
-                        ->exists() && $attempt < 5) {
-                        $transactionCode = $baseCode . '-' . time() . '-' . rand(100, 999);
-                        $attempt++;
-                    }
-                }
+                $baseCode = $index === 0 ? $ref : $ref . '-' . ($index + 1);
+                // Only mint a new code when the base is taken by a reversed/trashed row.
+                $transactionCode = $this->ensureUniqueTransactionCode($baseCode, $studentId, true);
 
                 $payment = \App\Models\Payment::create([
                     'student_id' => $student->id,
@@ -2694,7 +2699,8 @@ class BankStatementController extends Controller
         $existingPayment = \App\Models\Payment::where('reversed', false)
             ->where(function ($q) use ($ref) {
                 $q->where('transaction_code', $ref)
-                  ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                  ->orWhere('transaction_code', 'LIKE', $ref . '-%')
+                  ->orWhere('base_transaction_code', $ref);
             })
             ->first();
         
@@ -2713,7 +2719,7 @@ class BankStatementController extends Controller
             throw new \Exception('Student not found for C2B transaction');
         }
         
-        $transactionCode = $this->ensureUniqueTransactionCode($ref, $student->id);
+        $transactionCode = $this->ensureUniqueTransactionCode($ref, $student->id, true);
         
         $payment = \App\Models\Payment::create([
             'student_id' => $student->id,
@@ -2742,8 +2748,25 @@ class BankStatementController extends Controller
         return $payment;
     }
 
-    protected function ensureUniqueTransactionCode(string $baseCode, int $studentId): string
+    /**
+     * Pick a transaction_code for a new payment row.
+     * When $onlyIfNoActive is true and an active payment already uses the base code
+     * for this student, returns null via exception — callers must reuse the active payment.
+     */
+    protected function ensureUniqueTransactionCode(string $baseCode, int $studentId, bool $allowRetrySuffixForReversedOnly = false): string
     {
+        $activeExists = \App\Models\Payment::where('transaction_code', $baseCode)
+            ->where('student_id', $studentId)
+            ->where('reversed', false)
+            ->exists();
+
+        if ($activeExists) {
+            // Caller should have reused the active payment. Never invent -R- for active rows.
+            throw new \RuntimeException(
+                "Active payment already exists for transaction code {$baseCode} (student {$studentId})."
+            );
+        }
+
         $exists = \App\Models\Payment::withTrashed()
             ->where('transaction_code', $baseCode)
             ->where('student_id', $studentId)
@@ -2752,8 +2775,12 @@ class BankStatementController extends Controller
             return $baseCode;
         }
 
-        $suffix = 'R-' . time();
-        $code = $baseCode . '-' . $suffix;
+        // Base code only exists on reversed/trashed rows — safe to mint a replacement suffix.
+        if (!$allowRetrySuffixForReversedOnly) {
+            return $baseCode . '-R-' . time();
+        }
+
+        $code = $baseCode . '-R-' . time();
         $attempt = 0;
         while (\App\Models\Payment::withTrashed()
             ->where('transaction_code', $code)
@@ -3016,18 +3043,39 @@ class BankStatementController extends Controller
         // Allow creating missing payments even if payment_created is true (partial collection)
         $activePayments = collect();
         $remainingAmount = null;
-        if (!$isC2B && $bankStatement->reference_number) {
+        if ($bankStatement->reference_number) {
             $ref = $bankStatement->reference_number;
             $activePayments = \App\Models\Payment::where('reversed', false)
                 ->whereNull('deleted_at')
                 ->where(function ($q) use ($ref) {
                     $q->where('transaction_code', $ref)
-                      ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                      ->orWhere('transaction_code', 'LIKE', $ref . '-%')
+                      ->orWhere('base_transaction_code', $ref);
                 })
                 ->get();
             $remainingAmount = max(0, (float) $bankStatement->amount - (float) $activePayments->sum('amount'));
         }
         
+        // Fully collected (including shared sibling splits) — never create -R- duplicates.
+        if ($remainingAmount !== null && $remainingAmount <= 0.01 && $activePayments->isNotEmpty()) {
+            $firstActive = $activePayments->first();
+            if ($firstActive && !$transaction->payment_id) {
+                if ($isC2B) {
+                    $transaction->update([
+                        'payment_id' => $firstActive->id,
+                        'status' => 'processed',
+                    ]);
+                } else {
+                    $transaction->update([
+                        'payment_id' => $firstActive->id,
+                        'payment_created' => true,
+                    ]);
+                }
+            }
+            return redirect()->back()
+                ->withErrors(['error' => 'Payment already exists for this transaction.']);
+        }
+
         if ($bankStatement->payment_created && $remainingAmount !== null && $remainingAmount <= 0.01) {
             return redirect()->back()
                 ->withErrors(['error' => 'Payment already exists for this transaction.']);

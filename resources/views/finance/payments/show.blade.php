@@ -11,6 +11,7 @@
     ])
 
     @include('finance.invoices.partials.alerts')
+    @include('finance.partials.financial-notes', ['student' => $payment->student])
     @php
         // Use live allocation totals to avoid stale cached fields
         $actualAllocatedAmount = $payment->reversed ? 0 : (float) ($payment->allocations->sum('amount') ?? 0);

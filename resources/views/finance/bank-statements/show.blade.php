@@ -9,6 +9,16 @@
     ])
 
     @include('finance.invoices.partials.alerts')
+
+    @php
+        $fnStudent = $bankStatement->student
+            ?? ($bankStatement->student_id ? \App\Models\Student::withArchived()->find($bankStatement->student_id) : null);
+        if (!$fnStudent && !empty($bankStatement->payment_id)) {
+            $fnPayment = \App\Models\Payment::with('student')->find($bankStatement->payment_id);
+            $fnStudent = $fnPayment?->student;
+        }
+    @endphp
+    @include('finance.partials.financial-notes', ['student' => $fnStudent])
     
     @if(session('receipt_ids'))
         <script>

@@ -20,7 +20,6 @@
 
 <form method="POST" action="{{ route('communication.send.sms.submit') }}" class="row g-4">
     @csrf
-    <input type="hidden" name="sender_id" value="{{ env('SMS_SENDER_ID', config('app.name')) }}">
 
     {{-- Template mode --}}
     <div class="col-lg-4 sms-mode sms-mode-template">
@@ -63,10 +62,10 @@
     <div class="col-lg-4">
         <label class="form-label fw-semibold">Sender ID</label>
         <select name="sender_id" class="form-select">
-            <option value="">Default ({{ config('services.sms.sender_id', 'ROYAL_KINGS') }})</option>
-            <option value="finance">Finance ({{ config('services.sms.sender_id_finance', 'rks_finance') }})</option>
+            <option value="" {{ old('sender_id', '') === '' ? 'selected' : '' }}>Default ({{ config('services.sms.sender_id', 'ROYAL_KINGS') }})</option>
+            <option value="finance" {{ old('sender_id') === 'finance' ? 'selected' : '' }}>Finance ({{ config('services.sms.sender_id_finance', 'RKS_FINANCE') }})</option>
         </select>
-        <small class="text-muted d-block mt-1">Finance communications? pick Finance sender.</small>
+        <small class="text-muted d-block mt-1">Finance communications? pick Finance sender. Selection is kept for scheduled sends.</small>
     </div>
 
     @include('communication.partials.name-style-field', ['nameStyleIdPrefix' => 'sms_name_style'])

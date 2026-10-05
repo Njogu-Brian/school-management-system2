@@ -14,9 +14,15 @@
     </td>
     <td class="text-end">
         <strong>Ksh {{ number_format($student['total_invoiced'], 2) }}</strong>
+        @if(isset($student['term_invoiced']) && (float) $student['term_invoiced'] !== (float) $student['total_invoiced'])
+            <br><small class="text-muted">Term: {{ number_format($student['term_invoiced'], 2) }}</small>
+        @endif
     </td>
     <td class="text-end text-success">
         <strong>Ksh {{ number_format($student['total_paid'], 2) }}</strong>
+        @if(isset($student['term_paid']) && (float) $student['term_paid'] !== (float) $student['total_paid'])
+            <br><small class="text-muted">Term: {{ number_format($student['term_paid'], 2) }}</small>
+        @endif
     </td>
     <td class="text-end">
         <strong class="{{ $student['balance'] > 0 ? 'text-danger' : 'text-success' }}">
@@ -24,6 +30,11 @@
         </strong>
         @if($student['balance'] > 0 && $student['total_invoiced'] > 0)
             <br><small class="text-muted">{{ $student['balance_percentage'] }}% owing</small>
+        @elseif($student['balance'] < 0)
+            <br><small class="text-success">Credit / overpaid</small>
+        @endif
+        @if(isset($student['term_balance']) && (float) $student['term_balance'] !== (float) $student['balance'])
+            <br><small class="text-muted">Term bal: {{ number_format($student['term_balance'], 2) }}</small>
         @endif
     </td>
     <td class="text-center">

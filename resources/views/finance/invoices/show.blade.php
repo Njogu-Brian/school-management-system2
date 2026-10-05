@@ -34,6 +34,8 @@
         $student = $invoice->student;
     @endphp
 
+    @include('finance.partials.financial-notes', ['student' => $student])
+
     <div class="finance-card finance-animate mb-4 mt-4 shadow-sm rounded-4 border-0">
         <div class="finance-card-body p-4">
     @includeIf('finance.invoices.partials.alerts')

@@ -14,6 +14,7 @@ use App\Models\Academics\Classroom;
 use App\Models\Votehead;
 use App\Models\InvoiceItem;
 use App\Services\StudentBalanceService;
+use App\Services\StudentFeeStatementService;
 use App\Services\PDFExportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -69,20 +70,26 @@ class FeeBalanceController extends Controller
         // Get balance brought forward votehead
         $balanceBroughtForwardVotehead = Votehead::where('code', 'BAL_BF')->first();
         
+        $statementService = app(StudentFeeStatementService::class);
+
         // Enrich each student with financial and attendance data
-        $enrichedStudents = $students->map(function ($student) use ($year, $termNumber, $termId, $selectedTerm, $balanceStatus, $attendanceFilter, $paymentPlanFilter, $balanceBroughtForwardVotehead) {
-            // Get invoice for this term (use term_id when available for alignment with Admin Dashboard)
+        $enrichedStudents = $students->map(function ($student) use ($year, $termNumber, $termId, $selectedTerm, $balanceStatus, $attendanceFilter, $paymentPlanFilter, $balanceBroughtForwardVotehead, $statementService) {
+            // Term invoice (for payment plans / BBF status context)
             $invoice = Invoice::where('student_id', $student->id)
                 ->when($termId, fn($q) => $q->where('term_id', $termId))
                 ->when(!$termId, fn($q) => $q->where('year', $year)->where('term', $termNumber))
                 ->first();
-            
-            $totalInvoiced = $invoice ? $invoice->total : 0;
-            $totalPaid = $invoice ? $invoice->paid_amount : 0;
-            $balance = $invoice ? $invoice->balance : 0;
+
+            // Year-wide figures must match Student Statements (not single-term invoice only).
+            // Prior-term arrears + overpayments were previously invisible here (e.g. Alex Kirika).
+            $yearPack = $statementService->forStudent($student, (int) $year, null);
+            $totalInvoiced = (float) ($yearPack['total_charges'] ?? 0);
+            $totalPaid = (float) ($yearPack['total_payments'] ?? 0);
+            $balance = (float) ($yearPack['closing_balance'] ?? 0);
+            $termBalance = $invoice ? (float) $invoice->balance : 0;
             
             // Get balance brought forward information
-            $balanceBroughtForwardData = $this->getBalanceBroughtForwardData($student, $balanceBroughtForwardVotehead, $invoice, $balance);
+            $balanceBroughtForwardData = $this->getBalanceBroughtForwardData($student, $balanceBroughtForwardVotehead, $invoice, $termBalance);
             
             // Get attendance data since term start
             $termStartDate = $selectedTerm?->opening_date ?? Carbon::now()->startOfMonth();
@@ -113,7 +120,10 @@ class FeeBalanceController extends Controller
                 'total_invoiced' => $totalInvoiced,
                 'total_paid' => $totalPaid,
                 'balance' => $balance,
-                'balance_percentage' => $totalInvoiced > 0 ? round(($balance / $totalInvoiced) * 100, 1) : 0,
+                'term_balance' => $termBalance,
+                'term_invoiced' => $invoice ? (float) $invoice->total : 0,
+                'term_paid' => $invoice ? (float) $invoice->paid_amount : 0,
+                'balance_percentage' => $totalInvoiced > 0 ? round((max($balance, 0) / $totalInvoiced) * 100, 1) : 0,
                 'payment_status' => $this->getPaymentStatus($totalInvoiced, $totalPaid, $balance),
                 'attendance_days' => $attendanceData['total_days'],
                 'days_present' => $attendanceData['present'],

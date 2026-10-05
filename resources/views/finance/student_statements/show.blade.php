@@ -70,6 +70,8 @@
         </div>
     </div>
 
+    @include('finance.partials.financial-notes', ['student' => $student])
+
     {{-- Summary --}}
     <div class="row g-3 mb-4">
         <div class="col-md-3">

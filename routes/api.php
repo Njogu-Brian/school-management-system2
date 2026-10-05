@@ -273,6 +273,9 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::get('/students/{student}/academic-summary', [\App\Http\Controllers\Api\ApiStudentAssessmentController::class, 'academicSummary']);
     Route::get('/students/{id}/attendance-calendar', [\App\Http\Controllers\Api\ApiStudentController::class, 'attendanceCalendar']);
     Route::get('/students/{id}/statement', [\App\Http\Controllers\Api\ApiStudentStatementController::class, 'show']);
+    Route::get('/students/{id}/financial-notes', [\App\Http\Controllers\Api\ApiFinancialNoteController::class, 'index']);
+    Route::post('/students/{id}/financial-notes', [\App\Http\Controllers\Api\ApiFinancialNoteController::class, 'store']);
+    Route::delete('/students/{id}/financial-notes/{financialNote}', [\App\Http\Controllers\Api\ApiFinancialNoteController::class, 'destroy']);
     Route::get('/students/{id}/profile-update-link', [\App\Http\Controllers\Api\ApiStudentWriteController::class, 'profileUpdateLink']);
     Route::post('/students/{id}/update', [\App\Http\Controllers\Api\ApiStudentWriteController::class, 'update']);
     Route::post('/students/{id}/mpesa/prompt', [\App\Http\Controllers\Api\ApiMpesaPaymentController::class, 'prompt']);

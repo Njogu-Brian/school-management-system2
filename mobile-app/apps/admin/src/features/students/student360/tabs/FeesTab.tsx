@@ -1,8 +1,25 @@
 import { EmptyState, StudentSummaryWidgets, type StudentSummaryWidgetData, useTheme } from '@erp/ui';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useMemo } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { formatDateLabel, formatKes } from '../utils/formatters';
+
+export type FinancialNoteItem = {
+  id: number;
+  body: string;
+  promise_date: string | null;
+  is_pinned: boolean;
+  scope: 'student' | 'family';
+  created_by: string | null;
+  created_at: string | null;
+};
 
 export interface FeesTabProps {
   canViewFees: boolean;
@@ -19,6 +36,9 @@ export interface FeesTabProps {
   onSharePaymentLink?: () => void;
   sharePaymentLinkLoading?: boolean;
   onPromptParent?: () => void;
+  financialNotes?: FinancialNoteItem[];
+  onAddFinancialNote?: (body: string) => Promise<void> | void;
+  financialNotesLoading?: boolean;
 }
 
 export const FeesTab: React.FC<FeesTabProps> = ({
@@ -36,8 +56,13 @@ export const FeesTab: React.FC<FeesTabProps> = ({
   onSharePaymentLink,
   sharePaymentLinkLoading,
   onPromptParent,
+  financialNotes = [],
+  onAddFinancialNote,
+  financialNotesLoading,
 }) => {
   const { palette, colors, spacing, typography } = useTheme();
+  const [noteDraft, setNoteDraft] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
 
   const widgets = useMemo(
     (): StudentSummaryWidgetData[] => [
@@ -117,6 +142,76 @@ export const FeesTab: React.FC<FeesTabProps> = ({
           ) : null}
         </View>
       ) : null}
+
+      <Section title="Financial notes" palette={palette} typography={typography} spacing={spacing}>
+        {financialNotesLoading ? (
+          <ActivityIndicator color={colors.primary} />
+        ) : financialNotes.length === 0 ? (
+          <Text style={{ color: palette.textSub, fontSize: typography.caption.fontSize }}>
+            No financial notes yet.
+          </Text>
+        ) : (
+          financialNotes.slice(0, 8).map((note) => (
+            <View
+              key={note.id}
+              style={[styles.row, { borderBottomColor: palette.border, alignItems: 'flex-start' }]}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: palette.textMain, fontSize: typography.body.fontSize }}>
+                  {note.body}
+                </Text>
+                <Text style={{ color: palette.textSub, fontSize: typography.caption.fontSize }}>
+                  {[
+                    note.scope === 'family' ? 'Family' : 'Student',
+                    note.promise_date ? `Promise ${note.promise_date}` : null,
+                    note.created_by,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </Text>
+              </View>
+            </View>
+          ))
+        )}
+        {onAddFinancialNote ? (
+          <View style={{ marginTop: spacing.sm, gap: 8 }}>
+            <TextInput
+              value={noteDraft}
+              onChangeText={setNoteDraft}
+              placeholder="Add note (promise date, follow-up…)"
+              placeholderTextColor={palette.textSub}
+              multiline
+              style={{
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: palette.border,
+                borderRadius: 8,
+                padding: 10,
+                minHeight: 64,
+                color: palette.textMain,
+                fontSize: typography.body.fontSize,
+              }}
+            />
+            <Pressable
+              disabled={savingNote || !noteDraft.trim()}
+              onPress={async () => {
+                const body = noteDraft.trim();
+                if (!body) return;
+                setSavingNote(true);
+                try {
+                  await onAddFinancialNote(body);
+                  setNoteDraft('');
+                } finally {
+                  setSavingNote(false);
+                }
+              }}
+            >
+              <Text style={{ color: colors.primary, fontWeight: '700' }}>
+                {savingNote ? 'Saving…' : 'Save note'}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+      </Section>
 
       <Section title="Invoices" palette={palette} typography={typography} spacing={spacing}>
         {invoices.length === 0 ? (
