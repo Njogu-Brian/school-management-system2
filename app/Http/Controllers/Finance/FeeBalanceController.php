@@ -18,7 +18,9 @@ use App\Services\StudentBalanceService;
 use App\Services\StudentFeeStatementService;
 use App\Services\PDFExportService;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -393,6 +395,21 @@ class FeeBalanceController extends Controller
         
         $displayStudents = $displayStudents->sortBy($sortBy, SORT_REGULAR, $sortOrder === 'desc')->values();
         $familyGroups = $this->buildFamilyGroups($displayStudents);
+
+        // Paginate family/student cards (20 per page) so the page does not render everything at once.
+        $perPage = 20;
+        $page = max(1, (int) $request->input('page', 1));
+        $familyGroupsTotal = $familyGroups->count();
+        $familyGroups = new LengthAwarePaginator(
+            $familyGroups->forPage($page, $perPage)->values(),
+            $familyGroupsTotal,
+            $perPage,
+            $page,
+            [
+                'path' => $request->url(),
+                'query' => $request->query(),
+            ]
+        );
         
         // Get classrooms and terms for filter (align with Admin Dashboard)
         $classrooms = Classroom::orderBy('name')->get();
@@ -579,6 +596,125 @@ class FeeBalanceController extends Controller
         }
 
         return back()->with('success', 'Family fiscal task updated.');
+    }
+
+    /**
+     * Batch-save fiscal task colours and promise dates from the fee balance report.
+     */
+    public function batchUpdateTasks(Request $request)
+    {
+        $validated = $request->validate([
+            'redirect_to' => 'nullable|string|max:500',
+            'families' => 'nullable|array',
+            'families.*.fiscal_task' => 'nullable|in:green,yellow,red',
+            'families.*.promise_date' => 'nullable|date',
+            'families.*.current_promise_date' => 'nullable|date',
+            'students' => 'nullable|array',
+            'students.*.fiscal_task' => 'nullable|in:green,yellow,red',
+            'students.*.promise_date' => 'nullable|date',
+            'students.*.current_promise_date' => 'nullable|date',
+            'students.*.family_id' => 'nullable|integer|exists:families,id',
+        ]);
+
+        $userId = Auth::id();
+        $taskUpdates = 0;
+        $promiseUpdates = 0;
+
+        foreach ($validated['families'] ?? [] as $familyId => $row) {
+            $family = \App\Models\Family::find((int) $familyId);
+            if (!$family) {
+                continue;
+            }
+
+            $task = !empty($row['fiscal_task']) ? $row['fiscal_task'] : null;
+            $normalized = $this->normalizeFiscalTask($task);
+            $current = $this->normalizeFiscalTask($family->fiscal_task);
+            if ($normalized !== $current) {
+                $family->fiscal_task = $task;
+                $family->save();
+                Student::where('family_id', $family->id)->update(['fiscal_task' => $task]);
+                $taskUpdates++;
+            }
+
+            $promiseDate = $row['promise_date'] ?? null;
+            $currentPromise = $row['current_promise_date'] ?? null;
+            if ($promiseDate && $promiseDate !== $currentPromise) {
+                FinancialNote::create([
+                    'student_id' => null,
+                    'family_id' => $family->id,
+                    'body' => 'Promise date set from Fee Balance Report.',
+                    'promise_date' => $promiseDate,
+                    'is_pinned' => false,
+                    'created_by' => $userId,
+                    'updated_by' => $userId,
+                ]);
+                $promiseUpdates++;
+            }
+        }
+
+        foreach ($validated['students'] ?? [] as $studentId => $row) {
+            $student = Student::find((int) $studentId);
+            if (!$student) {
+                continue;
+            }
+
+            $familyId = !empty($row['family_id']) ? (int) $row['family_id'] : ($student->family_id ? (int) $student->family_id : null);
+            $task = !empty($row['fiscal_task']) ? $row['fiscal_task'] : null;
+            $normalized = $this->normalizeFiscalTask($task);
+
+            if ($familyId) {
+                $family = \App\Models\Family::find($familyId);
+                $current = $this->normalizeFiscalTask($family?->fiscal_task);
+                if ($family && $normalized !== $current) {
+                    $family->fiscal_task = $task;
+                    $family->save();
+                    Student::where('family_id', $familyId)->update(['fiscal_task' => $task]);
+                    $taskUpdates++;
+                }
+            } else {
+                $current = $this->normalizeFiscalTask($student->fiscal_task);
+                if ($normalized !== $current) {
+                    $student->fiscal_task = $task;
+                    $student->save();
+                    $taskUpdates++;
+                }
+            }
+
+            $promiseDate = $row['promise_date'] ?? null;
+            $currentPromise = $row['current_promise_date'] ?? null;
+            if ($promiseDate && $promiseDate !== $currentPromise) {
+                FinancialNote::create([
+                    'student_id' => $student->id,
+                    'family_id' => $familyId,
+                    'body' => 'Promise date set from Fee Balance Report.',
+                    'promise_date' => $promiseDate,
+                    'is_pinned' => false,
+                    'created_by' => $userId,
+                    'updated_by' => $userId,
+                ]);
+                $promiseUpdates++;
+            }
+        }
+
+        $message = 'Saved.';
+        if ($taskUpdates || $promiseUpdates) {
+            $parts = [];
+            if ($taskUpdates) {
+                $parts[] = $taskUpdates . ' status' . ($taskUpdates === 1 ? '' : 'es');
+            }
+            if ($promiseUpdates) {
+                $parts[] = $promiseUpdates . ' promise date' . ($promiseUpdates === 1 ? '' : 's');
+            }
+            $message = 'Updated ' . implode(' and ', $parts) . '.';
+        } else {
+            $message = 'No changes to save.';
+        }
+
+        if (!empty($validated['redirect_to'])) {
+            return redirect($validated['redirect_to'])->with('success', $message);
+        }
+
+        return back()->with('success', $message);
     }
 
     private function normalizeFiscalTask(?string $value): string

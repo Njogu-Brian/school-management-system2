@@ -8,6 +8,9 @@
     $groupTask = $group['fiscal_task'] ?? 'none';
     $groupTaskLabel = $fiscalLabels[$groupTask] ?? '—';
     $lastPromised = $group['last_promised'] ?? null;
+    $lastPromisedValue = $lastPromised instanceof \Carbon\Carbon
+        ? $lastPromised->format('Y-m-d')
+        : ($lastPromised ? \Carbon\Carbon::parse($lastPromised)->format('Y-m-d') : '');
     $isFamily = !empty($group['is_family']);
     $childNames = $group['child_names'] ?? [];
     $parentNames = $group['parent_names'] ?? [];
@@ -48,35 +51,31 @@
 
                 <div class="fee-family-controls d-flex flex-wrap gap-2 align-items-center mt-2">
                     @if($familyId)
-                        <form method="POST" action="{{ route('finance.fee-balances.family-fiscal-task', $familyId) }}" class="fee-promise-form">
-                            @csrf
-                            <input type="hidden" name="redirect_to" value="{{ url()->full() }}">
+                        <div class="fee-promise-form">
                             <label class="visually-hidden" for="family-fiscal-{{ $familyId }}">Family fiscal task</label>
-                            <select id="family-fiscal-{{ $familyId }}" name="fiscal_task" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <select
+                                id="family-fiscal-{{ $familyId }}"
+                                name="families[{{ $familyId }}][fiscal_task]"
+                                class="form-select form-select-sm"
+                            >
                                 <option value="" {{ $groupTask === 'none' ? 'selected' : '' }}>Family task: unset</option>
                                 <option value="green" {{ $groupTask === 'green' ? 'selected' : '' }}>Green</option>
                                 <option value="yellow" {{ $groupTask === 'yellow' ? 'selected' : '' }}>Yellow</option>
                                 <option value="red" {{ $groupTask === 'red' ? 'selected' : '' }}>Red</option>
                             </select>
-                        </form>
+                        </div>
 
-                        <form method="POST" action="{{ route('finance.financial-notes.store') }}" class="fee-promise-form">
-                            @csrf
-                            <input type="hidden" name="family_id" value="{{ $familyId }}">
-                            <input type="hidden" name="redirect_to" value="{{ url()->full() }}">
+                        <div class="fee-promise-form">
+                            <input type="hidden" name="families[{{ $familyId }}][current_promise_date]" value="{{ $lastPromisedValue }}">
                             <label class="visually-hidden" for="family-promise-{{ $familyId }}">Family promise date</label>
                             <input
                                 type="date"
                                 id="family-promise-{{ $familyId }}"
-                                name="promise_date"
+                                name="families[{{ $familyId }}][promise_date]"
                                 class="form-control form-control-sm"
-                                value="{{ $lastPromised instanceof \Carbon\Carbon ? $lastPromised->format('Y-m-d') : ($lastPromised ? \Carbon\Carbon::parse($lastPromised)->format('Y-m-d') : '') }}"
-                                required
+                                value="{{ $lastPromisedValue }}"
                             >
-                            <button type="submit" class="btn btn-sm btn-outline-primary" title="Save family promise date">
-                                <i class="bi bi-save"></i> Promise
-                            </button>
-                        </form>
+                        </div>
                     @endif
                 </div>
             </div>

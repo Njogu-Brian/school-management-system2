@@ -112,6 +112,32 @@
             gap: 12px;
         }
 
+        .fee-batch-bar {
+            position: sticky;
+            bottom: 0;
+            z-index: 20;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-top: 16px;
+            padding: 14px 16px;
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid var(--fin-border);
+            border-radius: 12px;
+            box-shadow: 0 -6px 20px rgba(15, 23, 42, 0.08);
+            backdrop-filter: blur(6px);
+        }
+        .fee-batch-bar .fee-batch-hint {
+            color: var(--fin-muted, #64748b);
+            font-size: 0.9rem;
+            margin: 0;
+        }
+        .fee-pagination {
+            margin-top: 12px;
+        }
+
         .fee-entity-card {
             background: var(--fin-surface);
             border: 1px solid var(--fin-border);
@@ -575,17 +601,44 @@
             </form>
         </div>
 
-        {{-- Family / student cards --}}
-        <div class="fee-list finance-animate">
-            @forelse(($familyGroups ?? collect()) as $group)
-                @include('finance.fee_balances.partials.family_group', ['group' => $group])
-            @empty
-                <div class="text-center py-5 finance-card rounded-4 border-0">
-                    <i class="bi bi-inbox fs-1 text-muted"></i>
-                    <p class="text-muted mt-2 mb-0">No students found matching your criteria.</p>
+        {{-- Family / student cards — batch form for status + promise dates --}}
+        <form method="POST" action="{{ route('finance.fee-balances.batch-tasks') }}" id="fee-balance-batch-form">
+            @csrf
+            <input type="hidden" name="redirect_to" value="{{ url()->full() }}">
+
+            <div class="fee-list finance-animate">
+                @forelse(($familyGroups ?? collect()) as $group)
+                    @include('finance.fee_balances.partials.family_group', ['group' => $group])
+                @empty
+                    <div class="text-center py-5 finance-card rounded-4 border-0">
+                        <i class="bi bi-inbox fs-1 text-muted"></i>
+                        <p class="text-muted mt-2 mb-0">No students found matching your criteria.</p>
+                    </div>
+                @endforelse
+            </div>
+
+            @if(($familyGroups ?? collect())->count() > 0)
+                <div class="fee-batch-bar">
+                    <p class="fee-batch-hint mb-0">
+                        Set fiscal status and promise dates above, then save once.
+                        @if($familyGroups instanceof \Illuminate\Pagination\LengthAwarePaginator)
+                            Showing {{ $familyGroups->firstItem() }}–{{ $familyGroups->lastItem() }}
+                            of {{ $familyGroups->total() }} families/students
+                            ({{ $familyGroups->perPage() }} per page).
+                        @endif
+                    </p>
+                    <button type="submit" class="btn btn-finance btn-finance-primary">
+                        <i class="bi bi-save"></i> Save status &amp; dates
+                    </button>
                 </div>
-            @endforelse
-        </div>
+            @endif
+
+            @if($familyGroups instanceof \Illuminate\Pagination\LengthAwarePaginator && $familyGroups->hasPages())
+                <div class="fee-pagination d-flex justify-content-center">
+                    {{ $familyGroups->links() }}
+                </div>
+            @endif
+        </form>
 
         {{-- Legend --}}
         <div class="alert alert-info border-0 mt-4">
@@ -602,8 +655,8 @@
                 <div class="col-md-6">
                     <ul class="mb-0">
                         <li><strong>Term invoiced / paid in term:</strong> Selected term invoice vs cash dated in term</li>
-                        <li><strong>Fiscal Task / Promise:</strong> Shared per family (set once on the family header)</li>
-                        <li><strong>All tab:</strong> Students with outstanding &gt; 0 only</li>
+                        <li><strong>Fiscal Task / Promise:</strong> Shared per family — edit on this page, then use <em>Save status &amp; dates</em></li>
+                        <li><strong>All tab:</strong> Students with outstanding &gt; 0 only · 20 per page</li>
                         <li><strong>Term Start:</strong> {{ $currentTerm?->opening_date ? $currentTerm->opening_date->format('M d, Y') : 'Not set' }}</li>
                     </ul>
                 </div>
