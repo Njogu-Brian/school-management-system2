@@ -482,7 +482,7 @@
                 @csrf
                 <div id="bulkArchiveTransactionIdsContainer"></div>
                 <button type="button" class="btn btn-finance btn-finance-secondary" onclick="bulkArchive()" id="bulkArchiveBtn" style="display: none;">
-                    <i class="bi bi-archive"></i> Archive Selected Unmatched
+                    <i class="bi bi-archive"></i> Archive Selected
                 </button>
             </form>
             @endif
@@ -578,7 +578,7 @@
                             $txnMatchStatus = $isC2B ? ($transaction->allocation_status === 'auto_matched' ? 'matched' : ($transaction->allocation_status === 'manually_allocated' ? 'manual' : 'unmatched')) : $transaction->match_status;
                             $txnMatchConfidence = $isC2B ? ($transaction->match_confidence ?? 0) : ($transaction->match_confidence ?? 0);
                             $txnIsDuplicate = $isC2B ? $transaction->is_duplicate : $transaction->is_duplicate;
-                            $txnIsArchived = $isC2B ? false : ($transaction->is_archived ?? false);
+                            $txnIsArchived = (bool) ($transaction->is_archived ?? false);
                             $txnPaymentCreated = $isC2B ? ($transaction->payment_id !== null) : ($transaction->payment_created ?? false);
                             $txnIsSwimming = $isC2B ? ($transaction->is_swimming_transaction ?? false) : ($transaction->is_swimming_transaction ?? false);
                             $txnIsEquity = !$isC2B && ($transaction->bank_type ?? null) === 'equity';
@@ -599,11 +599,18 @@
                                 && $isAutoOrManualAssigned
                                 && ($txnStudentId || $txnIsShared)
                                 && ($txnStatus === 'draft' || ($txnStatus === 'confirmed' && !$txnPaymentCreated));
-                            $canArchive = $txnMatchStatus === 'unmatched'
-                                && !$txnIsArchived
+                            // Archive: bank draft/unmatched/auto-assigned without collection;
+                            // M-Pesa C2B/paybill draft or auto-assigned (even with student match).
+                            $canArchive = !$txnIsArchived
                                 && !$txnIsDuplicate
-                                && !$txnStudentId
-                                && !$isC2B; // C2B transactions can't be archived
+                                && (
+                                    ($isC2B && in_array($txnAllocationStatus ?? '', ['unallocated', 'auto_matched', 'manually_allocated'], true)
+                                        && in_array($txnStatus, ['draft', 'confirmed'], true))
+                                    || (! $isC2B
+                                        && in_array($txnStatus, ['draft', 'confirmed'], true)
+                                        && ! $txnPaymentCreated
+                                        && in_array($txnMatchStatus, ['unmatched', 'multiple_matches', 'matched', 'manual'], true))
+                                );
                             // For C2B, check if swimming column exists
                             $c2bCanSwim = $isC2B ? \Illuminate\Support\Facades\Schema::hasColumn('mpesa_c2b_transactions', 'is_swimming_transaction') : true;
                             
@@ -849,22 +856,24 @@
                                     @endif
                                     @endif
                                     @if(!$isC2B && $txnStatus !== 'rejected' && !$txnIsArchived)
-                                        <form method="POST" action="{{ route('finance.bank-statements.reject', $transaction) }}" class="d-inline" onsubmit="return confirm('Reject and reset to unassigned? Any associated payment(s) will be reversed; matching, confirmation, and sibling/shared allocations will be cleared. You must then manually match, allocate, confirm, and create payment. Continue?');">
+                                        <form method="POST" action="{{ route('finance.bank-statements.reject', $transaction) }}" class="d-inline" onsubmit="var r=prompt('Reason for reject/reversal (required — sent to parent):'); if(!r||r.trim().length<3){alert('A reason of at least 3 characters is required.'); return false;} this.querySelector('[name=reversal_reason]').value=r.trim(); return confirm('Reject and reset to unassigned? Any associated payment(s) will be reversed and parents notified with your reason. Continue?');">
+                                            <input type="hidden" name="reversal_reason" value="">
+                                            <input type="hidden" name="type" value="{{ $isC2B ? 'c2b' : 'bank' }}">
                                             @csrf
                                             <button type="submit" class="btn btn-finance btn-finance-danger btn-sm" title="Reject">
                                                 <i class="bi bi-x-circle"></i>
                                             </button>
                                         </form>
                                     @endif
-                                    @if(!$isC2B && !$txnIsArchived)
-                                        <form method="POST" action="{{ route('finance.bank-statements.archive', $transaction) }}" class="d-inline" onsubmit="return confirm('Archive this transaction?')">
+                                    @if($canArchive)
+                                        <form method="POST" action="{{ route('finance.bank-statements.archive', $transaction) }}{{ $isC2B ? '?type=c2b' : '?type=bank' }}" class="d-inline" onsubmit="return confirm('Archive this transaction? Linked payments (if any) will be reversed.')">
                                             @csrf
                                             <button type="submit" class="btn btn-finance btn-finance-secondary" title="Archive">
                                                 <i class="bi bi-archive"></i>
                                             </button>
                                         </form>
-                                    @elseif(!$isC2B && $txnIsArchived)
-                                        <form method="POST" action="{{ route('finance.bank-statements.unarchive', $transaction) }}" class="d-inline">
+                                    @elseif($txnIsArchived)
+                                        <form method="POST" action="{{ route('finance.bank-statements.unarchive', $transaction) }}{{ $isC2B ? '?type=c2b' : '?type=bank' }}" class="d-inline">
                                             @csrf
                                             <button type="submit" class="btn btn-finance btn-finance-success" title="Unarchive">
                                                 <i class="bi bi-archive-fill"></i>

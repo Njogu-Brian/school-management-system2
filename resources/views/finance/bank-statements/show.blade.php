@@ -1070,6 +1070,30 @@
                             </a>
                         @endif
                     @endif
+
+                    @php
+                        $showArchive = !($bankStatement->is_archived ?? false)
+                            && !($bankStatement->is_duplicate ?? false)
+                            && (
+                                ($isC2B ?? false)
+                                || (in_array($bankStatement->status ?? '', ['draft', 'confirmed'], true) && !($bankStatement->payment_created ?? false))
+                            );
+                    @endphp
+                    @if($showArchive)
+                        <form method="POST" action="{{ route('finance.bank-statements.archive', $bankStatement->id) }}?type={{ ($isC2B ?? false) ? 'c2b' : 'bank' }}" class="mb-2" onsubmit="return confirm('Archive this transaction? Linked payments (if any) will be reversed.')">
+                            @csrf
+                            <button type="submit" class="btn btn-finance btn-finance-secondary w-100">
+                                <i class="bi bi-archive"></i> Archive Transaction
+                            </button>
+                        </form>
+                    @elseif($bankStatement->is_archived ?? false)
+                        <form method="POST" action="{{ route('finance.bank-statements.unarchive', $bankStatement->id) }}?type={{ ($isC2B ?? false) ? 'c2b' : 'bank' }}" class="mb-2">
+                            @csrf
+                            <button type="submit" class="btn btn-finance btn-finance-success w-100">
+                                <i class="bi bi-archive-fill"></i> Unarchive Transaction
+                            </button>
+                        </form>
+                    @endif
                 </div>
             </div>
 
@@ -1146,24 +1170,30 @@
                         </div>
                         <div class="modal-body">
                             <p class="mb-3">Are you sure you want to <strong>reject</strong> this transaction? This will reset it to <strong>unassigned</strong> so you can match and allocate again.</p>
-                            <div class="alert alert-warning mb-0">
+                            <div class="alert alert-warning mb-3">
                                 <strong><i class="bi bi-exclamation-circle me-1"></i> Please note:</strong>
                                 <ul class="mb-0 mt-2 ps-3">
                                     <li>Any <strong>associated payment(s) will be reversed</strong> and removed.</li>
+                                    <li>Parents are <strong>notified of each reversal</strong> with the reason below.</li>
                                     <li><strong>Matching and confirmation</strong> will be undone.</li>
                                     <li>All <strong>allocations to siblings</strong> or <strong>sharing among multiple students</strong> will be cleared.</li>
                                     <li>The transaction will move to <strong>unassigned</strong> with no matches. You must <strong>manually match</strong>, <strong>allocate</strong>, <strong>confirm</strong>, and then <strong>create payment</strong> to proceed.</li>
                                 </ul>
                             </div>
+                            <form method="POST" action="{{ route('finance.bank-statements.reject', $bankStatement->id) }}" id="rejectTransactionForm">
+                                @csrf
+                                <input type="hidden" name="type" value="{{ $isC2B ? 'c2b' : 'bank' }}">
+                                <div class="mb-0">
+                                    <label for="reject_reversal_reason" class="form-label">Reason for reject / reversal <span class="text-danger">*</span></label>
+                                    <textarea name="reversal_reason" id="reject_reversal_reason" class="form-control" rows="3" maxlength="500" required minlength="3" placeholder="This reason is sent to the parent..."></textarea>
+                                </div>
+                            </form>
                         </div>
                         <div class="modal-footer border-0 pt-0">
                             <button type="button" class="btn btn-finance btn-finance-secondary" data-bs-dismiss="modal">Cancel</button>
-                            <form method="POST" action="{{ route('finance.bank-statements.reject', $bankStatement->id) }}" class="d-inline">
-                                @csrf
-                                <button type="submit" class="btn btn-finance btn-finance-danger">
-                                    <i class="bi bi-x-circle"></i> Confirm Reject
-                                </button>
-                            </form>
+                            <button type="submit" form="rejectTransactionForm" class="btn btn-finance btn-finance-danger">
+                                <i class="bi bi-x-circle"></i> Confirm Reject
+                            </button>
                         </div>
                     </div>
                 </div>

@@ -30,7 +30,36 @@ class BankStatementParser
         if (preg_match('/^\s*MPS\s+\d{10,12}\s+([A-Z0-9]{8,12})\b/i', $desc, $m)) {
             return strtoupper($m[1]);
         }
+        // Pesalink TPG remittance code (preferred over statement S-serial)
+        if (preg_match('/\bTPG\s+([A-Z0-9]{6,14})\b/i', $desc, $m) && preg_match('/[A-Z]/i', $m[1])) {
+            return strtoupper($m[1]);
+        }
         return null;
+    }
+
+    /**
+     * Embedded remittance / gateway codes inside Equity narrations (TPG / COMM / etc.).
+     * Used to detect cross-import duplicates when statement serials differ (S218… vs 18BIFTYBTX).
+     *
+     * @return list<string>
+     */
+    public static function extractEmbeddedRemittanceCodes(?string $description): array
+    {
+        if ($description === null || trim($description) === '') {
+            return [];
+        }
+        $codes = [];
+        // Only explicit TPG remittance codes — avoid bare tokens / account numbers.
+        if (preg_match_all('/\bTPG\s+([A-Z0-9]{6,14})\b/i', $description, $m)) {
+            foreach ($m[1] as $code) {
+                $u = strtoupper($code);
+                if (preg_match('/[A-Z]/', $u) && ! preg_match('/^\d+$/', $u)) {
+                    $codes[] = $u;
+                }
+            }
+        }
+
+        return array_values(array_unique($codes));
     }
 
     /**
@@ -232,6 +261,12 @@ class BankStatementParser
                 }
             }
 
+            // Prefer TPG remittance code from narration when parser stored an S-serial.
+            $embeddedRef = self::extractReferenceFromEquityDescription($particulars);
+            if ($embeddedRef && (!$transactionCode || preg_match('/^S\d{7,}$/i', (string) $transactionCode))) {
+                $transactionCode = $embeddedRef;
+            }
+
             // STEP 1b: Same description + amount + date (catches draft/no-ref vs collected/with-ref pairs)
             if (!$isDuplicate && is_string($particulars) && trim($particulars) !== '') {
                 $existingByDesc = BankStatementTransaction::where('description', $particulars)
@@ -249,6 +284,36 @@ class BankStatementParser
                         'incoming_reference' => $transactionCode,
                         'existing_reference' => $existingByDesc->reference_number,
                     ]);
+                }
+            }
+
+            // STEP 1c: Embedded TPG/remittance code matches another row's reference (same amount+date)
+            if (!$isDuplicate) {
+                $embeddedCodes = self::extractEmbeddedRemittanceCodes($particulars);
+                if ($transactionCode) {
+                    $embeddedCodes[] = strtoupper((string) $transactionCode);
+                    $embeddedCodes = array_values(array_unique($embeddedCodes));
+                }
+                if ($embeddedCodes !== []) {
+                    $existingByEmbedded = BankStatementTransaction::where('amount', $amount)
+                        ->whereDate('transaction_date', $transactionDate)
+                        ->where('is_duplicate', false)
+                        ->where(function ($q) use ($embeddedCodes) {
+                            $q->whereIn('reference_number', $embeddedCodes);
+                            foreach ($embeddedCodes as $code) {
+                                $q->orWhere('description', 'like', '%' . $code . '%');
+                            }
+                        })
+                        ->first();
+                    if ($existingByEmbedded) {
+                        $isDuplicate = true;
+                        \Log::info('Skipping duplicate bank statement transaction (embedded remittance match)', [
+                            'codes' => $embeddedCodes,
+                            'amount' => $amount,
+                            'transaction_date' => $transactionDate,
+                            'existing_transaction_id' => $existingByEmbedded->id,
+                        ]);
+                    }
                 }
             }
             

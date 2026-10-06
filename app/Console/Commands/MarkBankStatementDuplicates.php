@@ -79,11 +79,14 @@ class MarkBankStatementDuplicates extends Command
         }
 
         // Pass 3: Same description + amount + date even when only one side has a reference
-        // (e.g. Draft N/A + Collected 54106936 for Kimwaki)
+        // (e.g. Draft N/A + Collected 54106936 for Kimwaki).
+        // Skip generic charge narrations — many distinct APP payments share the same SMS charge text.
         $descGroups = BankStatementTransaction::query()
             ->select('description', 'amount', DB::raw('DATE(transaction_date) as txn_date'))
             ->whereNotNull('description')
             ->where('description', '!=', '')
+            ->whereRaw("UPPER(description) NOT LIKE '%CHARGE%'")
+            ->whereRaw("UPPER(description) NOT LIKE '%SMS CHARGE%'")
             ->groupBy('description', 'amount', DB::raw('DATE(transaction_date)'))
             ->havingRaw('COUNT(*) > 1')
             ->get();
@@ -98,6 +101,10 @@ class MarkBankStatementDuplicates extends Command
                 ->get();
             $marked += $this->markGroup($candidates, $dryRun);
         }
+
+        // Pass 4: Embedded TPG/remittance code in description matches another row's reference
+        // (Equity S-serial draft vs M-Pesa/TPG collected for the same Pesalink payment)
+        $marked += $this->markEmbeddedRemittanceDuplicates($dryRun);
 
         if ($marked > 0) {
             $this->info(($dryRun ? 'Would mark ' : 'Marked ') . $marked . ' transaction(s) as duplicate.');
@@ -135,6 +142,77 @@ class MarkBankStatementDuplicates extends Command
             }
             $marked++;
         }
+        return $marked;
+    }
+
+    private function markEmbeddedRemittanceDuplicates(bool $dryRun): int
+    {
+        $marked = 0;
+        $rows = BankStatementTransaction::query()
+            ->where('is_duplicate', false)
+            ->whereNotNull('description')
+            ->where(function ($q) {
+                $q->where('description', 'like', '%TPG %')
+                    ->orWhere('description', 'like', '%Pesalink%');
+            })
+            ->orderBy('id')
+            ->get(['id', 'amount', 'transaction_date', 'reference_number', 'description', 'payment_id', 'status', 'is_duplicate']);
+
+        foreach ($rows as $row) {
+            if ($row->is_duplicate) {
+                continue;
+            }
+            $codes = \App\Services\BankStatementParser::extractEmbeddedRemittanceCodes($row->description);
+            if ($codes === []) {
+                continue;
+            }
+            $original = BankStatementTransaction::query()
+                ->where('is_duplicate', false)
+                ->where('id', '!=', $row->id)
+                ->where('amount', $row->amount)
+                ->whereDate('transaction_date', $row->transaction_date)
+                ->where(function ($q) use ($codes) {
+                    $q->whereIn('reference_number', $codes);
+                    foreach ($codes as $code) {
+                        $q->orWhere('description', 'like', '%' . $code . '%');
+                    }
+                })
+                ->orderByRaw("CASE WHEN status IN ('confirmed','collected','allocated') THEN 0 ELSE 1 END")
+                ->orderByRaw("CASE WHEN payment_id IS NULL THEN 1 ELSE 0 END")
+                ->orderBy('id')
+                ->first();
+
+            if (!$original) {
+                continue;
+            }
+
+            // Prefer keeping the collected/confirmed row
+            $keep = $original;
+            $drop = $row;
+            if (in_array($row->status, ['confirmed', 'collected', 'allocated'], true)
+                && ! in_array($original->status, ['confirmed', 'collected', 'allocated'], true)) {
+                $keep = $row;
+                $drop = $original;
+            }
+            if ($drop->is_duplicate) {
+                continue;
+            }
+            if ($dryRun) {
+                $this->line("[Would mark] #{$drop->id} (original #{$keep->id}) embedded-remittance {$drop->amount}");
+            } else {
+                $update = [
+                    'is_duplicate' => true,
+                    'duplicate_of_payment_id' => $keep->payment_id,
+                ];
+                if (Schema::hasColumn('bank_statement_transactions', 'duplicate_of_transaction_id')) {
+                    $update['duplicate_of_transaction_id'] = $keep->id;
+                }
+                $drop->update($update);
+                $this->line("Marked duplicate: #{$drop->id} (original #{$keep->id}) embedded-remittance {$drop->amount}");
+            }
+            $marked++;
+        }
+
         return $marked;
     }
 }

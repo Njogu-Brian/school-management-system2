@@ -711,11 +711,18 @@ class BankStatementController extends Controller
         // As with the bank query, relations are loaded later for the current page
         // only — see the second pass in index().
         $query = MpesaC2BTransaction::query();
+        $c2bHasArchive = Schema::hasColumn('mpesa_c2b_transactions', 'is_archived');
         $c2bActiveSumSql = '(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND payments.base_transaction_code = mpesa_c2b_transactions.trans_id)';
         $c2bLinkedPaymentSql = '(SELECT COALESCE(amount,0) FROM payments WHERE payments.id = mpesa_c2b_transactions.payment_id AND payments.reversed = 0 AND payments.deleted_at IS NULL)';
         $c2bIsPartialSql = $c2bActiveSumSql . ' > 0.01 AND ' . $c2bActiveSumSql . ' < mpesa_c2b_transactions.trans_amount - 0.01';
         $c2bIsCollectedSql = '(' . $c2bActiveSumSql . ' >= mpesa_c2b_transactions.trans_amount - 0.01 OR (mpesa_c2b_transactions.payment_id IS NOT NULL AND ' . $c2bLinkedPaymentSql . ' >= mpesa_c2b_transactions.trans_amount - 0.01))';
         $c2bIsUncollectedSql = $c2bActiveSumSql . ' <= 0.01 AND (mpesa_c2b_transactions.payment_id IS NULL OR ' . $c2bLinkedPaymentSql . ' < mpesa_c2b_transactions.trans_amount - 0.01)';
+
+        if ($c2bHasArchive && $view !== 'archived') {
+            $query->where(function ($q) {
+                $q->where('is_archived', false)->orWhereNull('is_archived');
+            });
+        }
 
         switch ($view) {
             case 'auto-assigned':
@@ -766,8 +773,11 @@ class BankStatementController extends Controller
                     ->whereRaw($c2bIsCollectedSql);
                 break;
             case 'archived':
-                // C2B doesn't have archived flag, so return empty
-                $query->whereRaw('1 = 0');
+                if ($c2bHasArchive) {
+                    $query->where('is_archived', true);
+                } else {
+                    $query->whereRaw('1 = 0');
+                }
                 break;
             case 'duplicate':
                 $query->where('is_duplicate', true);
@@ -852,16 +862,26 @@ class BankStatementController extends Controller
                 });
             }
         };
+        $hasArchiveColumn = Schema::hasColumn('mpesa_c2b_transactions', 'is_archived');
+        $excludeArchived = function ($query) use ($hasArchiveColumn) {
+            if ($hasArchiveColumn) {
+                $query->where(function ($q) {
+                    $q->where('is_archived', false)->orWhereNull('is_archived');
+                });
+            }
+        };
 
         // 'all' count: always include swimming (view-invariant so tab counts stay consistent)
         $counts = [
             'all' => MpesaC2BTransaction::where('is_duplicate', false)
+                ->when($hasArchiveColumn, $excludeArchived)
                 ->count(),
             'auto-assigned' => MpesaC2BTransaction::where('match_confidence', '>=', 80)
                 ->where('allocation_status', 'auto_matched')
                 ->whereNull('payment_id')
                 ->where('is_duplicate', false)
                 ->when($hasSwimmingColumn, $excludeSwimming)
+                ->when($hasArchiveColumn, $excludeArchived)
                 ->count(),
             'manual-assigned' => MpesaC2BTransaction::where('is_duplicate', false)
                 ->where(function ($q) use ($c2bIsPartialSql) {
@@ -873,6 +893,7 @@ class BankStatementController extends Controller
                     });
                 })
                 ->when($hasSwimmingColumn, $excludeSwimming)
+                ->when($hasArchiveColumn, $excludeArchived)
                 ->count(),
             'draft' => MpesaC2BTransaction::where(function($q) {
                     // C2B transactions with low confidence matches (similar to bank statement draft logic)
@@ -892,24 +913,31 @@ class BankStatementController extends Controller
                 ->whereRaw($c2bIsUncollectedSql) // Exclude already collected by payment ref
                 ->where('is_duplicate', false)
                 ->when($hasSwimmingColumn, $excludeSwimming)
+                ->when($hasArchiveColumn, $excludeArchived)
                 ->count(),
             'unassigned' => MpesaC2BTransaction::where('allocation_status', 'unallocated')
                 ->whereNull('student_id')
                 ->whereRaw($c2bIsUncollectedSql) // Exclude already collected
                 ->where('is_duplicate', false)
                 ->when($hasSwimmingColumn, $excludeSwimming)
+                ->when($hasArchiveColumn, $excludeArchived)
                 ->count(),
             'collected' => MpesaC2BTransaction::where('is_duplicate', false)
                 ->whereRaw($c2bIsCollectedSql)
                 ->when($hasSwimmingColumn, $excludeSwimming)
+                ->when($hasArchiveColumn, $excludeArchived)
                 ->count(),
-            'archived' => 0, // C2B doesn't have archived flag
+            'archived' => $hasArchiveColumn
+                ? MpesaC2BTransaction::where('is_archived', true)->count()
+                : 0,
             'duplicate' => MpesaC2BTransaction::where('is_duplicate', true)
                 ->when($hasSwimmingColumn, $excludeSwimming)
+                ->when($hasArchiveColumn, $excludeArchived)
                 ->count(),
             'swimming' => $hasSwimmingColumn
                 ? MpesaC2BTransaction::where('is_swimming_transaction', true)
                     ->where('is_duplicate', false)
+                    ->when($hasArchiveColumn, $excludeArchived)
                     ->count()
                 : 0,
         ];
@@ -1246,6 +1274,7 @@ class BankStatementController extends Controller
             'payment_id' => $transaction->payment_id,
             'payment_created' => $isC2B ? ($transaction->payment_id !== null) : ($transaction->payment_created ?? false),
             'is_duplicate' => $transaction->is_duplicate ?? false,
+            'is_archived' => (bool) ($transaction->is_archived ?? false),
             'is_shared' => $transaction->is_shared ?? false,
             'shared_allocations' => is_string($transaction->shared_allocations ?? null)
                 ? json_decode($transaction->shared_allocations, true)
@@ -2176,13 +2205,19 @@ class BankStatementController extends Controller
             }
             
             if ($isC2B) {
-                // Update C2B transaction
+                // Update C2B transaction. Always clear stale sibling-share state on single-student
+                // assign — otherwise confirm still creates payments for the old shared children
+                // (e.g. selecting Philip while Blessy family shared_allocations remained).
                 $transaction->update([
                     'student_id' => $student?->id,
                     'allocation_status' => $student ? 'manually_allocated' : 'unallocated',
                     'match_confidence' => $student ? 100 : 0,
                     'match_reason' => $matchNotes,
                     'status' => $newStatus === 'confirmed' ? 'processed' : ($newStatus === 'rejected' ? 'failed' : 'pending'),
+                    'is_shared' => false,
+                    'shared_allocations' => null,
+                    'allocated_amount' => 0,
+                    'unallocated_amount' => $student ? (float) $transaction->trans_amount : (float) $transaction->trans_amount,
                 ]);
             } else {
                 // Update bank statement transaction
@@ -2204,12 +2239,17 @@ class BankStatementController extends Controller
                 $transaction->update($updates);
             }
 
-            // Learn from manual assignment: store so future matching can suggest this student for similar reference/description
+            // Learn from manual assignment: store so future matching can suggest this student for similar reference/description.
+            // For C2B, learn on bill_ref_number (parent-typed name), not trans_id (never repeats).
             if ($student) {
                 \App\Models\ManualMatchLearning::create([
                     'transaction_type' => $isC2B ? 'c2b' : 'bank',
-                    'reference_text' => $isC2B ? ($transaction->trans_id ?? null) : ($transaction->reference_number ?? null),
-                    'description_text' => $isC2B ? ($transaction->bill_ref_number ?? $transaction->full_name ?? null) : ($transaction->description ?? null),
+                    'reference_text' => $isC2B
+                        ? ($transaction->bill_ref_number ?? $transaction->trans_id ?? null)
+                        : ($transaction->reference_number ?? null),
+                    'description_text' => $isC2B
+                        ? ($transaction->bill_ref_number ?? null)
+                        : ($transaction->description ?? null),
                     'student_id' => $student->id,
                     'user_id' => auth()->id(),
                     'match_reason' => $matchNotes,
@@ -2613,8 +2653,20 @@ class BankStatementController extends Controller
      */
     protected function createPaymentForC2BLocked($c2bTransaction, string $ref)
     {
-        // Shared allocations: create a payment per student
-        if ($c2bTransaction->is_shared && !empty($c2bTransaction->shared_allocations)) {
+        // Shared allocations: create a payment per student.
+        // Guard: after a single-student manual assign, never use leftover sibling splits
+        // that do not include the assigned student (root cause of Philip→Blessy misposts).
+        $useSharedAllocations = $c2bTransaction->is_shared
+            && !empty($c2bTransaction->shared_allocations)
+            && !(
+                $c2bTransaction->allocation_status === 'manually_allocated'
+                && $c2bTransaction->student_id
+                && !collect($c2bTransaction->shared_allocations)->contains(function ($a) use ($c2bTransaction) {
+                    return (int) ($a['student_id'] ?? 0) === (int) $c2bTransaction->student_id;
+                })
+            );
+
+        if ($useSharedAllocations) {
             $allocations = $c2bTransaction->shared_allocations;
             $existingSharedReceipt = \App\Models\Payment::where('reversed', false)
                 ->where(function ($q) use ($ref) {
@@ -3577,12 +3629,19 @@ class BankStatementController extends Controller
         $resolvedId = is_object($bankStatement) ? $bankStatement->id : (int) $bankStatement;
         $transaction = $this->resolveTransaction($resolvedId, $request->input('type'));
         $isC2B = $transaction instanceof MpesaC2BTransaction;
+
+        $validated = $request->validate([
+            'reversal_reason' => 'required|string|min:3|max:500',
+        ]);
+        $reversalReason = trim($validated['reversal_reason']);
         
         // Normalize for checks
         $normalized = $this->normalizeTransaction($transaction);
         $txnView = (object) $normalized;
 
-        DB::transaction(function () use ($transaction, $txnView, $isC2B) {
+        $reversedForNotify = collect();
+
+        DB::transaction(function () use ($transaction, $txnView, $isC2B, $reversalReason, &$reversedForNotify) {
             // 1. Find and reverse ALL related payments (exact ref + ref-*; all sibling receipts share same source)
             $relatedPayments = collect();
             $ref = $txnView->reference_number;
@@ -3641,7 +3700,7 @@ class BankStatementController extends Controller
                     'reversed' => true,
                     'reversed_by' => auth()->id(),
                     'reversed_at' => now(),
-                    'reversal_reason' => 'Transaction rejected – reset to unassigned',
+                    'reversal_reason' => $reversalReason,
                 ]);
                 foreach ($invoiceIds->unique() as $invoiceId) {
                     $invoice = \App\Models\Invoice::find($invoiceId);
@@ -3650,10 +3709,13 @@ class BankStatementController extends Controller
                     }
                 }
                 $paymentId = $payment->id;
+                // Keep a non-deleted snapshot for parent notification before soft-delete
+                $reversedForNotify->push($payment->fresh(['student.parent']));
                 $payment->delete();
                 Log::info('Payment reversed and deleted due to transaction rejection', [
                     'transaction_id' => $txnView->id,
                     'payment_id' => $paymentId,
+                    'reversal_reason' => $reversalReason,
                 ]);
             }
 
@@ -3792,6 +3854,10 @@ class BankStatementController extends Controller
                     'status' => 'pending',
                     'payment_id' => null,
                     'is_swimming_transaction' => false,
+                    'is_shared' => false,
+                    'shared_allocations' => null,
+                    'allocated_amount' => 0,
+                    'unallocated_amount' => (float) $transaction->trans_amount,
                 ]);
             } else {
                 $updateData = [
@@ -3817,6 +3883,21 @@ class BankStatementController extends Controller
                 $transaction->update($updateData);
             }
         });
+
+        // Always notify parents of each reversed payment, including the reason.
+        if ($reversedForNotify->isNotEmpty()) {
+            try {
+                $paymentController = app(\App\Http\Controllers\Finance\PaymentController::class);
+                foreach ($reversedForNotify as $reversedPayment) {
+                    $paymentController->sendPaymentReversalNotifications($reversedPayment, $reversalReason);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Failed to send payment reversal notifications after reject', [
+                    'transaction_id' => $resolvedId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
         $msg = 'Transaction rejected and reset to unassigned. You can now manually match, allocate, confirm, and create payment.';
         if ($request->expectsJson()) {
@@ -4923,23 +5004,21 @@ class BankStatementController extends Controller
                 ->with('error', 'Please select at least one unmatched transaction to archive.');
         }
         
-        // Validate that all IDs exist and are unmatched
-        $transactions = BankStatementTransaction::whereIn('id', $transactionIds)
-            ->where('match_status', 'unmatched')
-            ->where('is_archived', false)
-            ->whereNull('student_id')
-            ->get();
-        
-        if ($transactions->isEmpty()) {
-            return redirect()
-                ->route('finance.bank-statements.index')
-                ->with('error', 'No unmatched transactions found to archive. Please ensure selected transactions are unmatched and not already archived.');
-        }
-        
         $archived = 0;
         $errors = [];
-        
-        foreach ($transactions as $transaction) {
+
+        // Bank: draft / unmatched / auto-assigned (matched without payment) — not already archived
+        $bankTxns = BankStatementTransaction::whereIn('id', $transactionIds)
+            ->where('is_archived', false)
+            ->where('is_duplicate', false)
+            ->where(function ($q) {
+                $q->whereNull('payment_id')
+                    ->orWhere('payment_created', false);
+            })
+            ->whereIn('status', ['draft', 'confirmed'])
+            ->get();
+
+        foreach ($bankTxns as $transaction) {
             try {
                 $transaction->archive();
                 $archived++;
@@ -4951,14 +5030,63 @@ class BankStatementController extends Controller
                 ]);
             }
         }
+
+        // M-Pesa C2B / paybill: draft, unallocated, or auto-assigned (even with student match)
+        if (Schema::hasColumn('mpesa_c2b_transactions', 'is_archived')) {
+            $c2bTxns = MpesaC2BTransaction::whereIn('id', $transactionIds)
+                ->where(function ($q) {
+                    $q->where('is_archived', false)->orWhereNull('is_archived');
+                })
+                ->where('is_duplicate', false)
+                ->where(function ($q) {
+                    $q->whereNull('payment_id')
+                        ->orWhereIn('allocation_status', ['unallocated', 'auto_matched', 'manually_allocated']);
+                })
+                ->whereIn('status', ['pending', 'ignored', 'processed'])
+                ->get();
+
+            foreach ($c2bTxns as $transaction) {
+                try {
+                    if ($transaction->payment_id) {
+                        $payment = Payment::find($transaction->payment_id);
+                        if ($payment && ! $payment->reversed) {
+                            foreach ($payment->allocations as $allocation) {
+                                $allocation->delete();
+                            }
+                            $payment->update([
+                                'reversed' => true,
+                                'reversed_by' => auth()->id(),
+                                'reversed_at' => now(),
+                                'narration' => ($payment->narration ?? '') . ' (Reversed - Transaction archived)',
+                            ]);
+                        }
+                        $transaction->update(['payment_id' => null]);
+                    }
+                    $transaction->archive();
+                    $archived++;
+                } catch (\Exception $e) {
+                    $errors[] = "C2B #{$transaction->id}: " . $e->getMessage();
+                    Log::error('Failed to archive C2B transaction', [
+                        'transaction_id' => $transaction->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+
+        if ($archived === 0 && empty($errors)) {
+            return redirect()
+                ->route('finance.bank-statements.index')
+                ->with('error', 'No archivable transactions found. Draft, unassigned, and auto-assigned M-Pesa/bank rows can be archived.');
+        }
         
-        $message = "Archived {$archived} unmatched transaction(s).";
+        $message = "Archived {$archived} transaction(s).";
         if (!empty($errors)) {
             $message .= " Errors: " . implode(', ', array_slice($errors, 0, 5));
         }
         
         return redirect()
-            ->route('finance.bank-statements.index', ['view' => 'unassigned'] + request()->except('view'))
+            ->route('finance.bank-statements.index', ['view' => 'archived'] + request()->except('view'))
             ->with($errors ? 'warning' : 'success', $message);
     }
 
@@ -4967,16 +5095,19 @@ class BankStatementController extends Controller
      */
     public function archive($id)
     {
-        $transaction = $this->resolveTransaction($id);
+        $transaction = $this->resolveTransaction($id, request('type'));
         $isC2B = $transaction instanceof MpesaC2BTransaction;
-        
-        // Archiving is only for bank statements
-        if ($isC2B) {
+
+        if ($isC2B && ! Schema::hasColumn('mpesa_c2b_transactions', 'is_archived')) {
             return redirect()->back()
-                ->with('error', 'C2B transactions cannot be archived.');
+                ->with('error', 'C2B archive support is not installed yet. Run migrations.');
+        }
+
+        if ($transaction->is_archived ?? false) {
+            return redirect()->back()->with('info', 'Transaction is already archived.');
         }
         
-        return DB::transaction(function () use ($transaction) {
+        return DB::transaction(function () use ($transaction, $isC2B) {
             $paymentsReversed = 0;
             
             // If payment was created, reverse it automatically
@@ -4994,8 +5125,9 @@ class BankStatementController extends Controller
                 }
                 
                 // Also find all sibling payments if this is a shared transaction
-                if ($transaction->is_shared && $transaction->reference_number) {
-                    $siblingPayments = Payment::where('transaction_code', $transaction->reference_number)
+                $sharedRef = $isC2B ? ($transaction->trans_id ?? null) : ($transaction->reference_number ?? null);
+                if ($transaction->is_shared && $sharedRef) {
+                    $siblingPayments = Payment::where('transaction_code', $sharedRef)
                         ->where('reversed', false)
                         ->get();
                     $relatedPayments = array_merge($relatedPayments, $siblingPayments->all());
@@ -5038,6 +5170,7 @@ class BankStatementController extends Controller
                         \Log::info('Payment automatically reversed due to transaction archive', [
                             'transaction_id' => $transaction->id,
                             'payment_id' => $payment->id,
+                            'type' => $isC2B ? 'c2b' : 'bank',
                         ]);
                     }
                 }
@@ -5045,17 +5178,23 @@ class BankStatementController extends Controller
             
             // Archive the transaction
             $transaction->archive();
-            
-            // Update transaction to remove payment link and increment version
-            $transaction->update([
-                'payment_created' => false,
-                'payment_id' => null,
-            ]);
-            $transaction->increment('version');
+
+            if ($isC2B) {
+                $transaction->update(['payment_id' => null]);
+            } else {
+                // Update transaction to remove payment link and increment version
+                $transaction->update([
+                    'payment_created' => false,
+                    'payment_id' => null,
+                ]);
+                $transaction->increment('version');
+            }
             
             // Log audit trail
             try {
-                \App\Services\FinancialAuditService::logTransactionArchive($transaction, $paymentsReversed);
+                if (! $isC2B) {
+                    \App\Services\FinancialAuditService::logTransactionArchive($transaction, $paymentsReversed);
+                }
             } catch (\Exception $e) {
                 \Log::warning('Failed to log transaction archive audit', [
                     'transaction_id' => $transaction->id,
@@ -5079,17 +5218,18 @@ class BankStatementController extends Controller
      */
     public function unarchive($id)
     {
-        $transaction = $this->resolveTransaction($id);
+        $transaction = $this->resolveTransaction($id, request('type'));
         $isC2B = $transaction instanceof MpesaC2BTransaction;
-        
-        // Unarchiving is only for bank statements
-        if ($isC2B) {
+
+        if ($isC2B && ! Schema::hasColumn('mpesa_c2b_transactions', 'is_archived')) {
             return redirect()->back()
-                ->with('error', 'C2B transactions cannot be unarchived.');
+                ->with('error', 'C2B archive support is not installed yet. Run migrations.');
         }
         
         $transaction->unarchive();
-        $transaction->increment('version');
+        if (! $isC2B) {
+            $transaction->increment('version');
+        }
 
         return redirect()
             ->route('finance.bank-statements.index')

@@ -46,6 +46,9 @@ class MpesaC2BTransaction extends Model
         'match_reason',
         'is_duplicate',
         'duplicate_of',
+        'is_archived',
+        'archived_at',
+        'archived_by',
         'is_swimming_transaction',
         'status',
         'notes',
@@ -62,6 +65,8 @@ class MpesaC2BTransaction extends Model
         'unallocated_amount' => 'decimal:2',
         'match_confidence' => 'integer',
         'is_duplicate' => 'boolean',
+        'is_archived' => 'boolean',
+        'archived_at' => 'datetime',
         'matching_suggestions' => 'array',
         'raw_data' => 'array',
         'processed_at' => 'datetime',
@@ -178,6 +183,27 @@ class MpesaC2BTransaction extends Model
             'duplicate_of' => $originalTransactionId,
             'status' => 'ignored',
             'allocation_status' => 'duplicate',
+        ]);
+    }
+
+    public function archive(?int $userId = null): void
+    {
+        $this->update([
+            'is_archived' => true,
+            'archived_at' => now(),
+            'archived_by' => $userId ?? auth()->id(),
+            // Keep draft/auto-assigned rows out of active queues after archive.
+            'status' => $this->status === 'processed' ? 'processed' : 'ignored',
+        ]);
+    }
+
+    public function unarchive(): void
+    {
+        $this->update([
+            'is_archived' => false,
+            'archived_at' => null,
+            'archived_by' => null,
+            'status' => $this->payment_id ? 'processed' : 'pending',
         ]);
     }
 

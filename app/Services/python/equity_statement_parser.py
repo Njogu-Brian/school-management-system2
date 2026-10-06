@@ -74,29 +74,164 @@ def _strip_trailing_foreign_txn_starters(body: str, ref: str | None) -> str:
     (same block ends at the next date-pair line). Drop continuation lines that start a new
     APP/ lead-in but do not contain this row's transaction reference. (Do not treat USSD/ as
     foreign: it often continues the same MPESA transaction.)
+
+    Also stop at the next Pesalink/TPG/cash-deposit lead-in once this row already has a
+    Pesalink/TPG narrative — those bleeds created false student-name matches.
     """
-    if not body or not ref:
+    if not body:
         return body
-    ru = ref.upper()
+    ru = (ref or "").upper()
     lines = body.split("\n")
     out = []
     main_money_line_seen = False
-    # Only APP/... lead-ins are safe to drop here: USSD/ often continues the same MPESA row as the ref line.
-    starter = re.compile(r"^\s*APP/", re.I)
+    # APP/... lead-ins plus Pesalink/cash deposit starters from the following row.
+    starter = re.compile(
+        r"^\s*(APP/|TPG\s+|Pesalink\s+transfer|cash\s+lcy\s+deposit|EAZZY-FUNDS)",
+        re.I,
+    )
+    has_pesalink = bool(re.search(r"\b(Pesalink|TPG)\b", body, re.I))
     for ln in lines:
         s = ln.strip()
         if not main_money_line_seen and len(re.findall(r"\b[\d,]+\.\d{2}\b", s)) >= 2:
             main_money_line_seen = True
         if main_money_line_seen:
-            if starter.match(s) and ru not in s.upper():
-                break
+            if starter.match(s) and (not ru or ru not in s.upper()):
+                # Keep the first Pesalink/TPG line of THIS row; drop the next one.
+                if has_pesalink and out and re.search(r"\b(Pesalink|TPG)\b", "\n".join(out), re.I):
+                    break
+                if re.match(r"^\s*APP/", s, re.I):
+                    break
+                if re.search(r"cash\s+lcy\s+deposit", s, re.I):
+                    break
         out.append(ln)
     joined = "\n".join(out).strip()
     # Collapsed extracts put the next APP/ lead-in on the same line after this row's money.
     inline_app = re.search(r"\s+APP/", joined, re.I)
-    if inline_app and ru not in joined[inline_app.start() :].upper():
+    if inline_app and (not ru or ru not in joined[inline_app.start() :].upper()):
         joined = joined[: inline_app.start()].strip()
+    # Truncate at a second Pesalink/TPG or cash-deposit bleed on the same collapsed line.
+    if has_pesalink:
+        m_cash = re.search(r"\s+cash\s+lcy\s+deposit\b", joined, re.I)
+        if m_cash:
+            # Keep text before the foreign cash deposit; often preceded by a student name.
+            # Cut from the name tokens that immediately precede "cash lcy deposit" when
+            # this row is already a Pesalink transfer.
+            prefix = joined[: m_cash.start()]
+            # Drop trailing person-name tokens after the Pesalink clause.
+            prefix = re.sub(
+                r"(Pesalink\s+trans(?:fer)?(?:\s+\S+){0,6})\s+[A-Z][A-Za-z].*$",
+                r"\1",
+                prefix,
+                flags=re.I,
+            )
+            joined = prefix.strip()
+        # Second TPG/Pesalink transfer on same line → keep only the first clause.
+        m_second = re.search(
+            r"(Pesalink\s+transfer\b.*?)\s+(?:TPG\s+|Pesalink\s+transfer\b)",
+            joined,
+            re.I,
+        )
+        if m_second:
+            joined = m_second.group(1).strip()
     return joined
+
+
+def _pick_equity_block_reference(block: str) -> str | None:
+    """
+    Choose the best Equity transaction reference from a text block.
+
+    Priority for Pesalink/TPG rows:
+      1) TPG remittance code (e.g. 3739SA8EBE / 18blFtYBtx)
+      2) Clean numeric serial (e.g. 534452385) — NOT an OCR'd S######## fake
+      3) S######## statement serial only as last resort
+    """
+    if not block:
+        return None
+    up = block.upper()
+
+    # TPG <code> — allow spaces inside the code tokens as printed on Equity PDFs
+    # e.g. "TPG 0138 FR465 0125" or "TPG 3739SA8EBE 0125" or "TPG 18blFtYBtx 0082"
+    tpg = re.search(
+        r"\bTPG\s+([A-Z0-9]{4,14}(?:\s+[A-Z0-9]{2,14}){0,2})\s+\d{3,4}\b",
+        block,
+        flags=re.IGNORECASE,
+    )
+    if tpg:
+        code = re.sub(r"\s+", "", tpg.group(1)).upper()
+        if 6 <= len(code) <= 16 and re.search(r"[A-Z]", code):
+            return code
+        # Pure-numeric TPG channel codes are weak; fall through to serial.
+    tpg_simple = re.search(r"\bTPG\s+([A-Z0-9]{6,14})\b", block, flags=re.IGNORECASE)
+    if tpg_simple:
+        code = tpg_simple.group(1).upper()
+        if re.search(r"[A-Z]", code):
+            return code
+
+    # Numeric serials near Pesalink / end of block (7–12 digits, not phone / account).
+    numeric_candidates = []
+    for mm in re.finditer(r"\b\d{7,12}\b", block):
+        token = mm.group(0)
+        if token == "0120263149140" or token.startswith("0120263"):
+            continue
+        if token.startswith("2547") or _is_phone_like(token):
+            continue
+        # Skip tiny channel codes like 0125 / 0082 that sit after TPG.
+        if len(token) <= 4:
+            continue
+        ln = len(token)
+        score = 0 if 8 <= ln <= 10 else (1 if ln == 7 or ln == 11 else 2)
+        # Prefer tokens that appear after "Pesalink" / near money amounts.
+        ctx = block[max(0, mm.start() - 40) : mm.end() + 20].upper()
+        if "PESALINK" in ctx or "TPG" in ctx or "SERIAL" in ctx:
+            score -= 1
+        numeric_candidates.append((score, -mm.start(), token))
+    if numeric_candidates:
+        numeric_candidates.sort()
+        best_num = numeric_candidates[0][2]
+        # Prefer numeric serial over S-ref when this is a Pesalink row.
+        if "PESALINK" in up or "TPG" in up:
+            return best_num
+
+    s_ref = re.search(r"\b(S\d{8,11})\b", block, flags=re.IGNORECASE)
+    if s_ref:
+        s_token = s_ref.group(1).upper()
+        # Reject S-refs that are clearly OCR of a nearby numeric serial
+        # (e.g. 534452385 → S34452386).
+        digits = s_token[1:]
+        for _, _, num in numeric_candidates[:5]:
+            if digits in num or num in digits or _almost_same_serial(digits, num):
+                return num
+        if "PESALINK" not in up and "TPG" not in up:
+            return s_token
+        # Pesalink with only an S-ref and no numeric serial — keep S-ref.
+        if not numeric_candidates:
+            return s_token
+
+    if numeric_candidates:
+        return numeric_candidates[0][2]
+    if s_ref:
+        return s_ref.group(1).upper()
+    return None
+
+
+def _almost_same_serial(a: str, b: str) -> bool:
+    """True when two digit strings look like OCR variants of the same serial."""
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    # Same length with ≤2 digit substitutions, or length differs by 1 with high overlap.
+    if abs(len(a) - len(b)) > 1:
+        return False
+    if len(a) == len(b):
+        diffs = sum(1 for x, y in zip(a, b) if x != y)
+        return diffs <= 2
+    longer, shorter = (a, b) if len(a) > len(b) else (b, a)
+    # shorter is longer with one deletion
+    for i in range(len(longer)):
+        if longer[:i] + longer[i + 1 :] == shorter:
+            return True
+    return False
 
 
 def _strip_orphan_lines_after_charge(body: str, ref: str | None) -> str:
@@ -462,30 +597,8 @@ def parse_equity_transactions_from_text(full_text: str):
                 recovered = _norm_spaces(" ".join(tail_lines[-2:]))
                 body = _norm_spaces(recovered + " " + body_norm)
 
-        # Extract reference candidates from the block.
-        # Prefer explicit S######## reference, else numeric ref near the end with realistic length.
-        s_ref = re.search(r"\b(S\d{8,11})\b", block, flags=re.IGNORECASE)
-        ref = s_ref.group(1).upper() if s_ref else None
-        if not ref:
-            numeric_candidates = []
-            for mm in re.finditer(r"\b\d{7,15}\b", block):
-                token = mm.group(0)
-                if token == "0120263149140" or token.startswith("0120263"):
-                    continue
-                if token.startswith("2547") or _is_phone_like(token):
-                    continue
-                # Score: prefer shorter refs (7-9 digits), but allow longer if needed
-                ln = len(token)
-                if 7 <= ln <= 9:
-                    score = 0
-                elif 10 <= ln <= 12:
-                    score = 1
-                else:
-                    score = 2
-                numeric_candidates.append((score, -mm.start(), token))
-            if numeric_candidates:
-                numeric_candidates.sort()
-                ref = numeric_candidates[0][2]
+        # Extract reference: TPG remittance codes / numeric serials beat OCR'd S########.
+        ref = _pick_equity_block_reference(block)
 
         body = _strip_trailing_foreign_txn_starters(body, ref)
         body = _strip_orphan_lines_after_charge(body, ref)
@@ -2499,6 +2612,11 @@ def extract_transaction_code(particulars):
     mps_match = re.search(r'^\s*MPS\s+(\d{10,12})\s+([A-Z0-9]{8,12})\b', particulars_str, re.IGNORECASE)
     if mps_match:
         return mps_match.group(2).upper()
+
+    # Pattern 0b: Pesalink TPG remittance code (preferred over S-serial / channel digits)
+    tpg_match = re.search(r'\bTPG\s+([A-Z0-9]{6,14})\b', particulars_str, re.IGNORECASE)
+    if tpg_match and re.search(r'[A-Z]', tpg_match.group(1).upper()):
+        return tpg_match.group(1).upper()
     
     # Pattern 1: M-Pesa transaction codes (TL followed by alphanumeric, 8-12 chars)
     mpesa_match = re.search(r'\b(TL[A-Z0-9]{6,10})\b', particulars_str, re.IGNORECASE)
@@ -2544,6 +2662,238 @@ def extract_transaction_code(particulars):
     return None
 
 
+def _collect_table_transactions(pages: list) -> list:
+    """Parse Equity pdfplumber tables (Narrative / Transaction Reference columns)."""
+    table_transactions = []
+    for page in pages or []:
+        page_number = page.get("page_number")
+        tables = page.get("tables", []) or []
+        for table_index, table in enumerate(tables):
+            if isinstance(table, dict):
+                rows = table.get("rows") or []
+                header_row = table.get("header")
+                table_page = table.get("page_number", page_number)
+            else:
+                rows = table or []
+                header_row = table[0] if table else None
+                table_page = page_number
+            if not rows:
+                continue
+            table_transactions.extend(
+                parse_bank_table(
+                    rows,
+                    header_row,
+                    page_number=table_page,
+                    table_index=table_index,
+                )
+            )
+    return table_transactions
+
+
+def _narrative_core_tokens(text: str) -> set[str]:
+    stop = {
+        "APP", "MPS", "BY", "USSD", "EQA", "TPG", "CHARGE", "SMS", "TRANSACTION",
+        "FROM", "THE", "AND", "FOR", "VIA", "INC", "PAY", "BILL",
+    }
+    tokens = re.findall(r"[A-Za-z]{3,}", (text or "").upper())
+    return {t for t in tokens if t not in stop}
+
+
+def _looks_merged_equity_narrative(text: str) -> bool:
+    n = collapse_narration(text or "")
+    if not n:
+        return False
+    if len(re.findall(r"\bBY\s*:", n, flags=re.I)) > 1:
+        return True
+    if re.search(r"\bBY\s*:", n, flags=re.I) and re.search(r"\bAPP\s*/", n, flags=re.I):
+        return True
+    if len(re.findall(r"\b\d{2}/\d{2}/\d{4}\b", n)) >= 2 and "BY:" not in n.upper():
+        return True
+    if re.search(r"LOAN\s+RECOVERY", n, flags=re.I) and re.search(
+        r"(APP/|CHICKEN|EAZZY-|USSD/|MPS\s)", n, flags=re.I
+    ):
+        return True
+    if re.search(r"\bCHARGE\b", n, flags=re.I) and re.search(
+        r"(CHICKEN|APP/|EAZZY-)", n, flags=re.I
+    ):
+        return True
+    return False
+
+
+def _looks_complete_equity_narrative(text: str) -> bool:
+    return bool(
+        re.match(
+            r"^(APP/|MPS\s|BY:|CHICKEN|USSD/|PESALINK|EAZZY|TRANSACTION(\s*\+\s*SMS)?\s*CHARGE|SMS\s*CHARGE|LOAN\s+RECOVERY)",
+            collapse_narration(text or ""),
+            flags=re.I,
+        )
+    )
+
+
+def _looks_wrap_fragment_narrative(text: str) -> bool:
+    """Surname wrap crumbs from Equity PDFs, e.g. 'MWANGI/ 9 9' or 'APP/CACTUS CREATIVE/ E E'."""
+    n = collapse_narration(text or "")
+    if not n:
+        return False
+    if re.fullmatch(r"[A-Za-z][A-Za-z'\-]+/\s*[0-9A-Za-z]{1,4}\s+[0-9A-Za-z]{1,4}", n):
+        return True
+    if re.fullmatch(r"APP/[A-Za-z0-9 .'\-]+/\s*[0-9A-Za-z]{1,4}\s+[0-9A-Za-z]{1,4}", n, flags=re.I):
+        return True
+    return False
+
+
+def _is_better_equity_narrative(old: str | None, new: str | None) -> bool:
+    """True when `new` is a fuller / cleaner statement Narrative than `old`."""
+    o = collapse_narration(old or "")
+    n = collapse_narration(new or "")
+    if not n or n.upper() == o.upper():
+        return False
+    if _looks_merged_equity_narrative(n):
+        return False
+
+    if not o:
+        return True
+
+    # Always prefer a clean APP/... table narrative over wrap crumbs.
+    if _looks_wrap_fragment_narrative(o) and _looks_complete_equity_narrative(n):
+        return True
+    if _looks_wrap_fragment_narrative(o) and n.upper().startswith("APP/") and not _looks_wrap_fragment_narrative(n):
+        return True
+
+    old_complete = _looks_complete_equity_narrative(o)
+    new_complete = _looks_complete_equity_narrative(n)
+    if old_complete and not new_complete:
+        return False
+    if o.upper().startswith("APP/") and "APP/" not in n.upper():
+        return False
+    if o.upper().startswith("EAZZY-") and "EAZZY-" not in n.upper():
+        return False
+    if o.upper().startswith("CHICKEN") and "CHICKEN" not in n.upper():
+        return False
+    if re.match(r"^LOAN\s+(RECOVERY|PAYMENT)", o, flags=re.I) and not re.search(
+        r"LOAN\s+(RECOVERY|PAYMENT)", n, flags=re.I
+    ):
+        return False
+    if re.match(r"^LOAN\s+(RECOVERY|PAYMENT)", o, flags=re.I) and re.match(
+        r"^LOAN\s+(RECOVERY|PAYMENT)", n, flags=re.I
+    ) and len(n) <= len(o) + 5:
+        return False
+
+    if len(n) > len(o) + 3:
+        ot = _narrative_core_tokens(o)
+        nt = _narrative_core_tokens(n)
+        if not ot or (ot & nt):
+            return True
+        if len(o) <= 28 and new_complete:
+            return True
+    if new_complete and not old_complete:
+        ot = _narrative_core_tokens(o)
+        nt = _narrative_core_tokens(n)
+        if ot & nt or len(o) <= 28:
+            return True
+    return False
+
+
+def overlay_table_narratives(transactions: list, pages: list) -> list:
+    """
+    Keep text-block dates/amounts/refs, but replace particulars with the PDF
+    Narrative column whenever the table extract is clearly better.
+
+    Equity Internet Banking PDFs expose a real Narrative cell (e.g.
+    "APP/JAMES NDUNGU KINUTHIA/") while pure text-block parsing often keeps
+    only the wrap fragment ("KINUTHIA/ 8 8") or merges neighbouring rows.
+    """
+    if not transactions or not pages:
+        return transactions
+
+    table_txns = _collect_table_transactions(pages)
+    if not table_txns:
+        return transactions
+
+    used = set()
+    replaced = 0
+    for t in transactions:
+        credit = float(t.get("credit") or 0)
+        debit = float(t.get("debit") or 0)
+        amount = credit if credit > 0 else debit
+        date = str(t.get("tran_date") or "")[:10]
+        code = str(t.get("transaction_code") or "").strip().upper()
+        if amount <= 0 or not date:
+            continue
+
+        best = None
+        best_score = -1
+        for i, row in enumerate(table_txns):
+            if i in used:
+                continue
+            r_credit = float(row.get("credit") or 0)
+            r_debit = float(row.get("debit") or 0)
+            r_amount = r_credit if r_credit > 0 else r_debit
+            r_date = str(row.get("tran_date") or "")[:10]
+            if r_date != date or abs(r_amount - amount) > 0.01:
+                continue
+            # Same side of the ledger
+            if (credit > 0) != (r_credit > 0):
+                continue
+            r_code = str(row.get("transaction_code") or "").strip().upper()
+            score = 1
+            if code and r_code:
+                if code == r_code:
+                    score = 3
+                else:
+                    continue
+            if score > best_score:
+                best = (i, row)
+                best_score = score
+
+        if not best:
+            continue
+        idx, row = best
+        table_part = collapse_narration(row.get("particulars") or "")
+        if not table_part:
+            continue
+
+        # Exact ref+date+amount match: use the PDF Narrative column only when it is
+        # at least as good as the text-block extract (never regress a clean APP/ line).
+        trust_table = best_score >= 3
+        if trust_table:
+            if _looks_merged_equity_narrative(table_part):
+                continue
+            old_part = collapse_narration(t.get("particulars") or "")
+            accept = _is_better_equity_narrative(old_part, table_part) or (
+                table_part.upper() != old_part.upper()
+                and _looks_complete_equity_narrative(table_part)
+                and (
+                    not _looks_complete_equity_narrative(old_part)
+                    or len(table_part) >= len(old_part)
+                )
+                and not (
+                    old_part.upper().startswith("APP/")
+                    and "APP/" not in table_part.upper()
+                )
+                and not (
+                    old_part.upper().startswith("CHICKEN")
+                    and "CHICKEN" not in table_part.upper()
+                )
+                and not (
+                    old_part.upper().startswith("EAZZY-")
+                    and "EAZZY-" not in table_part.upper()
+                )
+            )
+        else:
+            accept = _is_better_equity_narrative(t.get("particulars"), table_part)
+
+        if accept:
+            t["particulars"] = table_part
+            t["narrative_source"] = "bank_table"
+            replaced += 1
+            used.add(idx)
+
+    if replaced:
+        debug_log(f"[NARRATIVE_OVERLAY] replaced={replaced} from_table={len(table_txns)}")
+    return transactions
+
+
 def main():
     parser = argparse.ArgumentParser(description='Extract transactions from PDF bank statement')
     parser.add_argument('pdf_path', help='Path to PDF file')
@@ -2575,16 +2925,15 @@ def main():
                 page_texts = [page.get('text') or '' for page in pages]
                 transactions = parse_paybill_from_text(page_texts)
         else:
-            # Equity statements are notoriously difficult to extract as clean tables (pdfplumber often merges rows),
-            # which leads to wrong phone/reference carryover and missing rows. Prefer text-block parsing.
+            # Equity: text-block parsing is reliable for date/amount/ref boundaries, but often
+            # truncates or merges the Narrative. Prefer text-block structure, then overlay the
+            # real Narrative column from pdfplumber tables whenever it is fuller/cleaner.
             full_text = "\n".join([(p.get("text") or "") for p in pages if (p.get("text") or "").strip()])
             transactions = parse_equity_transactions_from_text(full_text)
 
             # Fallback: retain the legacy methods if block parsing fails for a new/unknown layout.
             if not transactions:
                 text_transactions = []
-                table_transactions = []
-
                 last_balance = None
                 for page in pages:
                     page_number = page.get('page_number')
@@ -2597,32 +2946,11 @@ def main():
                         )
                         text_transactions.extend(detected)
 
-                for page in pages:
-                    page_number = page.get('page_number')
-                    tables = page.get('tables', [])
-                    for table_index, table in enumerate(tables):
-                        if isinstance(table, dict):
-                            rows = table.get('rows') or []
-                            header_row = table.get('header')
-                            table_page = table.get('page_number', page_number)
-                        else:
-                            rows = table or []
-                            header_row = table[0] if table else None
-                            table_page = page_number
-
-                        if not rows:
-                            continue
-
-                        table_transactions.extend(
-                            parse_bank_table(
-                                rows,
-                                header_row,
-                                page_number=table_page,
-                                table_index=table_index
-                            )
-                        )
-
+                table_transactions = _collect_table_transactions(pages)
                 transactions = list(text_transactions) or table_transactions
+
+            if transactions and pages:
+                transactions = overlay_table_narratives(transactions, pages)
     
     # Fallback to OCR if pdfplumber didn't work or returned little content
     if not transactions and OCR_AVAILABLE:
