@@ -73,6 +73,7 @@ class Student extends Model
         'classroom_id',
         'stream_id',
         'category_id',
+        'fiscal_task',
         'nemis_number',
         'knec_assessment_number',
         'kcpe_kjsea_year',

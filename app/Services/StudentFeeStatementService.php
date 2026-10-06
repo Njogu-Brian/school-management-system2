@@ -104,6 +104,59 @@ class StudentFeeStatementService
     }
 
     /**
+     * Single school-wide outstanding definition used by Fee Balance Report and Admin Dashboard:
+     * sum of positive year statement closing balances for active, non-staff students.
+     *
+     * @return array{total_outstanding: float, students_owing: int, year: int}
+     */
+    public function schoolOutstandingSummary(int $year): array
+    {
+        $cacheKey = 'finance.school_outstanding.v1.' . $year;
+
+        return cache()->remember($cacheKey, now()->addMinutes(5), function () use ($year) {
+            $students = \App\Models\Student::query()
+                ->where('archive', 0)
+                ->where('is_alumni', false)
+                ->where(function ($q) {
+                    $q->whereDoesntHave('category', function ($cq) {
+                        $cq->whereRaw('LOWER(name) = ?', ['staff']);
+                    })->orWhereNull('category_id');
+                })
+                ->get(['id', 'category_id']);
+
+            $total = 0.0;
+            $owing = 0;
+            foreach ($students as $student) {
+                $pack = $this->forStudent($student, $year, null);
+                $balance = (float) ($pack['closing_balance'] ?? 0);
+                if ($balance > 0.009) {
+                    $total += $balance;
+                    $owing++;
+                }
+            }
+
+            return [
+                'total_outstanding' => round($total, 2),
+                'students_owing' => $owing,
+                'year' => $year,
+            ];
+        });
+    }
+
+    public static function forgetSchoolOutstandingCache(?int $year = null): void
+    {
+        if ($year) {
+            cache()->forget('finance.school_outstanding.v1.' . $year);
+
+            return;
+        }
+        $years = \App\Models\AcademicYear::query()->pluck('year');
+        foreach ($years as $y) {
+            cache()->forget('finance.school_outstanding.v1.' . (int) $y);
+        }
+    }
+
+    /**
      * Running fee balance immediately after this payment (ledger model).
      *
      * Uses charges vs payments in payment-date order so a backdated receipt that

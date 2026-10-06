@@ -158,6 +158,7 @@ class DashboardController extends Controller
         $feesOutstanding = 0.0;
         $feesOverdue = 0.0;
         $overdueInvoiceCount = 0;
+        $owingStudents = 0;
         $financeScope = 'date_range';
         $voteheadBreakdown = collect();
         $weeklyPayments = [];
@@ -196,7 +197,14 @@ class DashboardController extends Controller
                         $openInvoices = Invoice::whereIn('id', $termInvoiceIds)
                             ->whereIn('status', ['unpaid', 'partial']);
 
-                        $feesOutstanding = (float) (clone $openInvoices)->sum('balance');
+                        // Outstanding uses the same year-statement definition as Fee Balance Report
+                        // (not term invoice balances alone).
+                        $yearForOutstanding = (int) ($term->academicYear?->year ?? $filters['year'] ?? now()->year);
+                        $schoolOutstanding = app(\App\Services\StudentFeeStatementService::class)
+                            ->schoolOutstandingSummary($yearForOutstanding);
+                        $feesOutstanding = (float) $schoolOutstanding['total_outstanding'];
+                        $owingStudents = (int) $schoolOutstanding['students_owing'];
+
                         $overdueQuery = (clone $openInvoices)
                             ->whereNotNull('due_date')
                             ->whereDate('due_date', '<', $today);
@@ -227,11 +235,16 @@ class DashboardController extends Controller
                     ->selectRaw('COALESCE(SUM(amount - COALESCE(discount_amount, 0)), 0) as total')
                     ->value('total');
 
+                $yearForOutstanding = (int) ($filters['year'] ?? now()->year);
+                $schoolOutstanding = app(\App\Services\StudentFeeStatementService::class)
+                    ->schoolOutstandingSummary($yearForOutstanding);
+                $feesOutstanding = (float) $schoolOutstanding['total_outstanding'];
+                $owingStudents = (int) $schoolOutstanding['students_owing'];
+
                 $openInvoices = Invoice::query()
                     ->whereNull('reversed_at')
                     ->whereIn('status', ['unpaid', 'partial']);
                 $this->scopeInvoicesToStudentFilters($openInvoices, $filters);
-                $feesOutstanding = (float) (clone $openInvoices)->sum('balance');
                 $feesOverdue = (float) (clone $openInvoices)
                     ->whereNotNull('due_date')
                     ->whereDate('due_date', '<', $today)
@@ -330,16 +343,6 @@ class DashboardController extends Controller
                 ->where($excludeSwimmingPayments);
             $this->scopePaymentsToStudentFilters($paymentsTodayQuery, $filters);
             $paymentsToday = (float) $paymentsTodayQuery->sum('amount');
-        }
-        $owingStudents = 0;
-        if ($needsFinance && $filters['term_id'] > 0) {
-            $owingQuery = Invoice::query()
-                ->where('term_id', $filters['term_id'])
-                ->whereNull('reversed_at')
-                ->whereIn('status', ['unpaid', 'partial'])
-                ->where('balance', '>', 0);
-            $this->scopeInvoicesToStudentFilters($owingQuery, $filters);
-            $owingStudents = $owingQuery->distinct()->count('student_id');
         }
 
         $kpis = [

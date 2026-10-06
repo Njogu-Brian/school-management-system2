@@ -69,10 +69,22 @@
 
     <div class="fee-child-status">
         @if($fiscalTask !== 'none')
-            <span class="fiscal-task-badge fiscal-task-{{ $fiscalTask }}" title="Fiscal task">
+            <span class="fiscal-task-badge fiscal-task-{{ $fiscalTask }}" title="Fiscal task (manual)">
                 <span class="fiscal-dot"></span>{{ $fiscalLabel }}
             </span>
         @endif
+
+        <form method="POST" action="{{ route('finance.fee-balances.fiscal-task', $student['id']) }}" class="fee-promise-form" title="Set fiscal task">
+            @csrf
+            <input type="hidden" name="redirect_to" value="{{ url()->full() }}">
+            <label class="visually-hidden" for="fiscal-{{ $student['id'] }}">Fiscal task</label>
+            <select id="fiscal-{{ $student['id'] }}" name="fiscal_task" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="" {{ $fiscalTask === 'none' ? 'selected' : '' }}>Task: unset</option>
+                <option value="green" {{ $fiscalTask === 'green' ? 'selected' : '' }}>Green</option>
+                <option value="yellow" {{ $fiscalTask === 'yellow' ? 'selected' : '' }}>Yellow</option>
+                <option value="red" {{ $fiscalTask === 'red' ? 'selected' : '' }}>Red</option>
+            </select>
+        </form>
 
         @if($lastPaymentDate)
             <span class="fee-chip fee-chip-info" title="Last payment">

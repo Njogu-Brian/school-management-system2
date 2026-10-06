@@ -385,7 +385,7 @@
                     <div class="stat-value text-danger">Ksh {{ number_format($summary['total_balance'], 0) }}</div>
                     <div class="stat-label">Outstanding Balance</div>
                     <small class="text-warning">
-                        <i class="bi bi-exclamation-triangle"></i> {{ $summary['students_with_balance'] }} students with balance
+                        <i class="bi bi-exclamation-triangle"></i> {{ $summary['students_with_balance'] }} students owing (year statement)
                     </small>
                 </div>
             </div>
@@ -400,8 +400,9 @@
                         <div>
                             <h6 class="mb-1 fw-bold">Students in School with Balance</h6>
                             <p class="mb-0">
-                                <strong>{{ $summary['in_school_with_balance'] }}</strong> students are attending with outstanding balance of 
-                                <strong>Ksh {{ number_format($summary['in_school_balance_amount'], 2) }}</strong>
+                                <strong>{{ $summary['in_school_with_balance'] }}</strong> of the
+                                <strong>{{ $summary['students_with_balance'] }}</strong> owing students are attending
+                                (same outstanding total: <strong>Ksh {{ number_format($summary['in_school_balance_amount'], 2) }}</strong> for those in school)
                             </p>
                         </div>
                     </div>
@@ -555,10 +556,10 @@
                     <label class="finance-form-label">Fiscal Task</label>
                     <select name="fiscal_task_filter" class="finance-form-select">
                         <option value="">All</option>
-                        <option value="green" {{ request('fiscal_task_filter') === 'green' ? 'selected' : '' }}>Green (on track)</option>
-                        <option value="yellow" {{ request('fiscal_task_filter') === 'yellow' ? 'selected' : '' }}>Yellow (due soon)</option>
-                        <option value="red" {{ request('fiscal_task_filter') === 'red' ? 'selected' : '' }}>Red (follow up)</option>
-                        <option value="no_promise" {{ request('fiscal_task_filter') === 'no_promise' ? 'selected' : '' }}>No promise date</option>
+                        <option value="green" {{ request('fiscal_task_filter') === 'green' ? 'selected' : '' }}>Green</option>
+                        <option value="yellow" {{ request('fiscal_task_filter') === 'yellow' ? 'selected' : '' }}>Yellow</option>
+                        <option value="red" {{ request('fiscal_task_filter') === 'red' ? 'selected' : '' }}>Red</option>
+                        <option value="none" {{ request('fiscal_task_filter') === 'none' ? 'selected' : '' }}>Unset</option>
                     </select>
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
@@ -592,20 +593,17 @@
             <div class="row">
                 <div class="col-md-6">
                     <ul class="mb-0">
-                        <li><strong>Term invoiced / on this term invoice:</strong> Selected term invoice totals</li>
-                        <li><strong>Paid in term period:</strong> Cash received during the term dates (may clear prior dues)</li>
-                        <li><strong>Outstanding / Family balance:</strong> All fees still owing (year statement)</li>
+                        <li><strong>Outstanding:</strong> Year statement closing balance — positive amounts only (same formula as Admin Dashboard)</li>
+                        <li><strong>Overpayments:</strong> Hidden from this report</li>
+                        <li><strong>Fiscal Task:</strong> Set manually (green / yellow / red) — not auto from promise date</li>
                         <li><strong>Promise:</strong> Set or update last promised date from this screen</li>
                     </ul>
                 </div>
                 <div class="col-md-6">
                     <ul class="mb-0">
-                        <li><strong>Fiscal Task:</strong>
-                            <span class="fiscal-task-badge fiscal-task-green"><span class="fiscal-dot"></span> On track</span>,
-                            <span class="fiscal-task-badge fiscal-task-yellow"><span class="fiscal-dot"></span> Due soon</span>,
-                            <span class="fiscal-task-badge fiscal-task-red"><span class="fiscal-dot"></span> Follow up</span>
-                        </li>
-                        <li><strong>All tab:</strong> Hides fully cleared (zero balance) students</li>
+                        <li><strong>Term invoiced / paid in term:</strong> Selected term invoice vs cash dated in term</li>
+                        <li><strong>Fiscal Task:</strong> You set green / yellow / red per student</li>
+                        <li><strong>All tab:</strong> Students with outstanding &gt; 0 only</li>
                         <li><strong>Term Start:</strong> {{ $currentTerm?->opening_date ? $currentTerm->opening_date->format('M d, Y') : 'Not set' }}</li>
                     </ul>
                 </div>

@@ -130,7 +130,8 @@ class FeeBalanceController extends Controller
                 ? ($promiseMaps['by_family'][$student->family_id] ?? null)
                 : null;
             $lastPromised = $this->resolveLatestPromiseDate($studentPromise, $familyPromise);
-            $fiscalTask = $this->computeFiscalTask($balance, $lastPromised);
+            // Fiscal task is staff-set (green/yellow/red), not auto-derived from promise dates.
+            $fiscalTask = $this->normalizeFiscalTask($student->fiscal_task ?? null);
             $payStats = $paymentStats[$student->id] ?? [
                 'last_payment_date' => null,
                 'last_payment_amount' => 0.0,
@@ -269,15 +270,13 @@ class FeeBalanceController extends Controller
             });
         }
 
-        // Fiscal task filter (promise-date traffic light)
+        // Fiscal task filter (manual RAG status)
         if ($fiscalTaskFilter) {
             $filteredStudents = $filteredStudents->filter(function ($student) use ($fiscalTaskFilter) {
                 $task = $student['fiscal_task'] ?? 'none';
                 return match ($fiscalTaskFilter) {
-                    'green' => $task === 'green',
-                    'yellow' => $task === 'yellow',
-                    'red' => $task === 'red',
-                    'no_promise' => $task === 'red' && empty($student['last_promised']),
+                    'green', 'yellow', 'red' => $task === $fiscalTaskFilter,
+                    'none', 'no_promise' => $task === 'none',
                     default => true,
                 };
             });
@@ -330,38 +329,37 @@ class FeeBalanceController extends Controller
                 });
                 break;
             default:
-                // All = anyone still owing or overpaid (hide fully cleared zero-balance rows like Tiffany).
+                // All = outstanding balances only (hide cleared and overpayments)
                 $displayStudents = $filteredStudents->filter(function ($s) {
-                    return abs((float) ($s['balance'] ?? 0)) > 0.009;
+                    return (float) ($s['balance'] ?? 0) > 0.009;
                 });
         }
         
-        // Calculate summary statistics (for all filtered students, not just displayed)
+        // Calculate summary — outstanding uses ONE definition: sum of positive year balances only.
+        $owingStudents = $filteredStudents->filter(fn ($s) => (float) ($s['balance'] ?? 0) > 0.009);
+        $owingInSchool = $owingStudents->filter(fn ($s) => !empty($s['is_in_school']));
+
         $summary = [
             'total_students' => $filteredStudents->count(),
             'students_in_school' => $filteredStudents->where('is_in_school', true)->count(),
             'students_not_reported' => $filteredStudents->where('is_in_school', false)->count(),
             'total_invoiced' => $filteredStudents->sum('total_invoiced'),
             'total_paid' => $filteredStudents->sum('total_paid'),
-            'total_balance' => $filteredStudents->sum('balance'),
-            'students_with_balance' => $filteredStudents->where('balance', '>', 0)->count(),
+            'total_balance' => round((float) $owingStudents->sum('balance'), 2),
+            'students_with_balance' => $owingStudents->count(),
             'students_cleared' => $clearedStudents->count(),
             'students_partial' => $partialStudents->count(),
             'students_unpaid' => $unpaidStudents->count(),
             'unpaid_present' => $unpaidPresent->count(),
             'unpaid_absent' => $unpaidAbsent->count(),
             'students_with_plans' => $filteredStudents->where('has_payment_plan', true)->count(),
-            'in_school_with_balance' => $filteredStudents->filter(function ($s) {
-                return $s['is_in_school'] && $s['balance'] > 0;
-            })->count(),
-            'in_school_balance_amount' => $filteredStudents->filter(function ($s) {
-                return $s['is_in_school'] && $s['balance'] > 0;
-            })->sum('balance'),
+            'in_school_with_balance' => $owingInSchool->count(),
+            'in_school_balance_amount' => round((float) $owingInSchool->sum('balance'), 2),
             // Balance brought forward statistics (students_with_bbf = those who still owe BBF)
             'students_with_bbf' => $filteredStudents->filter(fn($s) => ($s['balance_brought_forward_balance'] ?? 0) > 0)->count(),
             'total_bbf_amount' => $filteredStudents->sum('balance_brought_forward'),
             'total_bbf_paid' => $filteredStudents->sum('balance_brought_forward_paid'),
-            'total_bbf_balance' => $filteredStudents->sum('balance_brought_forward_balance'),
+            'total_bbf_balance' => $filteredStudents->filter(fn ($s) => ($s['balance_brought_forward_balance'] ?? 0) > 0)->sum('balance_brought_forward_balance'),
             'bbf_cleared_count' => $filteredStudents->where('bbf_payment_status', 'cleared_bbf_and_invoice')->count(),
             'bbf_unpaid_count' => $filteredStudents->filter(function ($s) {
                 return in_array($s['bbf_payment_status'], ['bbf_unpaid', 'bbf_partial']);
@@ -370,7 +368,7 @@ class FeeBalanceController extends Controller
         
         // Calculate counts for tabs
         $counts = [
-            'all' => $filteredStudents->filter(fn ($s) => abs((float) ($s['balance'] ?? 0)) > 0.009)->count(),
+            'all' => $owingStudents->count(),
             'cleared' => $clearedStudents->count(),
             'partial' => $partialStudents->count(),
             'unpaid-present' => $unpaidPresent->count(),
@@ -522,31 +520,31 @@ class FeeBalanceController extends Controller
     }
 
     /**
-     * Traffic light for collection follow-up from last promise date.
-     * green = today or future; yellow = overdue ≤7 days; red = older / no promise with balance.
+     * Staff-set fiscal task colour (not auto-derived).
      */
-    private function computeFiscalTask(float $balance, ?Carbon $lastPromised): string
+    public function updateFiscalTask(Request $request, Student $student)
     {
-        if ($balance <= 0) {
-            return 'none';
+        $validated = $request->validate([
+            'fiscal_task' => 'nullable|in:green,yellow,red',
+            'redirect_to' => 'nullable|string|max:500',
+        ]);
+
+        $task = $validated['fiscal_task'] ?? null;
+        $student->fiscal_task = $task ?: null;
+        $student->save();
+
+        if (!empty($validated['redirect_to'])) {
+            return redirect($validated['redirect_to'])->with('success', 'Fiscal task updated.');
         }
 
-        if (!$lastPromised) {
-            return 'red';
-        }
+        return back()->with('success', 'Fiscal task updated.');
+    }
 
-        $today = Carbon::today();
-        $promised = $lastPromised->copy()->startOfDay();
+    private function normalizeFiscalTask(?string $value): string
+    {
+        $value = strtolower(trim((string) $value));
 
-        if ($promised->gte($today)) {
-            return 'green';
-        }
-
-        if ($promised->diffInDays($today) <= 7) {
-            return 'yellow';
-        }
-
-        return 'red';
+        return in_array($value, ['green', 'yellow', 'red'], true) ? $value : 'none';
     }
 
     /**

@@ -1503,6 +1503,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     */
     Route::prefix('finance')->name('finance.')->middleware('role:Super Admin|Admin|Secretary|Accountant|Finance Officer|Director|Senior Teacher|Deputy Senior Teacher')->group(function () {
         Route::get('fee-balances', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'index'])->name('fee-balances.index');
+        Route::post('fee-balances/{student}/fiscal-task', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'updateFiscalTask'])->name('fee-balances.fiscal-task');
         Route::get('fee-balances/export', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'export'])->name('fee-balances.export');
         Route::get('fee-balances/export-pdf', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'exportPdf'])->name('fee-balances.export-pdf');
         Route::get('fee-balances/print', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'printPdf'])->name('fee-balances.print');
