@@ -9,176 +9,111 @@
     ];
     $fiscalLabel = $fiscalLabels[$fiscalTask] ?? '—';
     $lastPromised = $student['last_promised'] ?? null;
+    $hasUnclearedBbf = !empty($student['has_uncleared_bbf']);
+    $statusColors = [
+        'paid' => 'success',
+        'partial' => 'warning',
+        'unpaid' => 'danger',
+        'not_invoiced' => 'secondary',
+    ];
+    $statusColor = $statusColors[$student['payment_status']] ?? 'secondary';
 @endphp
-<tr class="{{ $student['is_in_school'] && $student['balance'] > 1000 ? 'highlight-row' : '' }}{{ $inFamilyGroup ? ' family-child-row' : '' }}">
-    <td>
-        @if($inFamilyGroup)
-            <span class="text-muted me-1">↳</span>
-        @endif
-        <strong>{{ $student['admission_number'] }}</strong>
-    </td>
-    <td>
-        <div>
-            <strong>{{ $student['full_name'] }}</strong>
-            <br><small class="text-muted"><i class="bi bi-telephone"></i> {{ $student['parent_phone'] }}</small>
+
+<div class="fee-child-card {{ $inFamilyGroup ? 'is-child' : '' }} {{ $student['is_in_school'] && $student['balance'] > 1000 ? 'highlight-row' : '' }}">
+    <div class="fee-child-identity">
+        <div class="fee-child-name-row">
+            <strong class="fee-child-name">{{ $student['full_name'] }}</strong>
+            <span class="finance-badge badge-{{ $statusColor }}">{{ ucfirst(str_replace('_', ' ', $student['payment_status'])) }}</span>
         </div>
-    </td>
-    <td>
-        {{ $student['classroom'] }}
-        @if($student['stream'])
-            <br><small class="text-muted">{{ $student['stream'] }}</small>
-        @endif
-    </td>
-    <td class="text-end">
-        <strong>Ksh {{ number_format($student['total_invoiced'], 2) }}</strong>
-        @if(isset($student['term_invoiced']) && (float) $student['term_invoiced'] !== (float) $student['total_invoiced'])
-            <br><small class="text-muted">Term: {{ number_format($student['term_invoiced'], 2) }}</small>
-        @endif
-    </td>
-    <td class="text-end text-success">
-        <strong>Ksh {{ number_format($student['total_paid'], 2) }}</strong>
-        @if(isset($student['term_paid']) && (float) $student['term_paid'] !== (float) $student['total_paid'])
-            <br><small class="text-muted">Term: {{ number_format($student['term_paid'], 2) }}</small>
-        @endif
-    </td>
-    <td class="text-end">
-        <strong class="{{ $student['balance'] > 0 ? 'text-danger' : 'text-success' }}">
-            Ksh {{ number_format($student['balance'], 2) }}
-        </strong>
-        @if($student['balance'] > 0 && $student['total_invoiced'] > 0)
-            <br><small class="text-muted">{{ $student['balance_percentage'] }}% owing</small>
-        @elseif($student['balance'] < 0)
-            <br><small class="text-success">Credit / overpaid</small>
-        @endif
-        @if(isset($student['term_balance']) && (float) $student['term_balance'] !== (float) $student['balance'])
-            <br><small class="text-muted">Term bal: {{ number_format($student['term_balance'], 2) }}</small>
-        @endif
-    </td>
-    <td class="text-center">
-        @php
-            $statusColors = [
-                'paid' => 'success',
-                'partial' => 'warning',
-                'unpaid' => 'danger',
-                'not_invoiced' => 'secondary'
-            ];
-            $statusColor = $statusColors[$student['payment_status']] ?? 'secondary';
-        @endphp
-        <span class="finance-badge badge-{{ $statusColor }}">
-            {{ ucfirst(str_replace('_', ' ', $student['payment_status'])) }}
-        </span>
-    </td>
-    <td class="text-end">
-        @if(($student['balance_brought_forward'] ?? 0) > 0)
-            <div>
-                <strong class="text-info">Ksh {{ number_format($student['balance_brought_forward'] ?? 0, 2) }}</strong>
-                @if(($student['balance_brought_forward_balance'] ?? 0) > 0)
-                    <br><small class="text-danger">Outstanding: Ksh {{ number_format($student['balance_brought_forward_balance'] ?? 0, 2) }}</small>
-                @else
-                    <br><small class="text-success">Cleared</small>
-                @endif
-            </div>
-        @else
-            <span class="text-muted">-</span>
-        @endif
-    </td>
-    <td class="text-center">
-        @if(($student['balance_brought_forward'] ?? 0) > 0)
-            @php
-                $bbfStatus = $student['bbf_payment_status'] ?? 'no_bbf';
-                $bbfStatusColors = [
-                    'cleared_bbf_and_invoice' => 'success',
-                    'cleared_bbf_only' => 'info',
-                    'bbf_partial' => 'warning',
-                    'bbf_unpaid' => 'danger',
-                    'no_bbf' => 'secondary'
-                ];
-                $bbfStatusColor = $bbfStatusColors[$bbfStatus] ?? 'secondary';
-                $bbfStatusLabels = [
-                    'cleared_bbf_and_invoice' => 'Cleared BBF & Invoice',
-                    'cleared_bbf_only' => 'Cleared BBF Only',
-                    'bbf_partial' => 'BBF Partial',
-                    'bbf_unpaid' => 'BBF Unpaid',
-                    'no_bbf' => 'No BBF'
-                ];
-                $bbfStatusLabel = $bbfStatusLabels[$bbfStatus] ?? ucfirst(str_replace('_', ' ', $bbfStatus));
-            @endphp
-            <span class="finance-badge badge-{{ $bbfStatusColor }}" title="Balance Brought Forward Payment Status">
-                {{ $bbfStatusLabel }}
-            </span>
-        @else
-            <span class="text-muted">-</span>
-        @endif
-    </td>
-    <td class="text-center">
-        @if($lastPromised)
-            <strong>{{ $lastPromised instanceof \Carbon\Carbon ? $lastPromised->format('d M Y') : \Carbon\Carbon::parse($lastPromised)->format('d M Y') }}</strong>
-        @else
-            <span class="text-muted">—</span>
-        @endif
-    </td>
-    <td class="text-center">
-        @if($fiscalTask !== 'none')
-            <span class="fiscal-task-badge fiscal-task-{{ $fiscalTask }}" title="Fiscal task from last promise date">
-                <span class="fiscal-dot"></span>
-                {{ $fiscalLabel }}
-            </span>
-        @else
-            <span class="text-muted">—</span>
-        @endif
-    </td>
-    <td class="text-center">
-        <div class="mb-1">
-            <strong>{{ $student['attendance_rate'] }}%</strong>
-        </div>
-        <div class="progress-thin">
-            <div class="progress-bar {{ $student['attendance_rate'] >= 75 ? 'bg-success' : ($student['attendance_rate'] >= 50 ? 'bg-warning' : 'bg-danger') }}" 
-                 style="width: {{ $student['attendance_rate'] }}%"></div>
-        </div>
-        <small class="text-muted">{{ $student['days_present'] }}/{{ $student['attendance_days'] }} days</small>
-    </td>
-    <td class="text-center">
-        @if($student['is_in_school'])
-            <span class="badge-in-school">
-                <i class="bi bi-check-circle"></i> In School
-            </span>
-        @else
-            <span class="badge-not-reported">
-                <i class="bi bi-x-circle"></i> Not Reported
-            </span>
-        @endif
-    </td>
-    <td class="text-center">
-        @if($student['has_payment_plan'])
-            <span class="badge-has-plan">
-                <i class="bi bi-calendar-check"></i> Has Plan
-            </span>
-            <br><small class="text-muted">{{ $student['payment_plan_progress'] }}% paid</small>
-            @if($student['next_installment_date'])
-                <br><small class="text-muted">Next: {{ $student['next_installment_date']->format('M d') }}</small>
+        <div class="fee-child-sub">
+            <span class="fee-adm">{{ $student['admission_number'] }}</span>
+            @if(!empty($student['classroom']))
+                <span>{{ $student['classroom'] }}@if(!empty($student['stream'])) · {{ $student['stream'] }}@endif</span>
             @endif
-        @else
-            <span class="text-muted">-</span>
+            @if(!empty($student['parent_phone']) && !$inFamilyGroup)
+                <span><i class="bi bi-telephone"></i> {{ $student['parent_phone'] }}</span>
+            @endif
+        </div>
+    </div>
+
+    <div class="fee-child-figures">
+        <div class="fee-metric">
+            <span class="fee-metric-label">Term invoiced</span>
+            <span class="fee-metric-value">Ksh {{ number_format($student['term_invoiced'] ?? $student['total_invoiced'], 0) }}</span>
+        </div>
+        <div class="fee-metric">
+            <span class="fee-metric-label">Term paid</span>
+            <span class="fee-metric-value text-success">Ksh {{ number_format($student['term_paid'] ?? $student['total_paid'], 0) }}</span>
+        </div>
+        <div class="fee-metric fee-metric-emphasis">
+            <span class="fee-metric-label">Outstanding</span>
+            <span class="fee-metric-value {{ $student['balance'] > 0 ? 'text-danger' : 'text-success' }}">
+                Ksh {{ number_format($student['balance'], 0) }}
+            </span>
+            @if($student['balance'] > 0 && ($student['year_invoiced'] ?? 0) > 0)
+                <small class="text-muted">{{ $student['balance_percentage'] }}% of year</small>
+            @elseif($student['balance'] < 0)
+                <small class="text-success">Credit</small>
+            @endif
+        </div>
+    </div>
+
+    <div class="fee-child-status">
+        @if($fiscalTask !== 'none')
+            <span class="fiscal-task-badge fiscal-task-{{ $fiscalTask }}" title="Fiscal task">
+                <span class="fiscal-dot"></span>{{ $fiscalLabel }}
+            </span>
         @endif
-    </td>
-    <td class="text-center table-actions">
+
+        @if($lastPromised)
+            <span class="fee-chip" title="Last promised date">
+                <i class="bi bi-calendar-event"></i>
+                {{ $lastPromised instanceof \Carbon\Carbon ? $lastPromised->format('d M Y') : \Carbon\Carbon::parse($lastPromised)->format('d M Y') }}
+            </span>
+        @endif
+
+        @if($hasUnclearedBbf)
+            <span class="fee-chip fee-chip-warn" title="Uncleared balance brought forward">
+                BBF Ksh {{ number_format($student['balance_brought_forward_balance'], 0) }}
+            </span>
+        @endif
+
+        <span class="fee-chip {{ $student['is_in_school'] ? 'fee-chip-ok' : 'fee-chip-muted' }}">
+            @if($student['is_in_school'])
+                <i class="bi bi-check-circle"></i> In school · {{ $student['attendance_rate'] }}%
+            @else
+                <i class="bi bi-x-circle"></i> Not reported · {{ $student['attendance_rate'] }}%
+            @endif
+        </span>
+
+        @if($student['has_payment_plan'])
+            <span class="fee-chip fee-chip-info">
+                <i class="bi bi-calendar-check"></i> Plan {{ $student['payment_plan_progress'] }}%
+                @if($student['next_installment_date'])
+                    · next {{ $student['next_installment_date']->format('M d') }}
+                @endif
+            </span>
+        @endif
+    </div>
+
+    <div class="fee-child-actions table-actions">
         <div class="btn-group btn-group-sm">
             @if($student['invoice_id'])
-                <a href="{{ route('finance.invoices.show', $student['invoice_id']) }}" 
+                <a href="{{ route('finance.invoices.show', $student['invoice_id']) }}"
                    class="btn btn-outline-primary" title="View Invoice">
                     <i class="bi bi-file-text"></i>
                 </a>
             @endif
-            <a href="{{ route('finance.student-statements.show', $student['id']) }}" 
+            <a href="{{ route('finance.student-statements.show', $student['id']) }}"
                class="btn btn-outline-info" title="View Statement">
                 <i class="bi bi-receipt"></i>
             </a>
             @if($student['balance'] > 0 && !$student['has_payment_plan'])
-                <a href="{{ route('finance.fee-payment-plans.create') }}?student_id={{ $student['id'] }}" 
+                <a href="{{ route('finance.fee-payment-plans.create') }}?student_id={{ $student['id'] }}"
                    class="btn btn-outline-success" title="Create Payment Plan">
                     <i class="bi bi-calendar-plus"></i>
                 </a>
             @endif
         </div>
-    </td>
-</tr>
+    </div>
+</div>

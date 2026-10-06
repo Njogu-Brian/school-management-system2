@@ -88,9 +88,14 @@ class FeeBalanceController extends Controller
             // Year-wide figures must match Student Statements (not single-term invoice only).
             // Prior-term arrears + overpayments were previously invisible here (e.g. Alex Kirika).
             $yearPack = $statementService->forStudent($student, (int) $year, null);
-            $totalInvoiced = (float) ($yearPack['total_charges'] ?? 0);
-            $totalPaid = (float) ($yearPack['total_payments'] ?? 0);
+            // Outstanding balance = all fees still owing (year-wide statement).
+            $yearInvoiced = (float) ($yearPack['total_charges'] ?? 0);
+            $yearPaid = (float) ($yearPack['total_payments'] ?? 0);
             $balance = (float) ($yearPack['closing_balance'] ?? 0);
+
+            // Invoiced / paid columns are for the selected term only.
+            $termInvoiced = $invoice ? (float) $invoice->total : 0;
+            $termPaid = $invoice ? (float) $invoice->paid_amount : 0;
             $termBalance = $invoice ? (float) $invoice->balance : 0;
             
             // Get balance brought forward information
@@ -114,30 +119,40 @@ class FeeBalanceController extends Controller
                 : null;
             $lastPromised = $this->resolveLatestPromiseDate($studentPromise, $familyPromise);
             $fiscalTask = $this->computeFiscalTask($balance, $lastPromised);
+
+            $parentPhone = $this->cleanDisplayValue(
+                $student->parent
+                    ? ($student->parent->father_phone ?? $student->parent->mother_phone ?? $student->parent->guardian_phone)
+                    : null
+            );
             
             return [
                 'id' => $student->id,
                 'family_id' => $student->family_id,
                 'admission_number' => $student->admission_number,
                 'full_name' => $student->full_name,
-                'classroom' => $student->classroom ? $student->classroom->name : 'N/A',
+                'classroom' => $student->classroom ? $student->classroom->name : null,
                 'classroom_id' => $student->classroom_id,
                 'stream' => $student->stream ? $student->stream->name : null,
-                'parent_phone' => $student->parent ? ($student->parent->father_phone ?? $student->parent->mother_phone ?? $student->parent->guardian_phone ?? 'N/A') : 'N/A',
-                'father_name' => $student->parent?->father_name,
-                'father_phone' => $student->parent?->father_phone,
-                'mother_name' => $student->parent?->mother_name,
-                'mother_phone' => $student->parent?->mother_phone,
-                'guardian_name' => $student->parent?->guardian_name,
-                'guardian_phone' => $student->parent?->guardian_phone,
-                'total_invoiced' => $totalInvoiced,
-                'total_paid' => $totalPaid,
-                'balance' => $balance,
+                'parent_phone' => $parentPhone,
+                'father_name' => $this->cleanDisplayValue($student->parent?->father_name),
+                'father_phone' => $this->cleanDisplayValue($student->parent?->father_phone),
+                'mother_name' => $this->cleanDisplayValue($student->parent?->mother_name),
+                'mother_phone' => $this->cleanDisplayValue($student->parent?->mother_phone),
+                'guardian_name' => $this->cleanDisplayValue($student->parent?->guardian_name),
+                'guardian_phone' => $this->cleanDisplayValue($student->parent?->guardian_phone),
+                // Primary UI amounts = selected term
+                'total_invoiced' => $termInvoiced,
+                'total_paid' => $termPaid,
+                'term_invoiced' => $termInvoiced,
+                'term_paid' => $termPaid,
                 'term_balance' => $termBalance,
-                'term_invoiced' => $invoice ? (float) $invoice->total : 0,
-                'term_paid' => $invoice ? (float) $invoice->paid_amount : 0,
-                'balance_percentage' => $totalInvoiced > 0 ? round((max($balance, 0) / $totalInvoiced) * 100, 1) : 0,
-                'payment_status' => $this->getPaymentStatus($totalInvoiced, $totalPaid, $balance),
+                // Outstanding = combined all fees still owing (year statement)
+                'balance' => $balance,
+                'year_invoiced' => $yearInvoiced,
+                'year_paid' => $yearPaid,
+                'balance_percentage' => $yearInvoiced > 0 ? round((max($balance, 0) / $yearInvoiced) * 100, 1) : 0,
+                'payment_status' => $this->getPaymentStatus($yearInvoiced, $yearPaid, $balance),
                 'attendance_days' => $attendanceData['total_days'],
                 'days_present' => $attendanceData['present'],
                 'days_absent' => $attendanceData['absent'],
@@ -149,11 +164,12 @@ class FeeBalanceController extends Controller
                 'payment_plan_progress' => $paymentPlanStatus['progress'],
                 'next_installment_date' => $paymentPlanStatus['next_due_date'],
                 'invoice_id' => $invoice ? $invoice->id : null,
-                // Balance brought forward data
+                // Balance brought forward data (UI only shows when outstanding)
                 'balance_brought_forward' => $balanceBroughtForwardData['amount'],
                 'balance_brought_forward_paid' => $balanceBroughtForwardData['paid'],
                 'balance_brought_forward_balance' => $balanceBroughtForwardData['balance'],
                 'bbf_payment_status' => $balanceBroughtForwardData['payment_status'],
+                'has_uncleared_bbf' => ($balanceBroughtForwardData['balance'] ?? 0) > 0.009,
                 'last_promised' => $lastPromised,
                 'fiscal_task' => $fiscalTask,
             ];
@@ -162,18 +178,18 @@ class FeeBalanceController extends Controller
         // Apply filters
         $filteredStudents = $enrichedStudents;
         
-        // Balance status filter
+        // Balance status filter (outstanding uses year-wide balance)
         if ($balanceStatus) {
             $filteredStudents = $filteredStudents->filter(function ($student) use ($balanceStatus) {
                 switch ($balanceStatus) {
                     case 'with_balance':
                         return $student['balance'] > 0;
                     case 'cleared':
-                        return $student['balance'] <= 0 && $student['total_invoiced'] > 0;
+                        return $student['balance'] <= 0 && ($student['year_invoiced'] ?? 0) > 0;
                     case 'overpaid':
                         return $student['balance'] < 0;
                     case 'not_invoiced':
-                        return $student['total_invoiced'] == 0;
+                        return ($student['year_invoiced'] ?? 0) == 0 && ($student['term_invoiced'] ?? 0) == 0;
                     default:
                         return true;
                 }
@@ -248,7 +264,7 @@ class FeeBalanceController extends Controller
         
         // Categorize students
         $clearedStudents = $filteredStudents->filter(function ($s) {
-            return $s['balance'] <= 0 && $s['total_invoiced'] > 0;
+            return abs((float) ($s['balance'] ?? 0)) <= 0.009 && ($s['year_invoiced'] ?? 0) > 0;
         });
         
         $partialStudents = $filteredStudents->filter(function ($s) {
@@ -293,8 +309,10 @@ class FeeBalanceController extends Controller
                 });
                 break;
             default:
-                // Show all - combine all categories
-                $displayStudents = $filteredStudents;
+                // All = anyone still owing or overpaid (hide fully cleared zero-balance rows like Tiffany).
+                $displayStudents = $filteredStudents->filter(function ($s) {
+                    return abs((float) ($s['balance'] ?? 0)) > 0.009;
+                });
         }
         
         // Calculate summary statistics (for all filtered students, not just displayed)
@@ -331,7 +349,7 @@ class FeeBalanceController extends Controller
         
         // Calculate counts for tabs
         $counts = [
-            'all' => $filteredStudents->count(),
+            'all' => $filteredStudents->filter(fn ($s) => abs((float) ($s['balance'] ?? 0)) > 0.009)->count(),
             'cleared' => $clearedStudents->count(),
             'partial' => $partialStudents->count(),
             'unpaid-present' => $unpaidPresent->count(),
@@ -479,17 +497,32 @@ class FeeBalanceController extends Controller
                 ->first();
 
             $first = $children->first();
+            $childNames = $children->map(function ($c) {
+                $adm = $c['admission_number'] ?? '';
+                $name = $c['full_name'] ?? 'Student';
+                return trim($adm ? "{$name} ({$adm})" : $name);
+            })->filter()->values()->all();
+
+            $parentParts = collect([
+                $first['father_name'] ?? null,
+                $first['mother_name'] ?? null,
+                $first['guardian_name'] ?? null,
+            ])->filter()->unique()->values();
+
             $groups->push([
                 'family_id' => $familyId,
                 'is_family' => $familyId && $children->count() > 1,
                 'label' => $familyId && $children->count() > 1
                     ? 'Family · ' . $children->count() . ' children'
                     : ($first['full_name'] ?? 'Student'),
-                'parent_phone' => $first['parent_phone'] ?? 'N/A',
+                'child_names' => $childNames,
+                'parent_phone' => $first['parent_phone'] ?? null,
+                'parent_names' => $parentParts->all(),
                 'father_name' => $first['father_name'] ?? null,
                 'mother_name' => $first['mother_name'] ?? null,
-                'total_invoiced' => (float) $children->sum('total_invoiced'),
-                'total_paid' => (float) $children->sum('total_paid'),
+                // Term totals for invoiced/paid; combined outstanding for balance
+                'total_invoiced' => (float) $children->sum('term_invoiced'),
+                'total_paid' => (float) $children->sum('term_paid'),
                 'balance' => (float) $children->sum('balance'),
                 'last_promised' => $lastPromised,
                 'fiscal_task' => $this->worstFiscalTask($fiscalStatuses),
@@ -498,6 +531,22 @@ class FeeBalanceController extends Controller
         }
 
         return $groups->values();
+    }
+
+    /**
+     * Treat blank / placeholder parent fields as empty.
+     */
+    private function cleanDisplayValue(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        $trimmed = trim($value);
+        if ($trimmed === '' || strcasecmp($trimmed, 'N/A') === 0 || strcasecmp($trimmed, 'NA') === 0 || $trimmed === '-') {
+            return null;
+        }
+
+        return $trimmed;
     }
 
     /**
@@ -726,7 +775,7 @@ class FeeBalanceController extends Controller
             
             $headers = ['Family ID', 'Admission No', 'Student Name', 'Class', 'Stream', 'Father Name', 'Father Phone', 'Mother Name', 'Mother Phone', 'Last Promised', 'Fiscal Task'];
             if ($includeAmounts) {
-                $headers = array_merge($headers, ['Total Invoiced', 'Total Paid', 'Balance', 'Balance %', 'Payment Status', 'Balance Brought Forward', 'BBF Paid', 'BBF Balance', 'BBF Payment Status', 'Days in School', 'Days Present', 'Days Absent', 'Attendance %', 'In School', 'Has Payment Plan', 'Plan Status', 'Next Installment']);
+                $headers = array_merge($headers, ['Term Invoiced', 'Term Paid', 'Outstanding Balance', 'Balance %', 'Payment Status', 'BBF Outstanding', 'Days in School', 'Days Present', 'Days Absent', 'Attendance %', 'In School', 'Has Payment Plan', 'Plan Status', 'Next Installment']);
             }
             fputcsv($handle, $headers);
 
@@ -752,10 +801,7 @@ class FeeBalanceController extends Controller
                             number_format($group['total_paid'], 2),
                             number_format($group['balance'], 2),
                             '',
-                            '',
-                            '',
-                            '',
-                            '',
+                            'Family',
                             '',
                             '',
                             '',
@@ -786,16 +832,16 @@ class FeeBalanceController extends Controller
                         ucfirst($student['fiscal_task'] ?? 'none'),
                     ];
                     if ($includeAmounts) {
+                        $bbfOutstanding = (($student['balance_brought_forward_balance'] ?? 0) > 0.009)
+                            ? number_format($student['balance_brought_forward_balance'], 2)
+                            : '';
                         $row = array_merge($row, [
-                            number_format($student['total_invoiced'], 2),
-                            number_format($student['total_paid'], 2),
+                            number_format($student['term_invoiced'] ?? $student['total_invoiced'], 2),
+                            number_format($student['term_paid'] ?? $student['total_paid'], 2),
                             number_format($student['balance'], 2),
                             $student['balance_percentage'] . '%',
                             ucfirst(str_replace('_', ' ', $student['payment_status'])),
-                            number_format($student['balance_brought_forward'] ?? 0, 2),
-                            number_format($student['balance_brought_forward_paid'] ?? 0, 2),
-                            number_format($student['balance_brought_forward_balance'] ?? 0, 2),
-                            ucfirst(str_replace('_', ' ', $student['bbf_payment_status'] ?? 'no_bbf')),
+                            $bbfOutstanding,
                             $student['attendance_days'],
                             $student['days_present'],
                             $student['days_absent'],

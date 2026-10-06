@@ -80,22 +80,7 @@
         }
         
         .highlight-row {
-            background: rgba(239, 68, 68, 0.05) !important;
-        }
-
-        .family-group-header {
-            background: rgba(37, 99, 235, 0.08) !important;
-            border-top: 2px solid rgba(37, 99, 235, 0.35);
-        }
-
-        .family-group-header td {
-            vertical-align: middle;
-            padding-top: 12px;
-            padding-bottom: 12px;
-        }
-
-        .family-child-row td:first-child {
-            padding-left: 1.25rem;
+            background: rgba(239, 68, 68, 0.04);
         }
 
         .fiscal-task-badge {
@@ -108,31 +93,217 @@
             font-weight: 700;
             white-space: nowrap;
         }
-
         .fiscal-task-badge .fiscal-dot {
             width: 8px;
             height: 8px;
             border-radius: 50%;
             display: inline-block;
         }
-
-        .fiscal-task-green {
-            background: rgba(16, 185, 129, 0.15);
-            color: #047857;
-        }
+        .fiscal-task-green { background: rgba(16, 185, 129, 0.15); color: #047857; }
         .fiscal-task-green .fiscal-dot { background: #10b981; }
-
-        .fiscal-task-yellow {
-            background: rgba(245, 158, 11, 0.18);
-            color: #b45309;
-        }
+        .fiscal-task-yellow { background: rgba(245, 158, 11, 0.18); color: #b45309; }
         .fiscal-task-yellow .fiscal-dot { background: #f59e0b; }
-
-        .fiscal-task-red {
-            background: rgba(239, 68, 68, 0.15);
-            color: #b91c1c;
-        }
+        .fiscal-task-red { background: rgba(239, 68, 68, 0.15); color: #b91c1c; }
         .fiscal-task-red .fiscal-dot { background: #ef4444; }
+
+        .fee-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .fee-entity-card {
+            background: var(--fin-surface);
+            border: 1px solid var(--fin-border);
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+        }
+        .fee-entity-card.is-family {
+            border-color: rgba(37, 99, 235, 0.28);
+        }
+        .fee-entity-card.has-highlight {
+            box-shadow: inset 3px 0 0 #ef4444;
+        }
+
+        .fee-family-head {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            justify-content: space-between;
+            padding: 14px 16px;
+            background: linear-gradient(180deg, rgba(37, 99, 235, 0.08), rgba(37, 99, 235, 0.02));
+            border-bottom: 1px solid rgba(37, 99, 235, 0.12);
+        }
+        .fee-family-title-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        .fee-family-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #2563eb;
+            color: #fff;
+            font-size: 0.78rem;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 999px;
+        }
+        .fee-family-names {
+            font-weight: 700;
+            font-size: 1rem;
+            color: var(--fin-text, #0f172a);
+            line-height: 1.35;
+            margin-bottom: 4px;
+        }
+        .fee-family-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px 14px;
+            color: var(--fin-muted);
+            font-size: 0.85rem;
+        }
+        .fee-family-totals {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(90px, 1fr));
+            gap: 10px 14px;
+            align-content: start;
+            min-width: min(100%, 340px);
+        }
+        .fee-family-action {
+            grid-column: 1 / -1;
+            justify-self: start;
+        }
+
+        .fee-metric {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .fee-metric-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--fin-muted);
+            font-weight: 700;
+        }
+        .fee-metric-value {
+            font-size: 1rem;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+        .fee-metric-emphasis .fee-metric-value {
+            font-size: 1.15rem;
+        }
+
+        .fee-children {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .fee-child-card {
+            display: grid;
+            grid-template-columns: minmax(180px, 1.4fr) minmax(220px, 1.2fr) minmax(160px, 1fr) auto;
+            gap: 12px 16px;
+            align-items: start;
+            padding: 14px 16px;
+            border-top: 1px solid rgba(15, 23, 42, 0.06);
+        }
+        .fee-entity-card:not(.is-family) .fee-child-card {
+            border-top: 0;
+        }
+        .fee-child-card.is-child {
+            padding-left: 22px;
+            background: rgba(248, 250, 252, 0.7);
+        }
+
+        .fee-child-name-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+        .fee-child-name { font-size: 0.98rem; }
+        .fee-child-sub {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 12px;
+            color: var(--fin-muted);
+            font-size: 0.82rem;
+        }
+        .fee-adm { font-weight: 700; color: #334155; }
+
+        .fee-child-figures {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .fee-child-status {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .fee-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            background: rgba(148, 163, 184, 0.16);
+            color: #475569;
+            white-space: nowrap;
+        }
+        .fee-chip-ok { background: rgba(16, 185, 129, 0.14); color: #047857; }
+        .fee-chip-warn { background: rgba(245, 158, 11, 0.16); color: #b45309; }
+        .fee-chip-info { background: rgba(59, 130, 246, 0.14); color: #1d4ed8; }
+        .fee-chip-muted { background: rgba(239, 68, 68, 0.1); color: #b91c1c; }
+
+        .fee-child-actions { justify-self: end; align-self: center; }
+
+        @media (max-width: 991.98px) {
+            .fee-child-card {
+                grid-template-columns: 1fr;
+            }
+            .fee-family-totals {
+                width: 100%;
+                min-width: 0;
+                grid-template-columns: repeat(3, 1fr);
+            }
+            .fee-child-actions {
+                justify-self: start;
+            }
+            .stat-value { font-size: 1.35rem; }
+        }
+
+        @media (max-width: 575.98px) {
+            .fee-balance-page { padding: 12px 0; }
+            .fee-family-head, .fee-child-card { padding: 12px; }
+            .fee-child-card.is-child { padding-left: 12px; }
+            .fee-family-totals, .fee-child-figures {
+                grid-template-columns: 1fr 1fr;
+            }
+            .fee-metric-emphasis {
+                grid-column: 1 / -1;
+            }
+            .nav-tabs-finance {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            .nav-tabs-finance .nav-link {
+                white-space: nowrap;
+            }
+        }
     </style>
 @endpush
 
@@ -142,7 +313,7 @@
         @include('finance.partials.header', [
             'title' => 'Fee Balance Report',
             'icon' => 'bi bi-cash-stack',
-            'subtitle' => 'Year-wide balances, sibling family totals, last promised & fiscal task',
+            'subtitle' => 'Term invoiced/paid · combined outstanding balance · siblings grouped',
             'actions' => '
                 <div class="d-flex flex-wrap align-items-center gap-2">
                     <div class="form-check mb-0">
@@ -178,7 +349,7 @@
                 <div class="stat-card border-info">
                     <div class="stat-value text-info">Ksh {{ number_format($summary['total_invoiced'], 0) }}</div>
                     <div class="stat-label">Total Invoiced</div>
-                    <small class="text-muted">Current term</small>
+                    <small class="text-muted">Selected term (invoiced totals)</small>
                 </div>
             </div>
             <div class="col-md-3">
@@ -384,73 +555,39 @@
             </form>
         </div>
 
-        {{-- Students Table --}}
-        <div class="finance-table-wrapper finance-animate shadow-sm rounded-4 border-0">
-            <div class="table-responsive">
-                <table class="table table-hover finance-table">
-                    <thead>
-                        <tr>
-                            <th>Adm No</th>
-                            <th>Student Name</th>
-                            <th>Class</th>
-                            <th class="text-end">Invoiced</th>
-                            <th class="text-end">Paid</th>
-                            <th class="text-end">Balance</th>
-                            <th class="text-center">Status</th>
-                            <th class="text-end">Balance Brought Forward</th>
-                            <th class="text-center">BBF Status</th>
-                            <th class="text-center">Last Promised</th>
-                            <th class="text-center">Fiscal Task</th>
-                            <th class="text-center">Attendance</th>
-                            <th class="text-center">In School</th>
-                            <th class="text-center">Payment Plan</th>
-                            <th class="text-center">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse(($familyGroups ?? collect()) as $group)
-                            @include('finance.fee_balances.partials.family_group', ['group' => $group])
-                        @empty
-                            <tr>
-                                <td colspan="15" class="text-center py-5">
-                                    <i class="bi bi-inbox fs-1 text-muted"></i>
-                                    <p class="text-muted mt-2">No students found matching your criteria.</p>
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
+        {{-- Family / student cards --}}
+        <div class="fee-list finance-animate">
+            @forelse(($familyGroups ?? collect()) as $group)
+                @include('finance.fee_balances.partials.family_group', ['group' => $group])
+            @empty
+                <div class="text-center py-5 finance-card rounded-4 border-0">
+                    <i class="bi bi-inbox fs-1 text-muted"></i>
+                    <p class="text-muted mt-2 mb-0">No students found matching your criteria.</p>
+                </div>
+            @endforelse
         </div>
 
         {{-- Legend --}}
         <div class="alert alert-info border-0 mt-4">
-            <h6 class="fw-bold mb-2"><i class="bi bi-info-circle me-2"></i>Report Information</h6>
+            <h6 class="fw-bold mb-2"><i class="bi bi-info-circle me-2"></i>How to read this report</h6>
             <div class="row">
                 <div class="col-md-6">
                     <ul class="mb-0">
-                        <li><strong>In School:</strong> Student has been marked present at least once since term started</li>
-                        <li><strong>Attendance Rate:</strong> Percentage of days present out of total marked days</li>
-                        <li><strong>Highlighted rows:</strong> Students in school with balance > Ksh 1,000</li>
-                        <li><strong>Siblings:</strong> Children sharing a family are grouped with family invoiced / paid / owing totals</li>
-                        <li><strong>Last Promised:</strong> Latest promise date from financial notes (student or family)</li>
+                        <li><strong>Term invoiced / paid:</strong> Selected term only</li>
+                        <li><strong>Outstanding / Family balance:</strong> All fees still owing (year-wide)</li>
+                        <li><strong>Siblings:</strong> Grouped with child names and combined family balance</li>
+                        <li><strong>BBF:</strong> Shown only when still uncleared</li>
                     </ul>
                 </div>
                 <div class="col-md-6">
                     <ul class="mb-0">
                         <li><strong>Fiscal Task:</strong>
-                            <span class="fiscal-task-badge fiscal-task-green"><span class="fiscal-dot"></span> On track</span> = promise today/future,
-                            <span class="fiscal-task-badge fiscal-task-yellow"><span class="fiscal-dot"></span> Due soon</span> = overdue ≤7 days,
-                            <span class="fiscal-task-badge fiscal-task-red"><span class="fiscal-dot"></span> Follow up</span> = overdue &gt;7 days or no promise
+                            <span class="fiscal-task-badge fiscal-task-green"><span class="fiscal-dot"></span> On track</span>,
+                            <span class="fiscal-task-badge fiscal-task-yellow"><span class="fiscal-dot"></span> Due soon</span>,
+                            <span class="fiscal-task-badge fiscal-task-red"><span class="fiscal-dot"></span> Follow up</span>
                         </li>
-                        <li><strong>Payment Plan:</strong> Student has an active installment payment plan</li>
-                        <li><strong>Term Start:</strong> {{ $currentTerm ? $currentTerm->opening_date->format('M d, Y') : 'Not set' }}</li>
-                        <li><strong>BBF Status:</strong>
-                            <span class="badge bg-success">Cleared BBF & Invoice</span>,
-                            <span class="badge bg-info">Cleared BBF Only</span>,
-                            <span class="badge bg-warning">BBF Partial</span>,
-                            <span class="badge bg-danger">BBF Unpaid</span>
-                        </li>
+                        <li><strong>All tab:</strong> Hides fully cleared (zero balance) students</li>
+                        <li><strong>Term Start:</strong> {{ $currentTerm?->opening_date ? $currentTerm->opening_date->format('M d, Y') : 'Not set' }}</li>
                     </ul>
                 </div>
             </div>
