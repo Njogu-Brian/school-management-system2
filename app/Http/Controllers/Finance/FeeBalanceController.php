@@ -56,11 +56,22 @@ class FeeBalanceController extends Controller
         $bbfFilter = $request->input('bbf_filter');
         $fiscalTaskFilter = $request->input('fiscal_task_filter');
         
-        // Build student query
+        // Build student query (exclude staff-category children — they are not billed like regular fee balances)
         $studentsQuery = Student::query()
             ->where('archive', 0)
             ->where('is_alumni', false)
-            ->with(['classroom', 'stream', 'parent', 'family']);
+            ->with(['classroom', 'stream', 'parent', 'family', 'category'])
+            ->where(function ($q) {
+                $q->whereDoesntHave('category', function ($cq) {
+                    $cq->whereRaw('LOWER(name) = ?', ['staff']);
+                })->orWhereNull('category_id');
+            });
+        
+        // Also exclude children linked via staff user parent_id
+        $staffChildIds = $this->getStaffChildStudentIds();
+        if (!empty($staffChildIds)) {
+            $studentsQuery->whereNotIn('id', $staffChildIds);
+        }
         
         // Apply classroom filter
         if ($classroomId) {
@@ -1004,20 +1015,29 @@ class FeeBalanceController extends Controller
     }
 
     /**
-     * Get student IDs whose parent is a staff member (user with staff record has parent_id)
+     * Student IDs treated as staff children (category Staff and/or parent linked to a staff user).
      */
     private function getStaffChildStudentIds(): array
     {
+        $ids = Student::query()
+            ->whereHas('category', fn ($q) => $q->whereRaw('LOWER(name) = ?', ['staff']))
+            ->pluck('id');
+
         $staffParentIds = User::whereHas('staff')
             ->whereNotNull('parent_id')
             ->pluck('parent_id')
-            ->toArray();
+            ->unique()
+            ->filter()
+            ->values()
+            ->all();
 
-        if (empty($staffParentIds)) {
-            return [];
+        if (!empty($staffParentIds)) {
+            $ids = $ids->merge(
+                Student::whereIn('parent_id', $staffParentIds)->pluck('id')
+            );
         }
 
-        return Student::whereIn('parent_id', $staffParentIds)->pluck('id')->toArray();
+        return $ids->unique()->values()->all();
     }
 
     /**
