@@ -15,7 +15,7 @@ class FinancialNoteController extends Controller
         $validated = $request->validate([
             'student_id' => 'nullable|exists:students,id',
             'family_id' => 'nullable|exists:families,id',
-            'body' => 'required|string|max:5000',
+            'body' => 'nullable|string|max:5000',
             'promise_date' => 'nullable|date',
             'is_pinned' => 'nullable|boolean',
             'redirect_to' => 'nullable|string|max:500',
@@ -25,15 +25,24 @@ class FinancialNoteController extends Controller
             return back()->with('error', 'A student or family is required for a financial note.');
         }
 
+        if (empty($validated['body']) && empty($validated['promise_date'])) {
+            return back()->with('error', 'Add a note or a promise date.');
+        }
+
         if (!empty($validated['student_id']) && empty($validated['family_id'])) {
             $student = Student::withArchived()->find($validated['student_id']);
             $validated['family_id'] = $student?->family_id;
         }
 
+        $body = trim((string) ($validated['body'] ?? ''));
+        if ($body === '' && !empty($validated['promise_date'])) {
+            $body = 'Promise date set from Fee Balance Report.';
+        }
+
         FinancialNote::create([
             'student_id' => $validated['student_id'] ?? null,
             'family_id' => $validated['family_id'] ?? null,
-            'body' => $validated['body'],
+            'body' => $body,
             'promise_date' => $validated['promise_date'] ?? null,
             'is_pinned' => (bool) ($validated['is_pinned'] ?? false),
             'created_by' => Auth::id(),

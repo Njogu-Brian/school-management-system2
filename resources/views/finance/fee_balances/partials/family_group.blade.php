@@ -50,8 +50,12 @@
                     <span class="fee-metric-value">Ksh {{ number_format($group['total_invoiced'], 0) }}</span>
                 </div>
                 <div class="fee-metric">
-                    <span class="fee-metric-label">Term paid</span>
+                    <span class="fee-metric-label">On term invoices</span>
                     <span class="fee-metric-value text-success">Ksh {{ number_format($group['total_paid'], 0) }}</span>
+                </div>
+                <div class="fee-metric">
+                    <span class="fee-metric-label">Paid in term period</span>
+                    <span class="fee-metric-value">Ksh {{ number_format($group['paid_in_term_period'] ?? 0, 0) }}</span>
                 </div>
                 <div class="fee-metric fee-metric-emphasis">
                     <span class="fee-metric-label">Family balance</span>

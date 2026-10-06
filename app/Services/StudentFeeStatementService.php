@@ -285,10 +285,27 @@ class StudentFeeStatementService
             ->filter(fn (Payment $p) => StudentFeeLedgerService::isFeePayment($p));
 
         if ($year && $invoiceIds) {
-            $payments = $payments->filter(function (Payment $p) use ($year, $invoiceIds) {
+            $invoiceIdSet = array_fill_keys($invoiceIds, true);
+            $payments = $payments->filter(function (Payment $p) use ($year, $invoiceIdSet) {
                 $payYear = $p->payment_date ? Carbon::parse($p->payment_date)->year : null;
+                if ($payYear === (int) $year) {
+                    return true;
+                }
+                if ($p->invoice_id && isset($invoiceIdSet[$p->invoice_id])) {
+                    return true;
+                }
+                // Late-dated prior-year receipts can clear this year's invoices via allocations
+                // even when payment.invoice_id is null (e.g. Tiffany RKS726 / RCPT/2026-0950).
+                foreach ($p->allocations as $allocation) {
+                    $allocatedInvoiceId = $allocation->invoiceItem->invoice_id
+                        ?? $allocation->invoiceItem->invoice->id
+                        ?? null;
+                    if ($allocatedInvoiceId && isset($invoiceIdSet[$allocatedInvoiceId])) {
+                        return true;
+                    }
+                }
 
-                return $payYear === (int) $year || ($p->invoice_id && in_array($p->invoice_id, $invoiceIds, true));
+                return false;
             })->values();
         } elseif ($year) {
             $payments = $payments->filter(function (Payment $p) use ($year) {

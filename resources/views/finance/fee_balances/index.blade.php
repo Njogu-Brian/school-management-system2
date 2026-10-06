@@ -172,7 +172,7 @@
             grid-template-columns: repeat(3, minmax(90px, 1fr));
             gap: 10px 14px;
             align-content: start;
-            min-width: min(100%, 340px);
+            min-width: min(100%, 420px);
         }
         .fee-family-action {
             grid-column: 1 / -1;
@@ -240,8 +240,27 @@
 
         .fee-child-figures {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 8px;
+        }
+        @media (min-width: 1200px) {
+            .fee-child-figures {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+            }
+        }
+
+        .fee-promise-form {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+            margin: 0;
+        }
+        .fee-promise-form .form-control {
+            width: auto;
+            min-width: 9.5rem;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.8rem;
         }
 
         .fee-child-status {
@@ -573,10 +592,10 @@
             <div class="row">
                 <div class="col-md-6">
                     <ul class="mb-0">
-                        <li><strong>Term invoiced / paid:</strong> Selected term only</li>
-                        <li><strong>Outstanding / Family balance:</strong> All fees still owing (year-wide)</li>
-                        <li><strong>Siblings:</strong> Grouped with child names and combined family balance</li>
-                        <li><strong>BBF:</strong> Shown only when still uncleared</li>
+                        <li><strong>Term invoiced / on this term invoice:</strong> Selected term invoice totals</li>
+                        <li><strong>Paid in term period:</strong> Cash received during the term dates (may clear prior dues)</li>
+                        <li><strong>Outstanding / Family balance:</strong> All fees still owing (year statement)</li>
+                        <li><strong>Promise:</strong> Set or update last promised date from this screen</li>
                     </ul>
                 </div>
                 <div class="col-md-6">

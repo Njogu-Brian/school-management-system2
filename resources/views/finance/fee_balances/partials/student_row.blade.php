@@ -9,6 +9,10 @@
     ];
     $fiscalLabel = $fiscalLabels[$fiscalTask] ?? '—';
     $lastPromised = $student['last_promised'] ?? null;
+    $lastPaymentDate = $student['last_payment_date'] ?? null;
+    $lastPaymentAmount = (float) ($student['last_payment_amount'] ?? 0);
+    $paidInTermPeriod = (float) ($student['paid_in_term_period'] ?? 0);
+    $termInvoicePaid = (float) ($student['term_paid'] ?? $student['total_paid'] ?? 0);
     $hasUnclearedBbf = !empty($student['has_uncleared_bbf']);
     $statusColors = [
         'paid' => 'success',
@@ -42,8 +46,13 @@
             <span class="fee-metric-value">Ksh {{ number_format($student['term_invoiced'] ?? $student['total_invoiced'], 0) }}</span>
         </div>
         <div class="fee-metric">
-            <span class="fee-metric-label">Term paid</span>
-            <span class="fee-metric-value text-success">Ksh {{ number_format($student['term_paid'] ?? $student['total_paid'], 0) }}</span>
+            <span class="fee-metric-label">On this term invoice</span>
+            <span class="fee-metric-value text-success">Ksh {{ number_format($termInvoicePaid, 0) }}</span>
+        </div>
+        <div class="fee-metric">
+            <span class="fee-metric-label">Paid in term period</span>
+            <span class="fee-metric-value">Ksh {{ number_format($paidInTermPeriod, 0) }}</span>
+            <small class="text-muted">cash dated in term</small>
         </div>
         <div class="fee-metric fee-metric-emphasis">
             <span class="fee-metric-label">Outstanding</span>
@@ -65,10 +74,20 @@
             </span>
         @endif
 
+        @if($lastPaymentDate)
+            <span class="fee-chip fee-chip-info" title="Last payment">
+                <i class="bi bi-cash-coin"></i>
+                Last pay {{ $lastPaymentDate instanceof \Carbon\Carbon ? $lastPaymentDate->format('d M Y') : \Carbon\Carbon::parse($lastPaymentDate)->format('d M Y') }}
+                @if($lastPaymentAmount > 0)
+                    · Ksh {{ number_format($lastPaymentAmount, 0) }}
+                @endif
+            </span>
+        @endif
+
         @if($lastPromised)
             <span class="fee-chip" title="Last promised date">
                 <i class="bi bi-calendar-event"></i>
-                {{ $lastPromised instanceof \Carbon\Carbon ? $lastPromised->format('d M Y') : \Carbon\Carbon::parse($lastPromised)->format('d M Y') }}
+                Promised {{ $lastPromised instanceof \Carbon\Carbon ? $lastPromised->format('d M Y') : \Carbon\Carbon::parse($lastPromised)->format('d M Y') }}
             </span>
         @endif
 
@@ -94,6 +113,27 @@
                 @endif
             </span>
         @endif
+
+        <form method="POST" action="{{ route('finance.financial-notes.store') }}" class="fee-promise-form">
+            @csrf
+            <input type="hidden" name="student_id" value="{{ $student['id'] }}">
+            @if(!empty($student['family_id']))
+                <input type="hidden" name="family_id" value="{{ $student['family_id'] }}">
+            @endif
+            <input type="hidden" name="redirect_to" value="{{ url()->full() }}">
+            <label class="visually-hidden" for="promise-{{ $student['id'] }}">Promise date</label>
+            <input
+                type="date"
+                id="promise-{{ $student['id'] }}"
+                name="promise_date"
+                class="form-control form-control-sm"
+                value="{{ $lastPromised instanceof \Carbon\Carbon ? $lastPromised->format('Y-m-d') : ($lastPromised ? \Carbon\Carbon::parse($lastPromised)->format('Y-m-d') : '') }}"
+                required
+            >
+            <button type="submit" class="btn btn-sm btn-outline-primary" title="Save promise date">
+                <i class="bi bi-save"></i> Promise
+            </button>
+        </form>
     </div>
 
     <div class="fee-child-actions table-actions">

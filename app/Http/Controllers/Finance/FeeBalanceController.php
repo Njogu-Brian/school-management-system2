@@ -71,6 +71,7 @@ class FeeBalanceController extends Controller
         $students = $studentsQuery->get();
 
         $promiseMaps = $this->loadLastPromiseDates($students);
+        $paymentStats = $this->loadPaymentActivityStats($students, $selectedTerm);
         
         // Get balance brought forward votehead
         $balanceBroughtForwardVotehead = Votehead::where('code', 'BAL_BF')->first();
@@ -78,7 +79,7 @@ class FeeBalanceController extends Controller
         $statementService = app(StudentFeeStatementService::class);
 
         // Enrich each student with financial and attendance data
-        $enrichedStudents = $students->map(function ($student) use ($year, $termNumber, $termId, $selectedTerm, $balanceBroughtForwardVotehead, $statementService, $promiseMaps) {
+        $enrichedStudents = $students->map(function ($student) use ($year, $termNumber, $termId, $selectedTerm, $balanceBroughtForwardVotehead, $statementService, $promiseMaps, $paymentStats) {
             // Term invoice (for payment plans / BBF status context)
             $invoice = Invoice::where('student_id', $student->id)
                 ->when($termId, fn($q) => $q->where('term_id', $termId))
@@ -119,6 +120,11 @@ class FeeBalanceController extends Controller
                 : null;
             $lastPromised = $this->resolveLatestPromiseDate($studentPromise, $familyPromise);
             $fiscalTask = $this->computeFiscalTask($balance, $lastPromised);
+            $payStats = $paymentStats[$student->id] ?? [
+                'last_payment_date' => null,
+                'last_payment_amount' => 0.0,
+                'paid_in_term_period' => 0.0,
+            ];
 
             $parentPhone = $this->cleanDisplayValue(
                 $student->parent
@@ -141,12 +147,16 @@ class FeeBalanceController extends Controller
                 'mother_phone' => $this->cleanDisplayValue($student->parent?->mother_phone),
                 'guardian_name' => $this->cleanDisplayValue($student->parent?->guardian_name),
                 'guardian_phone' => $this->cleanDisplayValue($student->parent?->guardian_phone),
-                // Primary UI amounts = selected term
+                // Primary UI amounts = selected term invoice
                 'total_invoiced' => $termInvoiced,
                 'total_paid' => $termPaid,
                 'term_invoiced' => $termInvoiced,
                 'term_paid' => $termPaid,
                 'term_balance' => $termBalance,
+                // Cash collected during the selected term window (even if applied to prior dues)
+                'paid_in_term_period' => (float) ($payStats['paid_in_term_period'] ?? 0),
+                'last_payment_date' => $payStats['last_payment_date'] ?? null,
+                'last_payment_amount' => (float) ($payStats['last_payment_amount'] ?? 0),
                 // Outstanding = combined all fees still owing (year statement)
                 'balance' => $balance,
                 'year_invoiced' => $yearInvoiced,
@@ -389,6 +399,67 @@ class FeeBalanceController extends Controller
     }
 
     /**
+     * Last fee payment + cash collected during the selected term calendar window.
+     *
+     * @return array<int, array{last_payment_date: ?Carbon, last_payment_amount: float, paid_in_term_period: float}>
+     */
+    private function loadPaymentActivityStats(Collection $students, $selectedTerm): array
+    {
+        $studentIds = $students->pluck('id')->filter()->unique()->values()->all();
+        if (empty($studentIds)) {
+            return [];
+        }
+
+        $termStart = $selectedTerm?->opening_date
+            ? Carbon::parse($selectedTerm->opening_date)->startOfDay()
+            : null;
+        $termEnd = $selectedTerm?->closing_date
+            ? Carbon::parse($selectedTerm->closing_date)->endOfDay()
+            : ($termStart ? $termStart->copy()->endOfYear() : null);
+
+        $payments = Payment::query()
+            ->whereIn('student_id', $studentIds)
+            ->where(function ($q) {
+                $q->where('reversed', false)->orWhereNull('reversed');
+            })
+            ->where(function ($q) {
+                $q->whereNull('receipt_number')->orWhere('receipt_number', 'not like', 'SWIM-%');
+            })
+            ->orderByDesc('payment_date')
+            ->orderByDesc('id')
+            ->get(['id', 'student_id', 'amount', 'payment_date', 'receipt_number', 'payment_channel', 'reversed']);
+
+        $stats = [];
+        foreach ($studentIds as $id) {
+            $stats[(int) $id] = [
+                'last_payment_date' => null,
+                'last_payment_amount' => 0.0,
+                'paid_in_term_period' => 0.0,
+            ];
+        }
+
+        foreach ($payments as $payment) {
+            if (!\App\Services\StudentFeeLedgerService::isFeePayment($payment)) {
+                continue;
+            }
+            $sid = (int) $payment->student_id;
+            if (!isset($stats[$sid])) {
+                continue;
+            }
+            $payDate = $payment->payment_date ? Carbon::parse($payment->payment_date) : null;
+            if ($stats[$sid]['last_payment_date'] === null && $payDate) {
+                $stats[$sid]['last_payment_date'] = $payDate->copy()->startOfDay();
+                $stats[$sid]['last_payment_amount'] = (float) $payment->amount;
+            }
+            if ($termStart && $termEnd && $payDate && $payDate->gte($termStart) && $payDate->lte($termEnd)) {
+                $stats[$sid]['paid_in_term_period'] += (float) $payment->amount;
+            }
+        }
+
+        return $stats;
+    }
+
+    /**
      * Batch-load latest promise_date per student and per family from financial notes.
      *
      * @return array{by_student: array<int, Carbon>, by_family: array<int, Carbon>}
@@ -523,6 +594,7 @@ class FeeBalanceController extends Controller
                 // Term totals for invoiced/paid; combined outstanding for balance
                 'total_invoiced' => (float) $children->sum('term_invoiced'),
                 'total_paid' => (float) $children->sum('term_paid'),
+                'paid_in_term_period' => (float) $children->sum('paid_in_term_period'),
                 'balance' => (float) $children->sum('balance'),
                 'last_promised' => $lastPromised,
                 'fiscal_task' => $this->worstFiscalTask($fiscalStatuses),
