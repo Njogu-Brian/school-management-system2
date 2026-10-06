@@ -108,6 +108,9 @@
         .balance-zero {
             color: #059669;
         }
+        .fiscal-green { color: #047857; font-weight: bold; }
+        .fiscal-yellow { color: #b45309; font-weight: bold; }
+        .fiscal-red { color: #b91c1c; font-weight: bold; }
         .footer {
             margin-top: 20px;
             padding-top: 10px;
@@ -165,27 +168,58 @@
         <table>
             <thead>
                 <tr>
-                    <th style="width: 4%;">#</th>
-                    <th style="width: {{ $includeAmounts ?? true ? '22%' : '30%' }};">Child's Name</th>
-                    <th style="width: {{ $includeAmounts ?? true ? '12%' : '18%' }};">Adm No</th>
+                    <th style="width: 3%;">#</th>
+                    <th style="width: {{ $includeAmounts ?? true ? '18%' : '26%' }};">Child's Name</th>
+                    <th style="width: {{ $includeAmounts ?? true ? '10%' : '14%' }};">Adm No</th>
                     @if($includeAmounts ?? true)
-                    <th style="width: 14%;" class="text-end">Fee Balance</th>
+                    <th style="width: 12%;" class="text-end">Fee Balance</th>
                     @endif
-                    <th style="width: {{ $includeAmounts ?? true ? '24%' : '26%' }};">Father</th>
-                    <th style="width: {{ $includeAmounts ?? true ? '24%' : '26%' }};">Mother</th>
+                    <th style="width: 11%;">Last Promised</th>
+                    <th style="width: 10%;">Fiscal Task</th>
+                    <th style="width: {{ $includeAmounts ?? true ? '18%' : '20%' }};">Father</th>
+                    <th style="width: {{ $includeAmounts ?? true ? '18%' : '20%' }};">Mother</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach($students as $index => $student)
+                @php
+                    $fiscalTask = $student['fiscal_task'] ?? 'none';
+                    $fiscalClass = match ($fiscalTask) {
+                        'green' => 'fiscal-green',
+                        'yellow' => 'fiscal-yellow',
+                        'red' => 'fiscal-red',
+                        default => '',
+                    };
+                    $fiscalLabel = match ($fiscalTask) {
+                        'green' => 'On track',
+                        'yellow' => 'Due soon',
+                        'red' => 'Follow up',
+                        default => '—',
+                    };
+                    $lastPromised = $student['last_promised'] ?? null;
+                @endphp
                 <tr>
                     <td>{{ $index + 1 }}</td>
-                    <td>{{ $student['full_name'] }}</td>
+                    <td>
+                        {{ $student['full_name'] }}
+                        @if(!empty($student['family_id']))
+                            <br><small style="color:#64748b;">Family #{{ $student['family_id'] }}</small>
+                        @endif
+                    </td>
                     <td>{{ $student['admission_number'] }}</td>
                     @if($includeAmounts ?? true)
                     <td class="text-end {{ $student['balance'] > 0 ? 'balance-positive' : 'balance-zero' }}">
                         Ksh {{ number_format($student['balance'], 2) }}
                     </td>
                     @endif
+                    <td>
+                        @if($lastPromised)
+                            {{ $lastPromised instanceof \Carbon\Carbon ? $lastPromised->format('d M Y') : \Carbon\Carbon::parse($lastPromised)->format('d M Y') }}
+                        @else
+                            —
+                        @endif
+                    </td>
+                    <td class="{{ $fiscalClass }}">{{ $fiscalLabel }}</td>
                     <td>
                         @if(!empty($student['father_name']) || !empty($student['father_phone']))
                             {{ $student['father_name'] ?? '-' }}<br>
@@ -215,7 +249,7 @@
                     <td class="text-end {{ $students->sum('balance') > 0 ? 'balance-positive' : 'balance-zero' }}">
                         Ksh {{ number_format($students->sum('balance'), 2) }}
                     </td>
-                    <td colspan="2"></td>
+                    <td colspan="4"></td>
                 </tr>
             </tfoot>
             @endif

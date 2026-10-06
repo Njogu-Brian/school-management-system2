@@ -82,6 +82,57 @@
         .highlight-row {
             background: rgba(239, 68, 68, 0.05) !important;
         }
+
+        .family-group-header {
+            background: rgba(37, 99, 235, 0.08) !important;
+            border-top: 2px solid rgba(37, 99, 235, 0.35);
+        }
+
+        .family-group-header td {
+            vertical-align: middle;
+            padding-top: 12px;
+            padding-bottom: 12px;
+        }
+
+        .family-child-row td:first-child {
+            padding-left: 1.25rem;
+        }
+
+        .fiscal-task-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .fiscal-task-badge .fiscal-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .fiscal-task-green {
+            background: rgba(16, 185, 129, 0.15);
+            color: #047857;
+        }
+        .fiscal-task-green .fiscal-dot { background: #10b981; }
+
+        .fiscal-task-yellow {
+            background: rgba(245, 158, 11, 0.18);
+            color: #b45309;
+        }
+        .fiscal-task-yellow .fiscal-dot { background: #f59e0b; }
+
+        .fiscal-task-red {
+            background: rgba(239, 68, 68, 0.15);
+            color: #b91c1c;
+        }
+        .fiscal-task-red .fiscal-dot { background: #ef4444; }
     </style>
 @endpush
 
@@ -91,7 +142,7 @@
         @include('finance.partials.header', [
             'title' => 'Fee Balance Report',
             'icon' => 'bi bi-cash-stack',
-            'subtitle' => 'Year-wide balances (matches Student Statements), plus attendance',
+            'subtitle' => 'Year-wide balances, sibling family totals, last promised & fiscal task',
             'actions' => '
                 <div class="d-flex flex-wrap align-items-center gap-2">
                     <div class="form-check mb-0">
@@ -310,6 +361,16 @@
                         <option value="bbf_unpaid" {{ request('bbf_filter') === 'bbf_unpaid' ? 'selected' : '' }}>BBF Unpaid</option>
                     </select>
                 </div>
+                <div class="col-md-2">
+                    <label class="finance-form-label">Fiscal Task</label>
+                    <select name="fiscal_task_filter" class="finance-form-select">
+                        <option value="">All</option>
+                        <option value="green" {{ request('fiscal_task_filter') === 'green' ? 'selected' : '' }}>Green (on track)</option>
+                        <option value="yellow" {{ request('fiscal_task_filter') === 'yellow' ? 'selected' : '' }}>Yellow (due soon)</option>
+                        <option value="red" {{ request('fiscal_task_filter') === 'red' ? 'selected' : '' }}>Red (follow up)</option>
+                        <option value="no_promise" {{ request('fiscal_task_filter') === 'no_promise' ? 'selected' : '' }}>No promise date</option>
+                    </select>
+                </div>
                 <div class="col-md-2 d-flex align-items-end">
                     <div class="d-flex gap-2 w-100">
                         <button type="submit" class="btn btn-finance btn-finance-primary">
@@ -338,6 +399,8 @@
                             <th class="text-center">Status</th>
                             <th class="text-end">Balance Brought Forward</th>
                             <th class="text-center">BBF Status</th>
+                            <th class="text-center">Last Promised</th>
+                            <th class="text-center">Fiscal Task</th>
                             <th class="text-center">Attendance</th>
                             <th class="text-center">In School</th>
                             <th class="text-center">Payment Plan</th>
@@ -345,11 +408,11 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($students as $student)
-                            @include('finance.fee_balances.partials.student_row', ['student' => $student])
+                        @forelse(($familyGroups ?? collect()) as $group)
+                            @include('finance.fee_balances.partials.family_group', ['group' => $group])
                         @empty
                             <tr>
-                                <td colspan="13" class="text-center py-5">
+                                <td colspan="15" class="text-center py-5">
                                     <i class="bi bi-inbox fs-1 text-muted"></i>
                                     <p class="text-muted mt-2">No students found matching your criteria.</p>
                                 </td>
@@ -369,19 +432,24 @@
                         <li><strong>In School:</strong> Student has been marked present at least once since term started</li>
                         <li><strong>Attendance Rate:</strong> Percentage of days present out of total marked days</li>
                         <li><strong>Highlighted rows:</strong> Students in school with balance > Ksh 1,000</li>
-                        <li><strong>Balance Brought Forward (BBF):</strong> Outstanding balance from previous terms</li>
+                        <li><strong>Siblings:</strong> Children sharing a family are grouped with family invoiced / paid / owing totals</li>
+                        <li><strong>Last Promised:</strong> Latest promise date from financial notes (student or family)</li>
                     </ul>
                 </div>
                 <div class="col-md-6">
                     <ul class="mb-0">
+                        <li><strong>Fiscal Task:</strong>
+                            <span class="fiscal-task-badge fiscal-task-green"><span class="fiscal-dot"></span> On track</span> = promise today/future,
+                            <span class="fiscal-task-badge fiscal-task-yellow"><span class="fiscal-dot"></span> Due soon</span> = overdue ≤7 days,
+                            <span class="fiscal-task-badge fiscal-task-red"><span class="fiscal-dot"></span> Follow up</span> = overdue &gt;7 days or no promise
+                        </li>
                         <li><strong>Payment Plan:</strong> Student has an active installment payment plan</li>
-                        <li><strong>Plan Progress:</strong> Percentage of installments paid</li>
                         <li><strong>Term Start:</strong> {{ $currentTerm ? $currentTerm->opening_date->format('M d, Y') : 'Not set' }}</li>
-                        <li><strong>BBF Status:</strong> 
-                            <span class="badge bg-success">Cleared BBF & Invoice</span> = Both cleared,
-                            <span class="badge bg-info">Cleared BBF Only</span> = BBF cleared but invoice has balance,
-                            <span class="badge bg-warning">BBF Partial</span> = BBF partially paid,
-                            <span class="badge bg-danger">BBF Unpaid</span> = BBF not paid
+                        <li><strong>BBF Status:</strong>
+                            <span class="badge bg-success">Cleared BBF & Invoice</span>,
+                            <span class="badge bg-info">Cleared BBF Only</span>,
+                            <span class="badge bg-warning">BBF Partial</span>,
+                            <span class="badge bg-danger">BBF Unpaid</span>
                         </li>
                     </ul>
                 </div>

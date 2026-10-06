@@ -9,6 +9,7 @@ use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Attendance;
 use App\Models\FeePaymentPlan;
+use App\Models\FinancialNote;
 use App\Models\Term;
 use App\Models\Academics\Classroom;
 use App\Models\Votehead;
@@ -17,6 +18,7 @@ use App\Services\StudentBalanceService;
 use App\Services\StudentFeeStatementService;
 use App\Services\PDFExportService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -52,12 +54,13 @@ class FeeBalanceController extends Controller
         $attendanceFilter = $request->input('attendance_filter');
         $paymentPlanFilter = $request->input('payment_plan_filter');
         $bbfFilter = $request->input('bbf_filter');
+        $fiscalTaskFilter = $request->input('fiscal_task_filter');
         
         // Build student query
         $studentsQuery = Student::query()
             ->where('archive', 0)
             ->where('is_alumni', false)
-            ->with(['classroom', 'stream', 'parent']);
+            ->with(['classroom', 'stream', 'parent', 'family']);
         
         // Apply classroom filter
         if ($classroomId) {
@@ -66,6 +69,8 @@ class FeeBalanceController extends Controller
         
         // Get students
         $students = $studentsQuery->get();
+
+        $promiseMaps = $this->loadLastPromiseDates($students);
         
         // Get balance brought forward votehead
         $balanceBroughtForwardVotehead = Votehead::where('code', 'BAL_BF')->first();
@@ -73,7 +78,7 @@ class FeeBalanceController extends Controller
         $statementService = app(StudentFeeStatementService::class);
 
         // Enrich each student with financial and attendance data
-        $enrichedStudents = $students->map(function ($student) use ($year, $termNumber, $termId, $selectedTerm, $balanceStatus, $attendanceFilter, $paymentPlanFilter, $balanceBroughtForwardVotehead, $statementService) {
+        $enrichedStudents = $students->map(function ($student) use ($year, $termNumber, $termId, $selectedTerm, $balanceBroughtForwardVotehead, $statementService, $promiseMaps) {
             // Term invoice (for payment plans / BBF status context)
             $invoice = Invoice::where('student_id', $student->id)
                 ->when($termId, fn($q) => $q->where('term_id', $termId))
@@ -102,9 +107,17 @@ class FeeBalanceController extends Controller
                 ->first() : null;
             
             $paymentPlanStatus = $this->getPaymentPlanStatus($paymentPlan);
+
+            $studentPromise = $promiseMaps['by_student'][$student->id] ?? null;
+            $familyPromise = $student->family_id
+                ? ($promiseMaps['by_family'][$student->family_id] ?? null)
+                : null;
+            $lastPromised = $this->resolveLatestPromiseDate($studentPromise, $familyPromise);
+            $fiscalTask = $this->computeFiscalTask($balance, $lastPromised);
             
             return [
                 'id' => $student->id,
+                'family_id' => $student->family_id,
                 'admission_number' => $student->admission_number,
                 'full_name' => $student->full_name,
                 'classroom' => $student->classroom ? $student->classroom->name : 'N/A',
@@ -141,6 +154,8 @@ class FeeBalanceController extends Controller
                 'balance_brought_forward_paid' => $balanceBroughtForwardData['paid'],
                 'balance_brought_forward_balance' => $balanceBroughtForwardData['balance'],
                 'bbf_payment_status' => $balanceBroughtForwardData['payment_status'],
+                'last_promised' => $lastPromised,
+                'fiscal_task' => $fiscalTask,
             ];
         });
         
@@ -214,6 +229,20 @@ class FeeBalanceController extends Controller
                     default:
                         return true;
                 }
+            });
+        }
+
+        // Fiscal task filter (promise-date traffic light)
+        if ($fiscalTaskFilter) {
+            $filteredStudents = $filteredStudents->filter(function ($student) use ($fiscalTaskFilter) {
+                $task = $student['fiscal_task'] ?? 'none';
+                return match ($fiscalTaskFilter) {
+                    'green' => $task === 'green',
+                    'yellow' => $task === 'yellow',
+                    'red' => $task === 'red',
+                    'no_promise' => $task === 'red' && empty($student['last_promised']),
+                    default => true,
+                };
             });
         }
         
@@ -317,6 +346,7 @@ class FeeBalanceController extends Controller
         $sortOrder = $request->input('sort_order', 'desc');
         
         $displayStudents = $displayStudents->sortBy($sortBy, SORT_REGULAR, $sortOrder === 'desc')->values();
+        $familyGroups = $this->buildFamilyGroups($displayStudents);
         
         // Get classrooms and terms for filter (align with Admin Dashboard)
         $classrooms = Classroom::orderBy('name')->get();
@@ -325,6 +355,7 @@ class FeeBalanceController extends Controller
         
         return view('finance.fee_balances.index', [
             'students' => $displayStudents,
+            'familyGroups' => $familyGroups,
             'summary' => $summary,
             'counts' => $counts,
             'view' => $view,
@@ -337,6 +368,155 @@ class FeeBalanceController extends Controller
             'selectedTermNumber' => $termNumber,
             'filters' => $request->all(),
         ]);
+    }
+
+    /**
+     * Batch-load latest promise_date per student and per family from financial notes.
+     *
+     * @return array{by_student: array<int, Carbon>, by_family: array<int, Carbon>}
+     */
+    private function loadLastPromiseDates(Collection $students): array
+    {
+        $studentIds = $students->pluck('id')->filter()->unique()->values()->all();
+        $familyIds = $students->pluck('family_id')->filter()->unique()->values()->all();
+
+        $byStudent = [];
+        if (!empty($studentIds)) {
+            $rows = FinancialNote::query()
+                ->select('student_id', DB::raw('MAX(promise_date) as last_promised'))
+                ->whereIn('student_id', $studentIds)
+                ->whereNotNull('promise_date')
+                ->groupBy('student_id')
+                ->get();
+            foreach ($rows as $row) {
+                $byStudent[(int) $row->student_id] = Carbon::parse($row->last_promised)->startOfDay();
+            }
+        }
+
+        $byFamily = [];
+        if (!empty($familyIds)) {
+            $rows = FinancialNote::query()
+                ->select('family_id', DB::raw('MAX(promise_date) as last_promised'))
+                ->whereIn('family_id', $familyIds)
+                ->whereNotNull('promise_date')
+                ->groupBy('family_id')
+                ->get();
+            foreach ($rows as $row) {
+                $byFamily[(int) $row->family_id] = Carbon::parse($row->last_promised)->startOfDay();
+            }
+        }
+
+        return [
+            'by_student' => $byStudent,
+            'by_family' => $byFamily,
+        ];
+    }
+
+    private function resolveLatestPromiseDate(?Carbon $studentPromise, ?Carbon $familyPromise): ?Carbon
+    {
+        if ($studentPromise && $familyPromise) {
+            return $studentPromise->gte($familyPromise) ? $studentPromise->copy() : $familyPromise->copy();
+        }
+
+        return $studentPromise?->copy() ?? $familyPromise?->copy();
+    }
+
+    /**
+     * Traffic light for collection follow-up from last promise date.
+     * green = today or future; yellow = overdue ≤7 days; red = older / no promise with balance.
+     */
+    private function computeFiscalTask(float $balance, ?Carbon $lastPromised): string
+    {
+        if ($balance <= 0) {
+            return 'none';
+        }
+
+        if (!$lastPromised) {
+            return 'red';
+        }
+
+        $today = Carbon::today();
+        $promised = $lastPromised->copy()->startOfDay();
+
+        if ($promised->gte($today)) {
+            return 'green';
+        }
+
+        if ($promised->diffInDays($today) <= 7) {
+            return 'yellow';
+        }
+
+        return 'red';
+    }
+
+    /**
+     * Group siblings (same family_id) into family blocks with totals.
+     */
+    private function buildFamilyGroups(Collection $students): Collection
+    {
+        $groups = collect();
+        $seenFamilies = [];
+
+        foreach ($students as $student) {
+            $familyId = $student['family_id'] ?? null;
+
+            if ($familyId) {
+                if (isset($seenFamilies[$familyId])) {
+                    continue;
+                }
+                $seenFamilies[$familyId] = true;
+                $children = $students->where('family_id', $familyId)->values();
+            } else {
+                $children = collect([$student]);
+            }
+
+            $owingChildren = $children->filter(fn ($c) => ($c['balance'] ?? 0) > 0);
+            $fiscalStatuses = $owingChildren->pluck('fiscal_task')->all();
+            $lastPromised = $children
+                ->pluck('last_promised')
+                ->filter()
+                ->sortByDesc(fn ($d) => $d instanceof Carbon ? $d->timestamp : strtotime((string) $d))
+                ->first();
+
+            $first = $children->first();
+            $groups->push([
+                'family_id' => $familyId,
+                'is_family' => $familyId && $children->count() > 1,
+                'label' => $familyId && $children->count() > 1
+                    ? 'Family · ' . $children->count() . ' children'
+                    : ($first['full_name'] ?? 'Student'),
+                'parent_phone' => $first['parent_phone'] ?? 'N/A',
+                'father_name' => $first['father_name'] ?? null,
+                'mother_name' => $first['mother_name'] ?? null,
+                'total_invoiced' => (float) $children->sum('total_invoiced'),
+                'total_paid' => (float) $children->sum('total_paid'),
+                'balance' => (float) $children->sum('balance'),
+                'last_promised' => $lastPromised,
+                'fiscal_task' => $this->worstFiscalTask($fiscalStatuses),
+                'children' => $children,
+            ]);
+        }
+
+        return $groups->values();
+    }
+
+    /**
+     * Worst status among owing children: red > yellow > green > none.
+     */
+    private function worstFiscalTask(array $statuses): string
+    {
+        $rank = ['red' => 3, 'yellow' => 2, 'green' => 1, 'none' => 0];
+        $worst = 'none';
+        $worstRank = 0;
+        foreach ($statuses as $status) {
+            $r = $rank[$status] ?? 0;
+            if ($r > $worstRank) {
+                $worstRank = $r;
+                $worst = $status;
+            }
+        }
+
+        return $worst;
     }
     
     /**
@@ -544,45 +724,90 @@ class FeeBalanceController extends Controller
             
             $handle = fopen('php://output', 'w');
             
-            $headers = ['Admission No', 'Student Name', 'Class', 'Stream', 'Father Name', 'Father Phone', 'Mother Name', 'Mother Phone'];
+            $headers = ['Family ID', 'Admission No', 'Student Name', 'Class', 'Stream', 'Father Name', 'Father Phone', 'Mother Name', 'Mother Phone', 'Last Promised', 'Fiscal Task'];
             if ($includeAmounts) {
                 $headers = array_merge($headers, ['Total Invoiced', 'Total Paid', 'Balance', 'Balance %', 'Payment Status', 'Balance Brought Forward', 'BBF Paid', 'BBF Balance', 'BBF Payment Status', 'Days in School', 'Days Present', 'Days Absent', 'Attendance %', 'In School', 'Has Payment Plan', 'Plan Status', 'Next Installment']);
             }
             fputcsv($handle, $headers);
-            
-            foreach ($students as $student) {
-                $row = [
-                    $student['admission_number'],
-                    $student['full_name'],
-                    $student['classroom'],
-                    $student['stream'] ?? '',
-                    $student['father_name'] ?? '',
-                    $student['father_phone'] ?? '',
-                    $student['mother_name'] ?? '',
-                    $student['mother_phone'] ?? '',
-                ];
-                if ($includeAmounts) {
-                    $row = array_merge($row, [
-                        number_format($student['total_invoiced'], 2),
-                        number_format($student['total_paid'], 2),
-                        number_format($student['balance'], 2),
-                        $student['balance_percentage'] . '%',
-                        ucfirst(str_replace('_', ' ', $student['payment_status'])),
-                        number_format($student['balance_brought_forward'] ?? 0, 2),
-                        number_format($student['balance_brought_forward_paid'] ?? 0, 2),
-                        number_format($student['balance_brought_forward_balance'] ?? 0, 2),
-                        ucfirst(str_replace('_', ' ', $student['bbf_payment_status'] ?? 'no_bbf')),
-                        $student['attendance_days'],
-                        $student['days_present'],
-                        $student['days_absent'],
-                        $student['attendance_rate'] . '%',
-                        $student['is_in_school'] ? 'Yes' : 'No',
-                        $student['has_payment_plan'] ? 'Yes' : 'No',
-                        ucfirst(str_replace('_', ' ', $student['payment_plan_status'])),
-                        $student['next_installment_date'] ? $student['next_installment_date']->format('Y-m-d') : '',
-                    ]);
+
+            $familyGroups = $this->buildFamilyGroups($students);
+            foreach ($familyGroups as $group) {
+                if (!empty($group['is_family'])) {
+                    $familyRow = [
+                        $group['family_id'] ?? '',
+                        '',
+                        $group['label'],
+                        'FAMILY TOTAL',
+                        '',
+                        $group['father_name'] ?? '',
+                        '',
+                        $group['mother_name'] ?? '',
+                        '',
+                        $group['last_promised'] instanceof Carbon ? $group['last_promised']->format('Y-m-d') : '',
+                        ucfirst($group['fiscal_task'] ?? 'none'),
+                    ];
+                    if ($includeAmounts) {
+                        $familyRow = array_merge($familyRow, [
+                            number_format($group['total_invoiced'], 2),
+                            number_format($group['total_paid'], 2),
+                            number_format($group['balance'], 2),
+                            '',
+                            '',
+                            '',
+                            '',
+                            '',
+                            '',
+                            '',
+                            '',
+                            '',
+                            '',
+                            '',
+                            '',
+                            '',
+                            '',
+                        ]);
+                    }
+                    fputcsv($handle, $familyRow);
                 }
-                fputcsv($handle, $row);
+
+                foreach ($group['children'] as $student) {
+                    $lastPromised = $student['last_promised'] ?? null;
+                    $row = [
+                        $student['family_id'] ?? '',
+                        $student['admission_number'],
+                        $student['full_name'],
+                        $student['classroom'],
+                        $student['stream'] ?? '',
+                        $student['father_name'] ?? '',
+                        $student['father_phone'] ?? '',
+                        $student['mother_name'] ?? '',
+                        $student['mother_phone'] ?? '',
+                        $lastPromised instanceof Carbon ? $lastPromised->format('Y-m-d') : '',
+                        ucfirst($student['fiscal_task'] ?? 'none'),
+                    ];
+                    if ($includeAmounts) {
+                        $row = array_merge($row, [
+                            number_format($student['total_invoiced'], 2),
+                            number_format($student['total_paid'], 2),
+                            number_format($student['balance'], 2),
+                            $student['balance_percentage'] . '%',
+                            ucfirst(str_replace('_', ' ', $student['payment_status'])),
+                            number_format($student['balance_brought_forward'] ?? 0, 2),
+                            number_format($student['balance_brought_forward_paid'] ?? 0, 2),
+                            number_format($student['balance_brought_forward_balance'] ?? 0, 2),
+                            ucfirst(str_replace('_', ' ', $student['bbf_payment_status'] ?? 'no_bbf')),
+                            $student['attendance_days'],
+                            $student['days_present'],
+                            $student['days_absent'],
+                            $student['attendance_rate'] . '%',
+                            $student['is_in_school'] ? 'Yes' : 'No',
+                            $student['has_payment_plan'] ? 'Yes' : 'No',
+                            ucfirst(str_replace('_', ' ', $student['payment_plan_status'])),
+                            $student['next_installment_date'] ? $student['next_installment_date']->format('Y-m-d') : '',
+                        ]);
+                    }
+                    fputcsv($handle, $row);
+                }
             }
             
             fclose($handle);

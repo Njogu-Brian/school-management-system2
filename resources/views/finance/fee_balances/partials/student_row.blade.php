@@ -1,5 +1,22 @@
-<tr class="{{ $student['is_in_school'] && $student['balance'] > 1000 ? 'highlight-row' : '' }}">
-    <td><strong>{{ $student['admission_number'] }}</strong></td>
+@php
+    $inFamilyGroup = $inFamilyGroup ?? false;
+    $fiscalTask = $student['fiscal_task'] ?? 'none';
+    $fiscalLabels = [
+        'green' => 'On track',
+        'yellow' => 'Due soon',
+        'red' => 'Follow up',
+        'none' => '—',
+    ];
+    $fiscalLabel = $fiscalLabels[$fiscalTask] ?? '—';
+    $lastPromised = $student['last_promised'] ?? null;
+@endphp
+<tr class="{{ $student['is_in_school'] && $student['balance'] > 1000 ? 'highlight-row' : '' }}{{ $inFamilyGroup ? ' family-child-row' : '' }}">
+    <td>
+        @if($inFamilyGroup)
+            <span class="text-muted me-1">↳</span>
+        @endif
+        <strong>{{ $student['admission_number'] }}</strong>
+    </td>
     <td>
         <div>
             <strong>{{ $student['full_name'] }}</strong>
@@ -94,6 +111,23 @@
         @endif
     </td>
     <td class="text-center">
+        @if($lastPromised)
+            <strong>{{ $lastPromised instanceof \Carbon\Carbon ? $lastPromised->format('d M Y') : \Carbon\Carbon::parse($lastPromised)->format('d M Y') }}</strong>
+        @else
+            <span class="text-muted">—</span>
+        @endif
+    </td>
+    <td class="text-center">
+        @if($fiscalTask !== 'none')
+            <span class="fiscal-task-badge fiscal-task-{{ $fiscalTask }}" title="Fiscal task from last promise date">
+                <span class="fiscal-dot"></span>
+                {{ $fiscalLabel }}
+            </span>
+        @else
+            <span class="text-muted">—</span>
+        @endif
+    </td>
+    <td class="text-center">
         <div class="mb-1">
             <strong>{{ $student['attendance_rate'] }}%</strong>
         </div>
@@ -148,4 +182,3 @@
         </div>
     </td>
 </tr>
-
