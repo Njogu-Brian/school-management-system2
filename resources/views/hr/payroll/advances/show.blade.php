@@ -100,6 +100,23 @@
                                 <div>{{ $advance->purpose ?? '—' }}</div>
                             </div>
                             <div class="col-md-6 mb-3">
+                                <label class="text-muted small">Source</label>
+                                <div class="fw-semibold">{{ $advance->sourceLabel() }}</div>
+                                @if($advance->isFundedByStaff())
+                                    <div class="small text-muted">Repayments credited to this staff’s net pay (non-taxable add-on).</div>
+                                @endif
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="text-muted small">Repayment starts</label>
+                                <div>
+                                    @if($advance->repayment_start_year && $advance->repayment_start_month)
+                                        {{ date('F Y', mktime(0, 0, 0, $advance->repayment_start_month, 1, $advance->repayment_start_year)) }}
+                                    @else
+                                        —
+                                    @endif
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
                                 <label class="text-muted small">Repayment Method</label>
                                 <div>
                                     <span class="pill-badge pill-info">{{ ucfirst(str_replace('_', ' ', $advance->repayment_method)) }}</span>
@@ -144,6 +161,43 @@
                     </div>
                 </div>
 
+                @if($advance->installments->count() > 0)
+                <div class="settings-card mb-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">Repayment Schedule</h5>
+                        <p class="text-muted small mb-0">Payroll months when recovery (and funder credit) applies.</p>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-modern table-sm">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Payroll month</th>
+                                        <th>Amount</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($advance->installments as $row)
+                                        <tr>
+                                            <td>{{ $row->sequence }}</td>
+                                            <td>{{ date('F Y', mktime(0, 0, 0, $row->month, 1, $row->year)) }}</td>
+                                            <td>Ksh {{ number_format($row->amount, 2) }}</td>
+                                            <td>
+                                                <span class="pill-badge {{ $row->status === 'collected' ? 'pill-success' : ($row->status === 'pending' ? 'pill-warning' : 'pill-secondary') }}">
+                                                    {{ ucfirst($row->status) }}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                @endif
+
                 @if($advance->customDeductions->count() > 0)
                 <div class="settings-card">
                     <div class="card-header">
@@ -184,9 +238,9 @@
                         <h5 class="mb-0">Actions</h5>
                     </div>
                     <div class="card-body">
-                        <form action="{{ route('hr.payroll.advances.approve', $advance->id) }}" method="POST">
+                        <form action="{{ route('hr.payroll.advances.approve', $advance->id) }}" method="POST" class="row g-2">
                             @csrf
-                            <div class="mb-3">
+                            <div class="col-12">
                                 <label class="form-label">Issued amount (KES)</label>
                                 <input type="number" name="amount" step="0.01" min="0.01"
                                        class="form-control"
@@ -194,36 +248,54 @@
                                        required>
                                 <div class="form-text">
                                     Requested: Ksh {{ number_format($advance->requested_amount ?? $advance->amount, 2) }}.
-                                    You may approve a lower amount (e.g. issue 3000 of 5000).
                                 </div>
                             </div>
-                            <div class="mb-3">
+                            @include('hr.payroll.advances._source_schedule_fields', ['advance' => $advance])
+                            <div class="col-12">
                                 <label class="form-label">Repayment method</label>
                                 <select name="repayment_method" class="form-select" id="approveRepaymentMethod">
-                                    @foreach(['lump_sum' => 'Lump Sum', 'installments' => 'Installments', 'monthly_deduction' => 'Monthly Deduction'] as $key => $label)
+                                    @foreach(['lump_sum' => 'Lump Sum (1 payroll)', 'installments' => 'Installments', 'monthly_deduction' => 'Monthly Deduction'] as $key => $label)
                                         <option value="{{ $key }}" @selected(old('repayment_method', $advance->repayment_method) === $key)>{{ $label }}</option>
                                     @endforeach
                                 </select>
                             </div>
-                            <div class="mb-3" id="approveInstallments">
+                            <div class="col-12" id="approveInstallments">
                                 <label class="form-label">Installment count</label>
                                 <input type="number" name="installment_count" min="1" class="form-control"
                                        value="{{ old('installment_count', $advance->installment_count) }}">
                             </div>
-                            <div class="mb-3" id="approveMonthly">
+                            <div class="col-12" id="approveMonthly">
                                 <label class="form-label">Monthly deduction (KES)</label>
                                 <input type="number" name="monthly_deduction_amount" step="0.01" min="0.01" class="form-control"
                                        value="{{ old('monthly_deduction_amount', $advance->monthly_deduction_amount) }}">
                             </div>
-                            <div class="mb-3">
+                            <div class="col-12">
                                 <label class="form-label">Notes</label>
                                 <textarea name="notes" rows="2" class="form-control" placeholder="Optional approval notes"></textarea>
                             </div>
-                            <button type="submit" class="btn btn-success w-100 mb-2"
-                                    onclick="return confirm('Approve this advance with the issued amount?')">
-                                <i class="bi bi-check-circle"></i> Approve Advance
-                            </button>
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-success w-100 mb-2"
+                                        onclick="return confirm('Approve this advance with the issued amount?')">
+                                    <i class="bi bi-check-circle"></i> Approve Advance
+                                </button>
+                            </div>
                         </form>
+                        <script>
+                        (function() {
+                          const sourceType = document.getElementById('source_type');
+                          if (sourceType) {
+                            sourceType.addEventListener('change', function() {
+                              const staffField = document.getElementById('source_staff_field');
+                              const staffSelect = document.getElementById('source_staff_id');
+                              const isStaff = this.value === 'staff';
+                              staffField.classList.toggle('d-none', !isStaff);
+                              staffSelect.required = isStaff;
+                              if (!isStaff) staffSelect.value = '';
+                            });
+                            sourceType.dispatchEvent(new Event('change'));
+                          }
+                        })();
+                        </script>
                     </div>
                 </div>
                 @endif

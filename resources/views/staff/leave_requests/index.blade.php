@@ -115,6 +115,9 @@
                                     <td>
                                         <div>{{ $request->start_date->format('d M Y') }}</div>
                                         <small class="text-muted">to {{ $request->end_date->format('d M Y') }}</small>
+                                        @if($request->timeWindowLabel())
+                                            <div><small class="text-primary">{{ $request->timeWindowLabel() }}</small></div>
+                                        @endif
                                     </td>
                                     <td>
                                         <span class="pill-badge pill-primary">{{ $request->days_requested }} days</span>

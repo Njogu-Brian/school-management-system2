@@ -62,10 +62,12 @@
                         @enderror
                     </div>
 
+                    @include('hr.payroll.advances._source_schedule_fields', ['advance' => $advance])
+
                     <div class="col-md-6">
                         <label class="form-label">Repayment Method <span class="text-danger">*</span></label>
                         <select name="repayment_method" id="repayment_method" class="form-select @error('repayment_method') is-invalid @enderror" required>
-                            <option value="lump_sum" @selected(old('repayment_method', $advance->repayment_method)==='lump_sum')>Lump Sum</option>
+                            <option value="lump_sum" @selected(old('repayment_method', $advance->repayment_method)==='lump_sum')>Lump Sum (1 payroll)</option>
                             <option value="installments" @selected(old('repayment_method', $advance->repayment_method)==='installments')>Installments</option>
                             <option value="monthly_deduction" @selected(old('repayment_method', $advance->repayment_method)==='monthly_deduction')>Monthly Deduction</option>
                         </select>
@@ -136,7 +138,17 @@ document.getElementById('repayment_method').addEventListener('change', function(
   monthlyField.classList.toggle('d-none', method !== 'monthly_deduction');
 });
 
+document.getElementById('source_type').addEventListener('change', function() {
+  const staffField = document.getElementById('source_staff_field');
+  const staffSelect = document.getElementById('source_staff_id');
+  const isStaff = this.value === 'staff';
+  staffField.classList.toggle('d-none', !isStaff);
+  staffSelect.required = isStaff;
+  if (!isStaff) staffSelect.value = '';
+});
+
 document.getElementById('repayment_method').dispatchEvent(new Event('change'));
+document.getElementById('source_type').dispatchEvent(new Event('change'));
 </script>
 @endsection
 

@@ -175,6 +175,7 @@ class ApiPayrollRecordsController extends Controller
             'deductions_breakdown' => $r->deductions_breakdown,
             'bonus' => (float) $r->bonus,
             'advance_deduction' => (float) $r->advance_deduction,
+            'advance_reimbursement' => (float) ($r->advance_reimbursement ?? 0),
             'custom_deductions_total' => (float) $r->custom_deductions_total,
             'custom_deductions_breakdown' => $r->custom_deductions_breakdown,
             'days_worked' => $r->days_worked,

@@ -51,6 +51,13 @@
                                 <label class="text-muted small">Days Requested</label>
                                 <div><span class="pill-badge pill-primary fs-6">{{ $leaveRequest->days_requested }} days</span></div>
                             </div>
+                            @if($leaveRequest->timeWindowLabel())
+                            <div class="col-md-6 mb-3">
+                                <label class="text-muted small">Hours within day</label>
+                                <div class="fw-semibold">{{ $leaveRequest->timeWindowLabel() }}</div>
+                                <small class="text-muted">Shown for approval context; balance uses full day(s).</small>
+                            </div>
+                            @endif
                             <div class="col-md-6 mb-3">
                                 <label class="text-muted small">Status</label>
                                 @php

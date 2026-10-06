@@ -149,6 +149,13 @@
                                     <div class="h6 mb-0">Ksh {{ number_format($record->advance_deduction, 2) }}</div>
                                 </div>
                             @endif
+                            @if(($record->advance_reimbursement ?? 0) > 0)
+                                <div class="col-md-4 mb-2">
+                                    <label class="text-muted small">Advance Reimbursement</label>
+                                    <div class="h6 mb-0 text-success">Ksh {{ number_format($record->advance_reimbursement, 2) }}</div>
+                                    <div class="small text-muted">Added to net; not taxed</div>
+                                </div>
+                            @endif
                             @if($record->custom_deductions_total > 0)
                                 <div class="col-md-4 mb-2">
                                     <label class="text-muted small">Custom Deductions</label>

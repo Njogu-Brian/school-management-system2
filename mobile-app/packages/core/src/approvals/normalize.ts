@@ -88,13 +88,24 @@ export function leaveToApprovalItem(leave: LeaveRequestRecord): ApprovalItem {
   const status = deriveLeaveStatus(leave);
   const priority = deriveLeavePriority(leave, status);
   const days = leave.days ?? leave.days_count ?? 0;
+  const timeParts =
+    leave.start_time && leave.end_time
+      ? `${leave.start_time}–${leave.end_time}`
+      : leave.start_time || leave.end_time || null;
+  const subtitle = [
+    leave.staff_name ?? 'Staff',
+    `${days} day${days === 1 ? '' : 's'}`,
+    timeParts,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return {
     id: toCompositeId('leave_request', leave.id),
     sourceType: 'leave_request',
     sourceId: leave.id,
     title: leave.leave_type_name ?? 'Leave request',
-    subtitle: `${leave.staff_name ?? 'Staff'} · ${days} day${days === 1 ? '' : 's'}`,
+    subtitle,
     status,
     priority,
     requestedAt: leave.created_at,

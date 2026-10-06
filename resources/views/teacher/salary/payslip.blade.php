@@ -134,6 +134,15 @@
 
       <hr>
 
+      @if(($record->advance_reimbursement ?? 0) > 0)
+      <div class="row mb-2">
+        <div class="col-12 text-end">
+          <span class="text-muted">Advance reimbursement (non-taxable):</span>
+          <span class="text-success fw-semibold">+ Ksh {{ number_format($record->advance_reimbursement, 2) }}</span>
+        </div>
+      </div>
+      @endif
+
       <div class="row">
         <div class="col-12 text-end">
           <h4 class="mb-0">Net Salary: <span class="text-primary">Ksh {{ number_format($record->net_salary, 2) }}</span></h4>

@@ -1,6 +1,14 @@
 import type { ApiResponse, PaginatedResponse } from '../types/api';
 import { apiClient } from './client';
 
+export interface StaffAdvanceInstallmentRow {
+  sequence: number;
+  year: number;
+  month: number;
+  amount: number;
+  status: string;
+}
+
 export interface StaffAdvanceRecord {
   id: number;
   staff_id: number;
@@ -14,6 +22,13 @@ export interface StaffAdvanceRecord {
   repayment_method: string;
   installment_count?: number | null;
   monthly_deduction_amount?: number | null;
+  source_type?: 'company' | 'staff' | string;
+  source_staff_id?: number | null;
+  source_staff_name?: string | null;
+  source_label?: string | null;
+  repayment_start_year?: number | null;
+  repayment_start_month?: number | null;
+  installments?: StaffAdvanceInstallmentRow[];
   amount_repaid: number;
   balance: number;
   status: string;
@@ -58,6 +73,10 @@ export const staffAdvancesApi = {
     repayment_method?: string;
     installment_count?: number;
     monthly_deduction_amount?: number;
+    source_type?: 'company' | 'staff';
+    source_staff_id?: number;
+    repayment_start_year?: number;
+    repayment_start_month?: number;
     expected_completion_date?: string;
     notes?: string;
   }): Promise<ApiResponse<StaffAdvanceRecord>> {
@@ -71,6 +90,10 @@ export const staffAdvancesApi = {
       repayment_method?: string;
       installment_count?: number;
       monthly_deduction_amount?: number;
+      source_type?: 'company' | 'staff';
+      source_staff_id?: number;
+      repayment_start_year?: number;
+      repayment_start_month?: number;
       notes?: string;
     },
   ): Promise<ApiResponse<StaffAdvanceRecord>> {

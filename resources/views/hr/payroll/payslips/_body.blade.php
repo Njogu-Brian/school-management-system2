@@ -148,6 +148,13 @@
 
 <hr>
 
+@if((float) ($record->advance_reimbursement ?? 0) > 0)
+<div class="d-flex justify-content-between align-items-center mb-2">
+    <div class="text-muted">Advance reimbursement (non-taxable add-on)</div>
+    <div class="text-success fw-semibold">+ Ksh {{ number_format((float) $record->advance_reimbursement, 2) }}</div>
+</div>
+@endif
+
 <div class="d-flex justify-content-between align-items-center">
     <div class="text-muted small">Generated {{ now()->format('d M Y H:i') }}</div>
     <h4 class="mb-0">Net Pay: <span class="text-primary">Ksh {{ number_format((float) $record->net_salary, 2) }}</span></h4>

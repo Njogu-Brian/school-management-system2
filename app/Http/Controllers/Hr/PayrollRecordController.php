@@ -226,11 +226,16 @@ class PayrollRecordController extends Controller
      */
     private function reverseAppliedDeductions(PayrollRecord $record): void
     {
-        $advanceAmount = (float) $record->advance_deduction;
-        if ($advanceAmount > 0) {
-            $remaining = $advanceAmount;
+        $totalAdvanceAmount = (float) $record->advance_deduction;
+        $reversedViaInstallments = app(\App\Services\StaffAdvancePayrollService::class)->reverseForRecord($record);
+        $legacyAdvanceAmount = max(0, round($totalAdvanceAmount - $reversedViaInstallments, 2));
+
+        // Legacy advances without installment rows
+        if ($legacyAdvanceAmount > 0) {
+            $remaining = $legacyAdvanceAmount;
             $advances = StaffAdvance::where('staff_id', $record->staff_id)
                 ->where('amount_repaid', '>', 0)
+                ->whereDoesntHave('installments')
                 ->orderByDesc('updated_at')
                 ->get();
 

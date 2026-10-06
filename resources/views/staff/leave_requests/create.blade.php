@@ -57,6 +57,15 @@
                         <input type="date" name="end_date" class="form-control" value="{{ old('end_date') }}" required id="end_date">
                         <small class="text-muted" id="daysInfo"></small>
                     </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Start time (optional)</label>
+                        <input type="time" name="start_time" class="form-control" value="{{ old('start_time') }}" id="start_time">
+                        <small class="text-muted">For partial-day leave within a day. Still counts as full working day(s).</small>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">End time (optional)</label>
+                        <input type="time" name="end_time" class="form-control" value="{{ old('end_time') }}" id="end_time">
+                    </div>
                     <div class="col-md-12">
                         <label class="form-label">Reason</label>
                         <textarea name="reason" class="form-control" rows="3" placeholder="Reason for leave request...">{{ old('reason') }}</textarea>

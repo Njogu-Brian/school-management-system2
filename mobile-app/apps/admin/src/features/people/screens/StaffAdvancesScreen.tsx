@@ -50,15 +50,32 @@ export const StaffAdvancesScreen: React.FC<Props> = ({ navigation }) => {
   );
   const [installments, setInstallments] = useState('3');
   const [monthlyAmount, setMonthlyAmount] = useState('');
+  const [sourceType, setSourceType] = useState<'company' | 'staff'>('company');
+  const [sourceStaffId, setSourceStaffId] = useState<number | null>(null);
+  const now = new Date();
+  const [startYear, setStartYear] = useState(String(now.getFullYear()));
+  const [startMonth, setStartMonth] = useState(String(now.getMonth() + 1));
 
   const [approveItem, setApproveItem] = useState<StaffAdvanceRecord | null>(null);
   const [issuedAmount, setIssuedAmount] = useState('');
+  const [approveSourceType, setApproveSourceType] = useState<'company' | 'staff'>('company');
+  const [approveSourceStaffId, setApproveSourceStaffId] = useState<number | null>(null);
+  const [approveStartYear, setApproveStartYear] = useState(String(now.getFullYear()));
+  const [approveStartMonth, setApproveStartMonth] = useState(String(now.getMonth() + 1));
   const [rejectItem, setRejectItem] = useState<StaffAdvanceRecord | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
   const createAdvance = async () => {
     if (!staffId || !amount || !advanceDate) {
       showError('Missing fields', 'Staff, amount, and date are required.');
+      return;
+    }
+    if (sourceType === 'staff' && !sourceStaffId) {
+      showError('Missing source', 'Select the staff member who funded this advance.');
+      return;
+    }
+    if (!Number(startYear) || !Number(startMonth)) {
+      showError('Missing schedule', 'Set repayment start year and month.');
       return;
     }
     try {
@@ -72,6 +89,10 @@ export const StaffAdvancesScreen: React.FC<Props> = ({ navigation }) => {
         installment_count: repayment === 'installments' ? Number(installments) || 1 : undefined,
         monthly_deduction_amount:
           repayment === 'monthly_deduction' ? Number(monthlyAmount) || undefined : undefined,
+        source_type: sourceType,
+        source_staff_id: sourceType === 'staff' ? sourceStaffId ?? undefined : undefined,
+        repayment_start_year: Number(startYear),
+        repayment_start_month: Number(startMonth),
       });
       showSuccess('Created', 'Advance request created for staff.');
       setMode('list');
@@ -89,8 +110,19 @@ export const StaffAdvancesScreen: React.FC<Props> = ({ navigation }) => {
       showError('Invalid amount', 'Enter the amount to issue.');
       return;
     }
+    if (approveSourceType === 'staff' && !approveSourceStaffId) {
+      showError('Missing source', 'Select the staff member who funded this advance.');
+      return;
+    }
     try {
-      await approveMutation.mutateAsync({ id: approveItem.id, amount: issued });
+      await approveMutation.mutateAsync({
+        id: approveItem.id,
+        amount: issued,
+        source_type: approveSourceType,
+        source_staff_id: approveSourceType === 'staff' ? approveSourceStaffId ?? undefined : undefined,
+        repayment_start_year: Number(approveStartYear),
+        repayment_start_month: Number(approveStartMonth),
+      });
       showSuccess('Approved', `Issued KES ${issued}.`);
       setApproveItem(null);
     } catch (e) {
@@ -181,6 +213,48 @@ export const StaffAdvancesScreen: React.FC<Props> = ({ navigation }) => {
                 keyboardType="decimal-pad"
               />
             ) : null}
+            <FilterChipRow label="Source">
+              <FilterChip
+                label="Company (Royal Kings)"
+                active={sourceType === 'company'}
+                onPress={() => {
+                  setSourceType('company');
+                  setSourceStaffId(null);
+                }}
+              />
+              <FilterChip
+                label="Staff member"
+                active={sourceType === 'staff'}
+                onPress={() => setSourceType('staff')}
+              />
+            </FilterChipRow>
+            {sourceType === 'staff' ? (
+              <FilterChipRow label="Funded by">
+                {staffItems
+                  .filter((s) => s.id !== staffId)
+                  .slice(0, 20)
+                  .map((s) => (
+                    <FilterChip
+                      key={s.id}
+                      label={s.fullName}
+                      active={sourceStaffId === s.id}
+                      onPress={() => setSourceStaffId(s.id)}
+                    />
+                  ))}
+              </FilterChipRow>
+            ) : null}
+            <TextField
+              label="Repayment start year"
+              value={startYear}
+              onChangeText={setStartYear}
+              keyboardType="number-pad"
+            />
+            <TextField
+              label="Repayment start month (1-12)"
+              value={startMonth}
+              onChangeText={setStartMonth}
+              keyboardType="number-pad"
+            />
             <Button
               label="Create advance"
               onPress={() => void createAdvance()}
@@ -225,15 +299,48 @@ export const StaffAdvancesScreen: React.FC<Props> = ({ navigation }) => {
                           onChangeText={setIssuedAmount}
                           keyboardType="decimal-pad"
                         />
-                        <Text
-                          style={{
-                            color: palette.textMuted,
-                            fontSize: typography.caption.fontSize,
-                            marginBottom: spacing.sm,
-                          }}
-                        >
-                          You can approve less than requested (e.g. issue 3000 of 5000).
-                        </Text>
+                        <FilterChipRow label="Source">
+                          <FilterChip
+                            label="Company"
+                            active={approveSourceType === 'company'}
+                            onPress={() => {
+                              setApproveSourceType('company');
+                              setApproveSourceStaffId(null);
+                            }}
+                          />
+                          <FilterChip
+                            label="Staff"
+                            active={approveSourceType === 'staff'}
+                            onPress={() => setApproveSourceType('staff')}
+                          />
+                        </FilterChipRow>
+                        {approveSourceType === 'staff' ? (
+                          <FilterChipRow label="Funded by">
+                            {staffItems
+                              .filter((s) => s.id !== item.staff_id)
+                              .slice(0, 15)
+                              .map((s) => (
+                                <FilterChip
+                                  key={s.id}
+                                  label={s.fullName}
+                                  active={approveSourceStaffId === s.id}
+                                  onPress={() => setApproveSourceStaffId(s.id)}
+                                />
+                              ))}
+                          </FilterChipRow>
+                        ) : null}
+                        <TextField
+                          label="Repayment start year"
+                          value={approveStartYear}
+                          onChangeText={setApproveStartYear}
+                          keyboardType="number-pad"
+                        />
+                        <TextField
+                          label="Start month (1-12)"
+                          value={approveStartMonth}
+                          onChangeText={setApproveStartMonth}
+                          keyboardType="number-pad"
+                        />
                         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
                           <View style={{ flex: 1 }}>
                             <Button

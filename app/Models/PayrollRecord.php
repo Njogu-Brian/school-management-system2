@@ -36,6 +36,7 @@ class PayrollRecord extends Model
         'net_salary',
         'bonus',
         'advance_deduction',
+        'advance_reimbursement',
         'custom_deductions_total',
         'custom_deductions_breakdown',
         'adjustments_notes',
@@ -71,6 +72,7 @@ class PayrollRecord extends Model
         'net_salary' => 'decimal:2',
         'bonus' => 'decimal:2',
         'advance_deduction' => 'decimal:2',
+        'advance_reimbursement' => 'decimal:2',
         'custom_deductions_total' => 'decimal:2',
         'custom_deductions_breakdown' => 'array',
         'days_worked' => 'integer',
@@ -156,8 +158,12 @@ class PayrollRecord extends Model
             }
         }
 
+        // Reimbursement for advances funded by this staff — added to net only,
+        // never included in taxable gross / statutory base.
+        $reimbursement = (float) ($this->advance_reimbursement ?? 0);
+
         // Calculate net salary
-        $this->net_salary = $this->gross_salary - $this->total_deductions;
+        $this->net_salary = $this->gross_salary - $this->total_deductions + $reimbursement;
 
         return $this;
     }

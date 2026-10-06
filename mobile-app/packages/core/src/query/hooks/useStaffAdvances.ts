@@ -42,6 +42,10 @@ export function useApproveStaffAdvance() {
       repayment_method?: string;
       installment_count?: number;
       monthly_deduction_amount?: number;
+      source_type?: 'company' | 'staff';
+      source_staff_id?: number;
+      repayment_start_year?: number;
+      repayment_start_month?: number;
       notes?: string;
     }) => {
       const { id, ...payload } = args;

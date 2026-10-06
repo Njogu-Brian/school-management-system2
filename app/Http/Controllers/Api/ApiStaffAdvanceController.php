@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Staff;
 use App\Models\StaffAdvance;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -14,7 +13,7 @@ class ApiStaffAdvanceController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        $query = StaffAdvance::with(['staff', 'approvedBy', 'createdBy']);
+        $query = StaffAdvance::with(['staff', 'sourceStaff', 'approvedBy', 'createdBy', 'installments']);
 
         if ($user->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Accountant', 'Finance'])) {
             if ($request->filled('staff_id')) {
@@ -50,15 +49,12 @@ class ApiStaffAdvanceController extends Controller
 
     public function show(Request $request, int $id)
     {
-        $advance = StaffAdvance::with(['staff', 'approvedBy', 'createdBy'])->findOrFail($id);
+        $advance = StaffAdvance::with(['staff', 'sourceStaff', 'approvedBy', 'createdBy', 'installments'])->findOrFail($id);
         $this->authorizeView($request, $advance);
 
         return response()->json(['success' => true, 'data' => $this->format($advance)]);
     }
 
-    /**
-     * Admin creates on behalf (installments allowed) OR staff self-request (amount only).
-     */
     public function store(Request $request)
     {
         $user = $request->user();
@@ -75,11 +71,24 @@ class ApiStaffAdvanceController extends Controller
                 'repayment_method' => 'required|in:lump_sum,installments,monthly_deduction',
                 'installment_count' => 'nullable|integer|min:1|required_if:repayment_method,installments',
                 'monthly_deduction_amount' => 'nullable|numeric|min:0.01|required_if:repayment_method,monthly_deduction',
+                'source_type' => 'required|in:company,staff',
+                'source_staff_id' => 'nullable|exists:staff,id|required_if:source_type,staff',
+                'repayment_start_year' => 'required|integer|min:2000|max:2100',
+                'repayment_start_month' => 'required|integer|min:1|max:12',
                 'expected_completion_date' => 'nullable|date|after_or_equal:advance_date',
                 'notes' => 'nullable|string',
             ]);
+
+            if (
+                $validated['source_type'] === 'staff'
+                && (int) ($validated['source_staff_id'] ?? 0) === (int) $validated['staff_id']
+            ) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Funding staff cannot be the same as the advance recipient.',
+                ], 422);
+            }
         } else {
-            // Staff may only request a specific amount (no installment plan).
             $validated = $request->validate([
                 'amount' => 'required|numeric|min:0.01',
                 'purpose' => 'nullable|string|max:255',
@@ -94,10 +103,18 @@ class ApiStaffAdvanceController extends Controller
             $validated['repayment_method'] = 'lump_sum';
             $validated['installment_count'] = null;
             $validated['monthly_deduction_amount'] = null;
+            $validated['source_type'] = 'company';
+            $validated['source_staff_id'] = null;
+            $validated['repayment_start_year'] = null;
+            $validated['repayment_start_month'] = null;
         }
 
         $requested = (float) ($validated['requested_amount'] ?? $validated['amount']);
         $issued = (float) $validated['amount'];
+
+        if (($validated['repayment_method'] ?? '') === 'lump_sum') {
+            $validated['installment_count'] = 1;
+        }
 
         $payload = [
             'staff_id' => $validated['staff_id'],
@@ -109,6 +126,12 @@ class ApiStaffAdvanceController extends Controller
             'repayment_method' => $validated['repayment_method'],
             'installment_count' => $validated['installment_count'] ?? null,
             'monthly_deduction_amount' => $validated['monthly_deduction_amount'] ?? null,
+            'source_type' => $validated['source_type'] ?? 'company',
+            'source_staff_id' => ($validated['source_type'] ?? 'company') === 'staff'
+                ? ($validated['source_staff_id'] ?? null)
+                : null,
+            'repayment_start_year' => $validated['repayment_start_year'] ?? null,
+            'repayment_start_month' => $validated['repayment_start_month'] ?? null,
             'expected_completion_date' => $validated['expected_completion_date'] ?? null,
             'notes' => $validated['notes'] ?? null,
             'balance' => $issued,
@@ -127,7 +150,7 @@ class ApiStaffAdvanceController extends Controller
         }
 
         $advance = StaffAdvance::create($payload);
-        $advance->load(['staff', 'createdBy']);
+        $advance->load(['staff', 'sourceStaff', 'createdBy', 'installments']);
 
         return response()->json([
             'success' => true,
@@ -149,13 +172,26 @@ class ApiStaffAdvanceController extends Controller
         }
 
         $validated = $request->validate([
-            // Admin may approve a lower issued amount than requested.
             'amount' => 'nullable|numeric|min:0.01',
             'repayment_method' => 'nullable|in:lump_sum,installments,monthly_deduction',
             'installment_count' => 'nullable|integer|min:1',
             'monthly_deduction_amount' => 'nullable|numeric|min:0.01',
+            'source_type' => 'required|in:company,staff',
+            'source_staff_id' => 'nullable|exists:staff,id|required_if:source_type,staff',
+            'repayment_start_year' => 'required|integer|min:2000|max:2100',
+            'repayment_start_month' => 'required|integer|min:1|max:12',
             'notes' => 'nullable|string',
         ]);
+
+        if (
+            $validated['source_type'] === 'staff'
+            && (int) ($validated['source_staff_id'] ?? 0) === (int) $advance->staff_id
+        ) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Funding staff cannot be the same as the advance recipient.',
+            ], 422);
+        }
 
         DB::beginTransaction();
         try {
@@ -177,19 +213,27 @@ class ApiStaffAdvanceController extends Controller
             if (array_key_exists('monthly_deduction_amount', $validated)) {
                 $advance->monthly_deduction_amount = $validated['monthly_deduction_amount'];
             }
+
+            $advance->source_type = $validated['source_type'];
+            $advance->source_staff_id = $validated['source_type'] === 'staff'
+                ? $validated['source_staff_id']
+                : null;
+            $advance->repayment_start_year = $validated['repayment_start_year'];
+            $advance->repayment_start_month = $validated['repayment_start_month'];
+
+            if ($advance->repayment_method === 'lump_sum') {
+                $advance->installment_count = 1;
+            }
+
             if (! empty($validated['notes'])) {
                 $advance->notes = trim(($advance->notes ? $advance->notes."\n" : '').$validated['notes']);
             }
 
             $advance->approved_by = $user->id;
             $advance->approved_at = now();
-            $advance->status = 'approved';
-
-            // Recovery happens through the payroll advance_deduction line, so no
-            // matching custom deduction is created here — that would deduct twice.
-
             $advance->status = 'active';
             $advance->save();
+            $advance->generateInstallmentSchedule();
             DB::commit();
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -197,7 +241,7 @@ class ApiStaffAdvanceController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
-        $advance->refresh()->load(['staff', 'approvedBy', 'createdBy']);
+        $advance->refresh()->load(['staff', 'sourceStaff', 'approvedBy', 'createdBy', 'installments']);
 
         return response()->json([
             'success' => true,
@@ -229,7 +273,7 @@ class ApiStaffAdvanceController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Advance rejected.',
-            'data' => $this->format($advance->fresh(['staff', 'createdBy'])),
+            'data' => $this->format($advance->fresh(['staff', 'sourceStaff', 'createdBy', 'installments'])),
         ]);
     }
 
@@ -264,6 +308,21 @@ class ApiStaffAdvanceController extends Controller
             'monthly_deduction_amount' => $a->monthly_deduction_amount !== null
                 ? (float) $a->monthly_deduction_amount
                 : null,
+            'source_type' => $a->source_type ?? 'company',
+            'source_staff_id' => $a->source_staff_id,
+            'source_staff_name' => $a->sourceStaff?->full_name ?? $a->sourceStaff?->name,
+            'source_label' => $a->sourceLabel(),
+            'repayment_start_year' => $a->repayment_start_year,
+            'repayment_start_month' => $a->repayment_start_month,
+            'installments' => $a->relationLoaded('installments')
+                ? $a->installments->map(fn ($row) => [
+                    'sequence' => $row->sequence,
+                    'year' => $row->year,
+                    'month' => $row->month,
+                    'amount' => (float) $row->amount,
+                    'status' => $row->status,
+                ])->values()->all()
+                : [],
             'amount_repaid' => (float) $a->amount_repaid,
             'balance' => (float) $a->balance,
             'status' => $a->status,

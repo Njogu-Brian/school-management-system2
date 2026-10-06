@@ -182,20 +182,9 @@ class PayrollPeriodController extends Controller
                 $record->other_deductions = $salaryStructure->other_deductions ?? 0;
                 $record->deductions_breakdown = $salaryStructure->deductions_breakdown ?? null;
 
-                // Process advance deductions
-                $advanceDeduction = 0;
-                $activeAdvances = $member->activeAdvances()->get();
-
-                foreach ($activeAdvances as $advance) {
-                    $deductionAmount = $advance->payrollDeductionAmount();
-                    if ($deductionAmount > 0) {
-                        $advanceDeduction += $deductionAmount;
-
-                        // Record repayment
-                        $advance->recordRepayment($deductionAmount);
-                    }
-                }
-                $record->advance_deduction = $advanceDeduction;
+                // Advances applied after all slips exist (borrower + funder credit).
+                $record->advance_deduction = 0;
+                $record->advance_reimbursement = 0;
 
                 // Process custom deductions
                 $customDeductionsTotal = 0;
@@ -240,7 +229,7 @@ class PayrollPeriodController extends Controller
                 $record->status = 'draft';
                 $record->save();
 
-                // Create salary history entry
+                // Create salary history entry (net refreshed after advance pass below)
                 \App\Models\SalaryHistory::create([
                     'staff_id' => $member->id,
                     'payroll_record_id' => $record->id,
@@ -253,6 +242,20 @@ class PayrollPeriodController extends Controller
                     'pay_date' => $period->pay_date,
                     'change_type' => 'payroll',
                     'created_by' => auth()->id(),
+                ]);
+            }
+
+            // Schedule-based advance recovery + funder reimbursement (non-taxable net add-on)
+            $periodRecords = PayrollRecord::where('payroll_period_id', $period->id)
+                ->whereIn('status', ['draft', 'approved'])
+                ->get();
+            app(\App\Services\StaffAdvancePayrollService::class)->applyForPeriod($period, $periodRecords);
+
+            foreach ($periodRecords as $periodRecord) {
+                $periodRecord->refresh();
+                \App\Models\SalaryHistory::where('payroll_record_id', $periodRecord->id)->update([
+                    'total_deductions' => $periodRecord->total_deductions,
+                    'net_salary' => $periodRecord->net_salary,
                 ]);
             }
 

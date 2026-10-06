@@ -10,6 +10,7 @@ use App\Models\SalaryHistory;
 use App\Models\Staff;
 use App\Models\StaffAdvance;
 use App\Services\PayrollCalculationService;
+use App\Services\StaffAdvancePayrollService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -59,6 +60,7 @@ class RecalculatePayrollPeriodCommand extends Command
         $updated = 0;
         $created = 0;
         $ruleset = $period->statutoryRuleset;
+        $advanceService = app(StaffAdvancePayrollService::class);
 
         try {
             DB::beginTransaction();
@@ -69,25 +71,18 @@ class RecalculatePayrollPeriodCommand extends Command
                 ->when($staffFilter, fn ($q) => $q->whereIn('staff_id', $staffFilter))
                 ->get();
 
+            $beforeNets = [];
             foreach ($records as $record) {
                 $staff = $record->staff;
                 if (! $staff) {
                     continue;
                 }
 
-                $beforeNet = (float) $record->net_salary;
-                $this->reverseAppliedDeductions($record);
+                $beforeNets[$record->id] = (float) $record->net_salary;
+                $this->reverseAppliedDeductions($record, $advanceService);
                 $this->rebuildRecord($record, $staff, $period, $calc, $ruleset);
                 $record->save();
-                $this->syncSalaryHistory($record, $period);
-
                 $updated++;
-                $this->line(sprintf(
-                    '  Updated %s | Net %s → %s',
-                    $staff->name ?: $staff->staff_id,
-                    number_format($beforeNet, 2),
-                    number_format((float) $record->net_salary, 2),
-                ));
             }
 
             // Also create slips for active staff missing a live record (e.g. after cancel, or new hires).
@@ -119,25 +114,34 @@ class RecalculatePayrollPeriodCommand extends Command
 
                     $this->rebuildRecord($record, $member, $period, $calc, $ruleset);
                     $record->save();
-
-                    SalaryHistory::create([
-                        'staff_id' => $member->id,
-                        'payroll_record_id' => $record->id,
-                        'basic_salary' => $record->basic_salary,
-                        'gross_salary' => $record->gross_salary,
-                        'total_deductions' => $record->total_deductions,
-                        'net_salary' => $record->net_salary,
-                        'year' => $period->year,
-                        'month' => $period->month,
-                        'pay_date' => $period->pay_date,
-                        'change_type' => 'payroll',
-                        'created_by' => auth()->id(),
-                    ]);
-
+                    $records->push($record);
                     $created++;
+                }
+            }
+
+            // Apply scheduled advances + funder reimbursements across the period
+            $liveRecords = PayrollRecord::where('payroll_period_id', $period->id)
+                ->whereIn('status', ['draft', 'approved'])
+                ->when($staffFilter, fn ($q) => $q->whereIn('staff_id', $staffFilter))
+                ->get();
+            $advanceService->applyForPeriod($period, $liveRecords);
+
+            foreach ($liveRecords as $record) {
+                $record->refresh();
+                $this->syncSalaryHistory($record, $period);
+                $staff = $record->staff;
+                $beforeNet = $beforeNets[$record->id] ?? null;
+                if ($beforeNet !== null) {
+                    $this->line(sprintf(
+                        '  Updated %s | Net %s → %s',
+                        $staff?->name ?: $staff?->staff_id ?: $record->staff_id,
+                        number_format($beforeNet, 2),
+                        number_format((float) $record->net_salary, 2),
+                    ));
+                } else {
                     $this->line(sprintf(
                         '  Created %s | Net %s',
-                        $member->name ?: $member->staff_id,
+                        $staff?->name ?: $staff?->staff_id ?: $record->staff_id,
                         number_format((float) $record->net_salary, 2),
                     ));
                 }
@@ -213,6 +217,7 @@ class RecalculatePayrollPeriodCommand extends Command
         $record->bonus = (float) ($record->bonus ?? 0);
 
         $record->advance_deduction = 0;
+        $record->advance_reimbursement = 0;
         $record->custom_deductions_total = 0;
         $record->custom_deductions_breakdown = [];
         $record->calculateTotals();
@@ -230,15 +235,7 @@ class RecalculatePayrollPeriodCommand extends Command
         $record->housing_levy_deduction = $deductions['housing_levy'];
         $record->employer_housing_levy_contribution = $deductions['housing_levy'];
 
-        $advanceDeduction = 0;
-        foreach ($member->activeAdvances()->get() as $advance) {
-            $deductionAmount = $advance->payrollDeductionAmount();
-            if ($deductionAmount > 0) {
-                $advanceDeduction += $deductionAmount;
-                $advance->recordRepayment($deductionAmount);
-            }
-        }
-        $record->advance_deduction = $advanceDeduction;
+        // Advances applied in a period-wide pass after all slips are rebuilt.
 
         $customDeductionsTotal = 0;
         $customDeductionsBreakdown = [];
@@ -284,13 +281,18 @@ class RecalculatePayrollPeriodCommand extends Command
         // Keep draft records editable until the payroll manager approves them.
     }
 
-    private function reverseAppliedDeductions(PayrollRecord $record): void
+    private function reverseAppliedDeductions(PayrollRecord $record, StaffAdvancePayrollService $advanceService): void
     {
-        $advanceAmount = (float) $record->advance_deduction;
-        if ($advanceAmount > 0) {
-            $remaining = $advanceAmount;
+        $totalAdvanceAmount = (float) $record->advance_deduction;
+        $reversedViaInstallments = $advanceService->reverseForRecord($record);
+        $legacyAdvanceAmount = max(0, round($totalAdvanceAmount - $reversedViaInstallments, 2));
+
+        // Legacy fallback when no installment rows were linked to this slip
+        if ($legacyAdvanceAmount > 0) {
+            $remaining = $legacyAdvanceAmount;
             $advances = StaffAdvance::where('staff_id', $record->staff_id)
                 ->where('amount_repaid', '>', 0)
+                ->whereDoesntHave('installments')
                 ->orderByDesc('updated_at')
                 ->get();
 
@@ -345,6 +347,7 @@ class RecalculatePayrollPeriodCommand extends Command
         }
 
         $record->advance_deduction = 0;
+        $record->advance_reimbursement = 0;
         $record->custom_deductions_total = 0;
         $record->custom_deductions_breakdown = [];
     }

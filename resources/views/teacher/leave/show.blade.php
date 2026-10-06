@@ -63,6 +63,13 @@
               <label class="text-muted small">Days Requested</label>
               <div><span class="badge bg-primary fs-6">{{ $leaveRequest->days_requested }} days</span></div>
             </div>
+            @if($leaveRequest->timeWindowLabel())
+            <div class="col-md-6 mb-3">
+              <label class="text-muted small">Hours within day</label>
+              <div class="fw-semibold">{{ $leaveRequest->timeWindowLabel() }}</div>
+              <small class="text-muted">Balance still uses full working day(s).</small>
+            </div>
+            @endif
             @if($leaveRequest->reason)
             <div class="col-md-12 mb-3">
               <label class="text-muted small">Reason</label>

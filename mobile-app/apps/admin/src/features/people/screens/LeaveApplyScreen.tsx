@@ -27,6 +27,8 @@ export const LeaveApplyScreen: React.FC<Props> = ({ navigation, route }) => {
   const [leaveTypeId, setLeaveTypeId] = useState<number | null>(null);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
   const [reason, setReason] = useState('');
 
   const submit = async () => {
@@ -34,12 +36,15 @@ export const LeaveApplyScreen: React.FC<Props> = ({ navigation, route }) => {
       showError('Missing fields', 'Leave type and dates are required.');
       return;
     }
+    const includeTimes = Boolean(startTime.trim() && endTime.trim());
     try {
       await createMutation.mutateAsync({
         staff_id: staffId ?? undefined,
         leave_type_id: leaveTypeId,
         start_date: startDate,
         end_date: endDate,
+        start_time: includeTimes ? startTime.trim() : undefined,
+        end_time: includeTimes ? endTime.trim() : undefined,
         reason: reason.trim() || undefined,
       });
       showSuccess('Submitted', 'Leave request sent for approval.');
@@ -75,6 +80,18 @@ export const LeaveApplyScreen: React.FC<Props> = ({ navigation, route }) => {
         </FilterChipRow>
         <TextField label="Start date (YYYY-MM-DD)" value={startDate} onChangeText={setStartDate} />
         <TextField label="End date (YYYY-MM-DD)" value={endDate} onChangeText={setEndDate} />
+        <TextField
+          label="Start time (HH:MM, optional)"
+          value={startTime}
+          onChangeText={setStartTime}
+          placeholder="e.g. 09:00"
+        />
+        <TextField
+          label="End time (HH:MM, optional)"
+          value={endTime}
+          onChangeText={setEndTime}
+          placeholder="e.g. 13:00"
+        />
         <TextField label="Reason" value={reason} onChangeText={setReason} />
         <Button label="Submit request" onPress={() => void submit()} loading={createMutation.isPending} style={{ marginTop: spacing.md }} />
       </ScrollView>

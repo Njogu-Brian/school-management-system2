@@ -90,6 +90,21 @@
                   <div class="text-danger small">{{ $message }}</div>
                 @enderror
               </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Start time (optional)</label>
+                <input type="time" name="start_time" class="form-control" value="{{ old('start_time') }}">
+                <small class="text-muted">Partial-day hours for approvers. Still counts as full working day(s).</small>
+                @error('start_time')
+                  <div class="text-danger small">{{ $message }}</div>
+                @enderror
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">End time (optional)</label>
+                <input type="time" name="end_time" class="form-control" value="{{ old('end_time') }}">
+                @error('end_time')
+                  <div class="text-danger small">{{ $message }}</div>
+                @enderror
+              </div>
               <div class="col-md-12 mb-3">
                 <label class="form-label">Reason</label>
                 <textarea name="reason" class="form-control" rows="3" placeholder="Reason for leave request...">{{ old('reason') }}</textarea>

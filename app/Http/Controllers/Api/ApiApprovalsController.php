@@ -184,19 +184,29 @@ class ApiApprovalsController extends Controller
     protected function formatLeaveItem(LeaveRequest $lr): array
     {
         $approvalStatus = in_array($lr->status, ['approved', 'rejected'], true) ? $lr->status : 'pending';
+        $timeLabel = $lr->timeWindowLabel();
+        $subtitleParts = [
+            $lr->staff?->full_name ?? 'Staff',
+            ($lr->days_requested ?? 0).' day'.(($lr->days_requested ?? 0) === 1 ? '' : 's'),
+        ];
+        if ($timeLabel) {
+            $subtitleParts[] = $timeLabel;
+        }
 
         return [
             'id' => 'leave_request:'.$lr->id,
             'source_type' => 'leave_request',
             'source_id' => $lr->id,
             'title' => $lr->leaveType?->name ?? 'Leave request',
-            'subtitle' => ($lr->staff?->full_name ?? 'Staff').' · '.($lr->days_requested ?? 0).' days',
+            'subtitle' => implode(' · ', $subtitleParts),
             'status' => $approvalStatus,
             'priority' => 'medium',
             'requested_at' => $lr->created_at->toIso8601String(),
             'due_date' => $lr->end_date?->format('Y-m-d'),
             'requester_name' => $lr->staff?->full_name,
             'summary' => $lr->reason,
+            'start_time' => $lr->start_time ? \Carbon\Carbon::parse($lr->start_time)->format('H:i') : null,
+            'end_time' => $lr->end_time ? \Carbon\Carbon::parse($lr->end_time)->format('H:i') : null,
             'can_act' => $lr->status === 'pending',
         ];
     }

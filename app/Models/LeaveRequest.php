@@ -96,4 +96,26 @@ class LeaveRequest extends Model
     {
         return $this->status === 'cancelled';
     }
+
+    /**
+     * Formatted time window for partial-day leave (display only; balance still uses days).
+     */
+    public function timeWindowLabel(): ?string
+    {
+        if (! $this->start_time && ! $this->end_time) {
+            return null;
+        }
+
+        $start = $this->start_time ? Carbon::parse($this->start_time)->format('H:i') : null;
+        $end = $this->end_time ? Carbon::parse($this->end_time)->format('H:i') : null;
+
+        if ($start && $end) {
+            $mins = Carbon::parse($this->start_time)->diffInMinutes(Carbon::parse($this->end_time));
+            $hours = round($mins / 60, 1);
+
+            return "{$start}–{$end}".($hours > 0 ? " ({$hours} hrs)" : '');
+        }
+
+        return $start ?: $end;
+    }
 }

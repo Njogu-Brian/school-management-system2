@@ -79,13 +79,15 @@ class LeaveRequestController extends Controller
             'leave_type_id' => 'required|exists:leave_types,id',
             'start_date' => 'required|date|after_or_equal:today',
             'end_date' => 'required|date|after_or_equal:start_date',
+            'start_time' => 'nullable|date_format:H:i',
+            'end_time' => 'nullable|date_format:H:i|required_with:start_time|after:start_time',
             'reason' => 'nullable|string|max:1000',
         ]);
 
         $startDate = Carbon::parse($request->start_date);
         $endDate = Carbon::parse($request->end_date);
-        
-        // Calculate working days (excluding weekends)
+
+        // Calculate working days (excluding weekends). Times are display-only.
         $daysRequested = $this->calculateWorkingDays($startDate, $endDate);
 
         // Check leave balance
@@ -96,7 +98,7 @@ class LeaveRequestController extends Controller
             ->first();
 
         if ($balance && $balance->remaining_days < $daysRequested) {
-            return back()->withInput()->with('error', 
+            return back()->withInput()->with('error',
                 "Insufficient leave balance. Available: {$balance->remaining_days} days, Requested: {$daysRequested} days."
             );
         }
@@ -106,6 +108,8 @@ class LeaveRequestController extends Controller
             'leave_type_id' => $request->leave_type_id,
             'start_date' => $startDate,
             'end_date' => $endDate,
+            'start_time' => $request->start_time,
+            'end_time' => $request->end_time,
             'days_requested' => $daysRequested,
             'reason' => $request->reason,
             'status' => 'pending',
