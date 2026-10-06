@@ -429,8 +429,9 @@
                             @csrf
                             @method('DELETE')
                             <div class="mb-2">
-                                <label for="reversal_reason" class="form-label small">Reversal Reason (Optional)</label>
-                                <textarea name="reversal_reason" id="reversal_reason" class="form-control form-control-sm" rows="2" maxlength="500" placeholder="Enter reason for reversal..."></textarea>
+                                <label for="reversal_reason" class="form-label small">Reversal Reason <span class="text-danger">*</span></label>
+                                <textarea name="reversal_reason" id="reversal_reason" class="form-control form-control-sm" rows="2" maxlength="500" required minlength="3" placeholder="Reason sent to parent (required)..."></textarea>
+                                <div class="form-text">Parents are always notified of the reversal and this reason.</div>
                             </div>
                             <button type="submit" class="btn btn-danger w-100">
                                 <i class="bi bi-arrow-counterclockwise"></i> Reverse Payment
@@ -440,6 +441,11 @@
                         function confirmPaymentReversal(e) {
                             e.preventDefault();
                             const form = e.target;
+                            const reason = (form.querySelector('#reversal_reason')?.value || '').trim();
+                            if (reason.length < 3) {
+                                alert('Please enter a reversal reason (at least 3 characters). Parents will be notified.');
+                                return false;
+                            }
                             const allocationsCount = {{ $payment->allocations->count() }};
                             const amount = {{ $payment->amount }};
                             const allocatedAmount = {{ $payment->allocated_amount ?? 0 }};
@@ -449,6 +455,7 @@
                             if (allocationsCount > 0) {
                                 message += `This will affect ${allocationsCount} allocation(s) and ${allocatedAmount > 0 ? 'recalculate related invoices' : 'remove all allocations'}.\n`;
                             }
+                            message += `\nReason (sent to parent): ${reason}\n`;
                             message += '\nThis action cannot be undone.';
                             
                             if (confirm(message)) {

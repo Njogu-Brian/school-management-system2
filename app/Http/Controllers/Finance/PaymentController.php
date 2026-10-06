@@ -283,7 +283,10 @@ class PaymentController extends Controller
                 ->with('error', "Cannot accept overpayment for " . ($student->is_alumni ? 'alumni' : 'archived') . " students. Maximum payment allowed is Ksh " . number_format($balance, 2) . " (outstanding balance).");
         }
         
-        if ($isOverpayment && !($request->has('confirm_overpayment') && $request->confirm_overpayment)) {
+        // Shared family payments already declare how much goes to each child — don't
+        // require a second overpayment confirmation against the main student alone.
+        $isSharedPayment = (bool) ($validated['shared_payment'] ?? false);
+        if ($isOverpayment && ! $isSharedPayment && !($request->has('confirm_overpayment') && $request->confirm_overpayment)) {
             return back()
                 ->withInput()
                 ->with('warning', "Warning: Payment amount (Ksh " . number_format($validated['amount'], 2) . ") exceeds balance (Ksh " . number_format($balance, 2) . "). Overpayment of Ksh " . number_format($validated['amount'] - $balance, 2) . " will be carried forward.")
@@ -1519,9 +1522,9 @@ class PaymentController extends Controller
             return back()->with('error', 'This payment has already been reversed.');
         }
         
-        // Validate reversal reason if provided
+        // Reason is required so parents are always told why the payment was reversed
         $validated = $request->validate([
-            'reversal_reason' => 'nullable|string|max:500',
+            'reversal_reason' => 'required|string|min:3|max:500',
         ]);
         
         // Store old values for audit log
@@ -1661,9 +1664,128 @@ class PaymentController extends Controller
                 $message .= "{$invoiceCount} invoice(s) recalculated across {$affectedStudents} student(s). ";
             }
             $message .= 'All allocations have been removed.';
+
+            try {
+                $this->sendPaymentReversalNotifications(
+                    $payment->fresh(['student.parent']),
+                    $validated['reversal_reason'] ?? $payment->reversal_reason
+                );
+            } catch (\Throwable $e) {
+                Log::warning('Failed to send payment reversal notification', [
+                    'payment_id' => $payment->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
             
             return back()->with('success', $message);
         });
+    }
+
+    /**
+     * Notify parents that a payment was reversed, always including the reason.
+     */
+    public function sendPaymentReversalNotifications(Payment $payment, ?string $reason = null): void
+    {
+        $payment->loadMissing(['student.parent']);
+        $student = $payment->student;
+        if (!$student) {
+            Log::info('No student for payment reversal notification', ['payment_id' => $payment->id]);
+            return;
+        }
+
+        $parent = $student->parent;
+        if (!$parent) {
+            Log::info('No parent for payment reversal notification', [
+                'payment_id' => $payment->id,
+                'student_id' => $student->id,
+            ]);
+            return;
+        }
+
+        $reason = trim((string) ($reason ?: $payment->reversal_reason ?: 'Payment reversed by school finance'));
+        $amount = 'KSh ' . number_format((float) $payment->amount, 2);
+        $paymentDate = $payment->payment_date
+            ? \Carbon\Carbon::parse($payment->payment_date)->format('d M Y')
+            : 'N/A';
+        $schoolName = config('app.name', 'School');
+        $studentName = trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? ''));
+        $admission = $student->admission_number ?? '';
+        $receipt = $payment->receipt_number ?? 'N/A';
+        $txnCode = $payment->transaction_code ?? $payment->base_transaction_code ?? 'N/A';
+
+        $smsTemplate = CommunicationTemplate::where('code', 'payment_reversal_sms')
+            ->orWhere('code', 'finance_payment_reversed_sms')
+            ->first();
+        $emailTemplate = CommunicationTemplate::where('code', 'payment_reversal_email')
+            ->orWhere('code', 'finance_payment_reversed_email')
+            ->first();
+
+        if (!$smsTemplate) {
+            $smsTemplate = CommunicationTemplate::firstOrCreate(
+                ['code' => 'payment_reversal_sms'],
+                [
+                    'title' => 'Payment Reversal SMS',
+                    'type' => 'sms',
+                    'subject' => null,
+                    'content' => "{{greeting}},\n\nA payment of {{amount}} for {{student_name}} ({{admission_number}}) dated {{payment_date}} has been reversed.\nReceipt: {{receipt_number}}\nReason: {{reversal_reason}}\n\n{{school_name}}",
+                ]
+            );
+        }
+
+        if (!$emailTemplate) {
+            $emailTemplate = CommunicationTemplate::firstOrCreate(
+                ['code' => 'payment_reversal_email'],
+                [
+                    'title' => 'Payment Reversal Email',
+                    'type' => 'email',
+                    'subject' => 'Payment Reversed – {{student_name}}',
+                    'content' => "<p>{{greeting}},</p><p>A payment of <strong>{{amount}}</strong> for <strong>{{student_name}}</strong> (Admission: {{admission_number}}) dated {{payment_date}} has been <strong>reversed</strong>.</p><p><strong>Receipt:</strong> {{receipt_number}}<br><strong>Transaction:</strong> {{transaction_code}}<br><strong>Reason:</strong> {{reversal_reason}}</p><p>If you have questions, please contact the school finance office.</p><p>{{school_name}}</p>",
+                ]
+            );
+        }
+
+        $placeholders = [
+            'amount' => $amount,
+            'student_name' => $studentName,
+            'admission_number' => $admission,
+            'payment_date' => $paymentDate,
+            'receipt_number' => $receipt,
+            'transaction_code' => $txnCode,
+            'reversal_reason' => $reason,
+            'school_name' => $schoolName,
+        ];
+
+        $parentNotify = app(\App\Services\ParentSchoolNotificationService::class);
+        try {
+            $parentNotify->sendSmsTemplateToStudentParents(
+                $student,
+                $smsTemplate->content ?? '',
+                $smsTemplate->title ?? 'Payment Reversal',
+                'RKS_FINANCE',
+                $payment->id,
+                $placeholders
+            );
+        } catch (\Throwable $e) {
+            Log::warning('Payment reversal SMS failed', [
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        try {
+            $parentNotify->sendEmailTemplateToStudentParents(
+                $student,
+                $emailTemplate->subject ?? 'Payment Reversed – {{student_name}}',
+                $emailTemplate->content ?? '',
+                null,
+                $placeholders
+            );
+        } catch (\Throwable $e) {
+            Log::warning('Payment reversal email failed', [
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
     
     /**
@@ -1761,6 +1883,19 @@ class PaymentController extends Controller
                 $targetInvoices = \App\Models\Invoice::where('student_id', $targetStudent->id)->get();
                 foreach ($targetInvoices as $invoice) {
                     \App\Services\InvoiceService::recalc($invoice);
+                }
+
+                // Frozen receipt balances were computed on the pre-transfer amount — refresh them.
+                try {
+                    app(\App\Services\StudentFeeStatementService::class)
+                        ->refreshSnapshotsAfterPaymentChange($payment->fresh());
+                    app(\App\Services\StudentFeeStatementService::class)
+                        ->refreshSnapshotsAfterPaymentChange($newPayment->fresh());
+                } catch (\Exception $e) {
+                    \Log::warning('Failed to refresh balance snapshots after transfer', [
+                        'payment_id' => $payment->id,
+                        'error' => $e->getMessage(),
+                    ]);
                 }
                 
                 // Log audit trail
@@ -1890,6 +2025,17 @@ class PaymentController extends Controller
                             $this->allocationService->autoAllocateWithInstallments($payment, $student->id);
                         } else {
                             $this->allocationService->autoAllocate($payment, $student->id);
+                        }
+
+                        // Clear stale "balance as at this payment" (still showed pre-share figure)
+                        try {
+                            app(\App\Services\StudentFeeStatementService::class)
+                                ->refreshSnapshotsAfterPaymentChange($payment->fresh());
+                        } catch (\Exception $e) {
+                            \Log::warning('Failed to refresh balance snapshot after share', [
+                                'payment_id' => $payment->id,
+                                'error' => $e->getMessage(),
+                            ]);
                         }
                         
                         // Update receipt for original payment with new amount

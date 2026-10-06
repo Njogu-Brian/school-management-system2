@@ -142,27 +142,7 @@
                                 </div>
                             </div>
 
-                            <!-- Payment Sharing Section -->
-                            <div class="col-md-12" id="payment_sharing_section" style="display: none;">
-                                <div class="finance-card" style="background: #f8f9fa; border: 2px dashed #dee2e6;">
-                                    <div class="finance-card-header">
-                                        <i class="bi bi-people me-2"></i> Share Payment Among Siblings
-                                        <button type="button" class="btn btn-sm btn-outline-secondary float-end" id="toggle_sharing">
-                                            <i class="bi bi-x"></i> Cancel Sharing
-                                        </button>
-                                    </div>
-                                    <div class="finance-card-body">
-                                        <input type="hidden" name="shared_payment" id="shared_payment" value="0">
-                                        <p class="text-muted small mb-3">Distribute the payment amount among siblings. Total must equal payment amount.</p>
-                                        <div id="siblings_list"></div>
-                                        <div class="mt-3">
-                                            <strong>Total Shared: Ksh <span id="total_shared">0.00</span></strong>
-                                            <span class="text-danger" id="sharing_error" style="display: none;">Total must equal payment amount!</span>
-                                            <div class="text-warning small mt-2" id="sharing_notice" style="display: none;"></div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                            <input type="hidden" name="shared_payment" id="shared_payment" value="0">
                         </div>
                     </div>
                 </div>
@@ -178,7 +158,7 @@
                     </div>
                 </div>
 
-                <!-- Siblings Section -->
+                <!-- Siblings + Share Payment -->
                 <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mt-3" id="siblings_card" style="display: none;">
                     <div class="finance-card-header secondary d-flex align-items-center gap-2">
                         <i class="bi bi-people"></i> <span>Siblings</span>
@@ -189,9 +169,23 @@
                             </div>
                         </div>
                     </div>
-                    <div class="finance-card-body p-4" id="siblings_info">
-                        <p class="text-muted small">This student has siblings in the system.</p>
-                        <div class="small text-muted mt-2" id="payment_sharing_state" style="display: none;"></div>
+                    <div class="finance-card-body p-4">
+                        <div id="siblings_info">
+                            <p class="text-muted small mb-0">This student has siblings in the system.</p>
+                        </div>
+
+                        <div id="payment_sharing_section" class="mt-3 pt-3 border-top" style="display: none;">
+                            <p class="text-muted small mb-3 mb-md-2">
+                                <i class="bi bi-share me-1"></i>
+                                Split this payment across the family. Amounts must add up to the payment total.
+                            </p>
+                            <div id="siblings_list"></div>
+                            <div class="mt-3">
+                                <strong>Total Shared: Ksh <span id="total_shared">0.00</span></strong>
+                                <span class="text-danger small ms-2" id="sharing_error" style="display: none;">Total must equal payment amount!</span>
+                                <div class="text-warning small mt-2" id="sharing_notice" style="display: none;"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -201,12 +195,15 @@
                     <strong>Overpayment Warning!</strong>
                     <p class="mb-0 small" id="overpayment_message"></p>
                     <input type="hidden" name="confirm_overpayment" id="confirm_overpayment" value="0">
-                    <div class="form-check mt-2">
+                    <div class="form-check mt-2" id="confirm_overpayment_wrap">
                         <input class="form-check-input" type="checkbox" id="confirm_overpayment_check">
                         <label class="form-check-label small" for="confirm_overpayment_check">
                             I understand the overpayment will be carried forward
                         </label>
                     </div>
+                    <p class="mb-0 small text-muted mt-2" id="overpayment_sharing_note" style="display: none;">
+                        Sharing is on — no extra confirmation needed. Any remainder after sibling balances will be carried forward.
+                    </p>
                 </div>
 
                 <div class="d-grid gap-2 mt-3">
@@ -243,7 +240,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const sharingNotice = document.getElementById('sharing_notice');
     const paymentSharingToggle = document.getElementById('payment_sharing_toggle');
     const submitBtn = document.getElementById('submit_btn');
-    const paymentSharingState = document.getElementById('payment_sharing_state');
+    const confirmOverpaymentWrap = document.getElementById('confirm_overpayment_wrap');
+    const overpaymentSharingNote = document.getElementById('overpayment_sharing_note');
     
     let currentStudentData = null;
     let siblings = [];
@@ -426,8 +424,26 @@ document.addEventListener('DOMContentLoaded', function() {
             const balanceLabel = sharingEnabled ? 'family balances' : 'balance';
             overpaymentMessage.textContent = `Payment amount (Ksh ${amount.toLocaleString('en-US', {minimumFractionDigits: 2})}) exceeds ${balanceLabel} (Ksh ${totalBalance.toLocaleString('en-US', {minimumFractionDigits: 2})}). Overpayment of Ksh ${overpayment.toLocaleString('en-US', {minimumFractionDigits: 2})} will be carried forward.`;
             overpaymentWarning.style.display = 'block';
+            if (sharingEnabled) {
+                // Share toggle already expresses intent — no second confirmation tick.
+                if (confirmOverpaymentWrap) confirmOverpaymentWrap.style.display = 'none';
+                if (overpaymentSharingNote) overpaymentSharingNote.style.display = 'block';
+                if (confirmOverpaymentCheck) confirmOverpaymentCheck.checked = true;
+                confirmOverpayment.value = '1';
+            } else {
+                if (confirmOverpaymentWrap) confirmOverpaymentWrap.style.display = 'block';
+                if (overpaymentSharingNote) overpaymentSharingNote.style.display = 'none';
+                if (confirmOverpaymentCheck && confirmOverpayment.value !== '1') {
+                    confirmOverpaymentCheck.checked = false;
+                    confirmOverpayment.value = '0';
+                }
+            }
         } else {
             overpaymentWarning.style.display = 'none';
+            if (confirmOverpaymentWrap) confirmOverpaymentWrap.style.display = 'block';
+            if (overpaymentSharingNote) overpaymentSharingNote.style.display = 'none';
+            if (confirmOverpaymentCheck) confirmOverpaymentCheck.checked = false;
+            confirmOverpayment.value = '0';
         }
     }
 
@@ -500,21 +516,11 @@ document.addEventListener('DOMContentLoaded', function() {
     function setPaymentSharingEnabled(enabled) {
         if (enabled) {
             showPaymentSharing();
-            if (paymentSharingState) {
-                paymentSharingState.textContent = 'Payment sharing enabled. Split the amount below.';
-                paymentSharingState.style.display = 'block';
-            }
-            if (paymentSharingSection?.scrollIntoView) {
-                paymentSharingSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
         } else {
             paymentSharingSection.style.display = 'none';
             sharedPaymentInput.value = '0';
             siblingsList.innerHTML = '';
             updateTotalShared();
-            if (paymentSharingState) {
-                paymentSharingState.style.display = 'none';
-            }
         }
         checkOverpayment();
     }
@@ -553,13 +559,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    document.getElementById('toggle_sharing')?.addEventListener('click', function() {
-        setPaymentSharingEnabled(false);
-        if (paymentSharingToggle) {
-            paymentSharingToggle.checked = false;
-        }
-    });
-
     paymentSharingToggle?.addEventListener('change', function() {
         setPaymentSharingEnabled(this.checked);
     });
@@ -570,10 +569,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Form submission validation
     document.getElementById('paymentForm').addEventListener('submit', function(e) {
-        if (overpaymentWarning.style.display === 'block' && !confirmOverpaymentCheck.checked) {
+        const sharingOn = sharedPaymentInput.value === '1';
+        // Sharing already confirms intent — only require the overpayment tick when not sharing.
+        if (overpaymentWarning.style.display === 'block' && !sharingOn && !confirmOverpaymentCheck.checked) {
             e.preventDefault();
             alert('Please confirm that you understand the overpayment will be carried forward.');
             return false;
+        }
+        if (sharingOn) {
+            confirmOverpayment.value = '1';
         }
         
         // Ensure button is enabled before submission

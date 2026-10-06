@@ -1703,6 +1703,7 @@ class StudentStatementController extends Controller
 
         $students = $family->students->values();
         $transactions = collect();
+        $studentSummaries = collect();
         $totalDebit = 0.0;
         $totalCredit = 0.0;
         $finalBalance = 0.0;
@@ -1718,23 +1719,66 @@ class StudentStatementController extends Controller
             ]);
 
             $viewData = $this->print($studentRequest, $student)->getData();
+            $studentTxns = collect($viewData['detailedTransactions'] ?? []);
 
-            foreach (($viewData['detailedTransactions'] ?? collect()) as $transaction) {
+            foreach ($studentTxns as $transaction) {
+                $transaction['student_id'] = $student->id;
                 $transaction['student_name'] = $student->full_name;
                 $transaction['admission_number'] = $student->admission_number;
                 $transactions->push($transaction);
             }
 
+            $studentCharges = (float) ($viewData['totalCharges'] ?? 0);
+            $studentPayments = (float) ($viewData['totalPayments'] ?? 0);
+            $studentDiscounts = (float) ($viewData['totalDiscounts'] ?? 0);
+            $studentBalance = (float) ($viewData['finalBalance'] ?? 0);
+            $studentBf = (float) ($viewData['balanceBroughtForward'] ?? 0);
+
+            $invoiceCount = $studentTxns->filter(function ($txn) {
+                $type = strtolower((string) ($txn['type'] ?? ''));
+                return str_contains($type, 'invoice') || str_contains($type, 'charge') || (($txn['debit'] ?? 0) > 0 && ($txn['credit'] ?? 0) <= 0);
+            })->count();
+            $paymentCount = $studentTxns->filter(function ($txn) {
+                $type = strtolower((string) ($txn['type'] ?? ''));
+                return str_contains($type, 'payment') || (($txn['credit'] ?? 0) > 0 && str_contains($type, 'pay'));
+            })->count();
+
+            $studentSummaries->push([
+                'student' => $student,
+                'total_charges' => $studentCharges,
+                'total_payments' => $studentPayments,
+                'total_discounts' => $studentDiscounts,
+                'balance_brought_forward' => $studentBf,
+                'final_balance' => $studentBalance,
+                'invoice_lines' => $invoiceCount,
+                'payment_lines' => $paymentCount,
+                'transaction_count' => $studentTxns->count(),
+            ]);
+
             $totalDebit += (float) ($viewData['totalDebit'] ?? 0);
             $totalCredit += (float) ($viewData['totalCredit'] ?? 0);
-            $finalBalance += (float) ($viewData['finalBalance'] ?? 0);
-            $balanceBroughtForward += (float) ($viewData['balanceBroughtForward'] ?? 0);
-            $totalCharges += (float) ($viewData['totalCharges'] ?? 0);
-            $totalPayments += (float) ($viewData['totalPayments'] ?? 0);
-            $totalDiscounts += (float) ($viewData['totalDiscounts'] ?? 0);
+            $finalBalance += $studentBalance;
+            $balanceBroughtForward += $studentBf;
+            $totalCharges += $studentCharges;
+            $totalPayments += $studentPayments;
+            $totalDiscounts += $studentDiscounts;
         }
 
         $detailedTransactions = $transactions->sortBy('date')->values();
+        $invoiceTransactions = $detailedTransactions->filter(function ($txn) {
+            $type = strtolower((string) ($txn['type'] ?? ''));
+            return (($txn['debit'] ?? 0) > 0.009) || str_contains($type, 'invoice') || str_contains($type, 'charge') || str_contains($type, 'debit note');
+        })->values();
+        $paymentTransactions = $detailedTransactions->filter(function ($txn) {
+            $type = strtolower((string) ($txn['type'] ?? ''));
+            return (($txn['credit'] ?? 0) > 0.009) && (
+                str_contains($type, 'payment')
+                || str_contains($type, 'discount')
+                || str_contains($type, 'credit note')
+                || str_contains($type, 'receipt')
+            );
+        })->values();
+
         $terms = $this->statementTermsForYear($year);
         $years = $this->statementYearsForStudentIds($students->pluck('id')->all());
         $branding = $this->branding();
@@ -1752,6 +1796,7 @@ class StudentStatementController extends Controller
         return [
             'family' => $family,
             'students' => $students,
+            'studentSummaries' => $studentSummaries,
             'year' => $year,
             'term' => $term,
             'terms' => $terms,
@@ -1760,6 +1805,8 @@ class StudentStatementController extends Controller
             'statementHeader' => $statementHeader,
             'statementFooter' => $statementFooter,
             'detailedTransactions' => $detailedTransactions,
+            'invoiceTransactions' => $invoiceTransactions,
+            'paymentTransactions' => $paymentTransactions,
             'totalDebit' => $totalDebit,
             'totalCredit' => $totalCredit,
             'finalBalance' => $finalBalance,

@@ -24,18 +24,37 @@ class ActivityFeeSplitService
 
     public function alreadySplit(object $transaction, bool $isC2B): bool
     {
-        if (!Schema::hasTable('activity_fee_allocations')) {
-            return false;
+        if (Schema::hasTable('activity_fee_allocations')) {
+            $hasActivity = ActivityFeeAllocation::query()
+                ->when(
+                    $isC2B,
+                    fn ($q) => $q->where('mpesa_c2b_transaction_id', $transaction->id),
+                    fn ($q) => $q->where('bank_statement_transaction_id', $transaction->id)
+                )
+                ->where('status', '!=', ActivityFeeAllocation::STATUS_REVERSED)
+                ->exists();
+            if ($hasActivity) {
+                return true;
+            }
         }
 
-        return ActivityFeeAllocation::query()
-            ->when(
-                $isC2B,
-                fn ($q) => $q->where('mpesa_c2b_transaction_id', $transaction->id),
-                fn ($q) => $q->where('bank_statement_transaction_id', $transaction->id)
-            )
-            ->where('status', '!=', ActivityFeeAllocation::STATUS_REVERSED)
-            ->exists();
+        // Older C2B fee+swimming splits credited the wallet without an activity_fee_allocations row.
+        if ($isC2B && class_exists(\App\Models\SwimmingLedger::class)) {
+            return \App\Models\SwimmingLedger::query()
+                ->where('source_type', \App\Models\MpesaC2BTransaction::class)
+                ->where('source_id', $transaction->id)
+                ->where('type', \App\Models\SwimmingLedger::TYPE_CREDIT)
+                ->exists();
+        }
+
+        if (! $isC2B && Schema::hasTable('swimming_transaction_allocations')) {
+            return \App\Models\SwimmingTransactionAllocation::query()
+                ->where('bank_statement_transaction_id', $transaction->id)
+                ->where('status', '!=', \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED)
+                ->exists();
+        }
+
+        return false;
     }
 
     /**

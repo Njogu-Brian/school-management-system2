@@ -16,11 +16,18 @@ class MpesaSmartMatchingService
      */
     public function matchTransaction(MpesaC2BTransaction $transaction): array
     {
-        // Start with learned suggestions from past manual assignments (system improves over time)
+        // Start with learned suggestions from past manual assignments (system improves over time).
+        // Prefer bill_ref_number (what parents type) over trans_id (unique per payment, never reuses).
         $suggestions = \App\Models\ManualMatchLearning::findSuggestions(
             'c2b',
-            $transaction->trans_id ?? null,
-            $transaction->bill_ref_number ?? $transaction->full_name ?? null
+            $transaction->bill_ref_number ?? null,
+            $transaction->bill_ref_number
+                ?? trim(implode(' ', array_filter([
+                    $transaction->first_name ?? null,
+                    $transaction->middle_name ?? null,
+                    $transaction->last_name ?? null,
+                ])))
+                ?: null
         );
 
         // Method 1: Exact match by admission number in bill_ref_number
@@ -65,11 +72,12 @@ class MpesaSmartMatchingService
         // Remove duplicates and sort by confidence
         $suggestions = $this->deduplicateAndSort($suggestions);
 
-        // Store suggestions in transaction
+        // Store initial match candidates on the transaction for audit / UI
         $transaction->storeSuggestions(array_slice($suggestions, 0, 5)); // Store top 5
 
-        // Auto-match if confidence is high enough
-        if (!empty($suggestions) && $suggestions[0]['confidence'] >= 80) {
+        // Auto-match only when the top suggestion is strong enough AND not ambiguous
+        // (e.g. do not auto-assign "Israel Wainaina" for reference "shalin wainaina").
+        if (!empty($suggestions) && $this->shouldAutoAssign($suggestions)) {
             $top = $suggestions[0];
             $siblingIds = $top['siblings'] ?? [];
             $amount = (float) $transaction->trans_amount;
@@ -114,6 +122,88 @@ class MpesaSmartMatchingService
         }
 
         return $suggestions;
+    }
+
+    /**
+     * Decide whether the top suggestion is safe to auto-assign.
+     *
+     * Learned from production corrections (top suggestion ≠ final student):
+     * - "shalin wainaina" → Israel (surname-only fuzzy)
+     * - "Keisha"/"Israel"/"Gabriella" → wrong child among same first name
+     * - "Everlyn Wanjiku G3" → Elsa Wanjiku (class hint ignored)
+     * - "Grace Kemunto" → Peace Kemunto (second token surname collision)
+     */
+    protected function shouldAutoAssign(array $suggestions): bool
+    {
+        if (empty($suggestions)) {
+            return false;
+        }
+
+        $top = $suggestions[0];
+        $confidence = (float) ($top['confidence'] ?? 0);
+        $matchType = (string) ($top['match_type'] ?? '');
+        $reason = (string) ($top['reason'] ?? '');
+        $second = $suggestions[1] ?? null;
+        $secondConfidence = (float) ($second['confidence'] ?? 0);
+        $gap = $confidence - $secondConfidence;
+
+        if (!empty($top['ambiguous'])) {
+            return false;
+        }
+
+        // Two near-tied candidates → staff must choose (Keisha×2, Israel×3, Gabriella×2)
+        if ($second && $gap < 5 && in_array($matchType, ['reference_student_name', 'learned'], true)) {
+            return false;
+        }
+
+        // Exact / strong match types
+        $strongTypes = [
+            'admission_number',
+            'invoice_number',
+            'learned',
+            'phone',
+            'parent_sibling',
+            'reference_sibling',
+            'family_balance_split',
+        ];
+
+        // Fuzzy "Matched: RKSxxx N% confidence" from similarity — never auto below 92,
+        // and never when another suggestion is within 10 points (ambiguous surname family).
+        $isFuzzyName = $matchType === 'reference_student_name'
+            && (str_starts_with($reason, 'Matched:') || str_contains($reason, 'fuzzy'));
+
+        if ($isFuzzyName) {
+            if ($confidence < 92) {
+                return false;
+            }
+            if ($second && $gap < 10) {
+                return false;
+            }
+            if (array_key_exists('given_name_matched', $top) && !$top['given_name_matched']) {
+                return false;
+            }
+            return true;
+        }
+
+        // Strong name matches (exact first+last / first+middle) auto at 90+
+        // Single-token first-name matches only auto when unique, or uniquely resolved by class (G3/FND).
+        if ($matchType === 'reference_student_name') {
+            $uniqueClass = str_contains($reason, 'unique class');
+            if (!empty($top['single_token_name']) && $second && !$uniqueClass) {
+                return false;
+            }
+            return $confidence >= 90;
+        }
+
+        if (in_array($matchType, $strongTypes, true)) {
+            // Learned corrections auto only when clearly ahead of alternatives
+            if ($matchType === 'learned') {
+                return $confidence >= 90 && (!$second || $gap >= 5);
+            }
+            return $confidence >= 80;
+        }
+
+        return $confidence >= 90;
     }
 
     /**
@@ -386,6 +476,9 @@ class MpesaSmartMatchingService
     /**
      * Match by reference as multiple sibling names (e.g. "Christie and Chrissy").
      * Reference-only; no parent name required.
+     *
+     * Important: "Phillip Njenga" / "First Last" is ONE person — never treat space-separated
+     * first+last as sibling tokens. A shared last name alone must not create a sibling match.
      */
     protected function matchByReferenceAsSiblingNames(MpesaC2BTransaction $transaction): array
     {
@@ -402,22 +495,27 @@ class MpesaSmartMatchingService
             return [];
         }
 
-        $familyStudents = [];
+        // Each token must identify a distinct child primarily by first/given name.
+        // Matching only on shared last name (e.g. "Njenga") falsely groups whole families.
+        $familyHits = []; // family_id => [student_id => ['student' => Student, 'tokens' => []]]
         foreach ($childNames as $childName) {
             $childNameLower = strtolower(trim($childName));
             if (strlen($childNameLower) < 2) {
                 continue;
             }
+
             $students = Student::with('classroom')
                 ->where('archive', 0)
                 ->where('is_alumni', false)
                 ->whereNotNull('family_id')
                 ->where(function ($q) use ($childNameLower) {
                     $q->whereRaw('LOWER(TRIM(first_name)) = ?', [$childNameLower])
-                      ->orWhereRaw('LOWER(TRIM(last_name)) = ?', [$childNameLower])
-                      ->orWhereRaw('LOWER(TRIM(first_name)) LIKE ?', ['%' . $childNameLower . '%'])
-                      ->orWhereRaw('LOWER(TRIM(last_name)) LIKE ?', ['%' . $childNameLower . '%'])
-                      ->orWhereRaw('LOWER(REPLACE(CONCAT(TRIM(first_name), TRIM(last_name)), \' \', \'\')) = ?', [str_replace(' ', '', $childNameLower)]);
+                      ->orWhereRaw('SOUNDEX(first_name) = SOUNDEX(?)', [$childNameLower])
+                      ->orWhereRaw('LOWER(TRIM(middle_name)) = ?', [$childNameLower])
+                      ->orWhereRaw(
+                          'LOWER(REPLACE(CONCAT(TRIM(first_name), TRIM(middle_name)), \' \', \'\')) = ?',
+                          [str_replace(' ', '', $childNameLower)]
+                      );
                 })
                 ->get();
 
@@ -426,21 +524,33 @@ class MpesaSmartMatchingService
                 if (!$familyId) {
                     continue;
                 }
-                if (!isset($familyStudents[$familyId])) {
-                    $familyStudents[$familyId] = [];
+                if (!isset($familyHits[$familyId][$s->id])) {
+                    $familyHits[$familyId][$s->id] = [
+                        'student' => $s,
+                        'tokens' => [],
+                    ];
                 }
-                $familyStudents[$familyId][$s->id] = $s;
+                $familyHits[$familyId][$s->id]['tokens'][$childNameLower] = true;
             }
         }
 
         $matches = [];
-        foreach ($familyStudents as $familyId => $byId) {
-            if (count($byId) < 2) {
+        foreach ($familyHits as $familyId => $byId) {
+            // Require at least two siblings, each matched by a different given-name token.
+            $matchedTokens = [];
+            foreach ($byId as $hit) {
+                foreach (array_keys($hit['tokens']) as $token) {
+                    $matchedTokens[$token] = true;
+                }
+            }
+            if (count($byId) < 2 || count($matchedTokens) < 2) {
                 continue;
             }
+
             $siblingIds = array_map('intval', array_keys($byId));
             $children = [];
-            foreach ($byId as $s) {
+            foreach ($byId as $hit) {
+                $s = $hit['student'];
                 $children[] = [
                     'student_id' => $s->id,
                     'student_name' => $s->first_name . ' ' . $s->last_name,
@@ -448,7 +558,7 @@ class MpesaSmartMatchingService
                     'classroom_name' => $s->classroom ? $s->classroom->name : null,
                 ];
             }
-            $confidence = count($children) >= count($childNames) ? 85 : 75;
+            $confidence = count($matchedTokens) >= count($childNames) ? 85 : 75;
             foreach ($children as $child) {
                 $matches[] = [
                     'student_id' => $child['student_id'],
@@ -486,40 +596,87 @@ class MpesaSmartMatchingService
             return [];
         }
         
-        // Try splitting by common delimiters. Space is last so "Philip Njenga"
-        // stays one name unless it also matches multiple siblings in a family.
-        $delimiters = ['/', ',', '|', '&', ' and ', ' AND ', ' '];
-        
+        // Explicit multi-child delimiters only. Never split on spaces — "Philip Njenga"
+        // is one student's name, not two siblings (Phillip + Njenga).
+        $delimiters = ['/', ',', '|', '&', ' and ', ' AND '];
+
         foreach ($delimiters as $delimiter) {
             if (stripos($reference, $delimiter) !== false) {
                 $names = array_map('trim', explode($delimiter, $reference));
-                $names = array_filter($names, function($name) {
-                    return strlen($name) >= 2; // At least 2 characters
+                $names = array_filter($names, function ($name) {
+                    return strlen($name) >= 2;
                 });
                 if (count($names) > 1) {
                     return array_values($names);
                 }
             }
         }
-        
-        // Without an explicit delimiter, treat the reference as one name (e.g. "Philip Njenga").
+
+        // Single child name (may include spaces: "Philip Njenga").
         return [trim($reference)];
     }
 
     /**
-     * Parse reference into name part and optional class/grade hint (e.g. "peter mwangi grade 7" -> name "peter mwangi", class "grade 7").
+     * Parse reference into name part and optional class/grade hint.
+     * Supports: "grade 7", "G3", "G 8", "FND", "FOUNDATION", "PP1", "class 5".
      */
     protected function parseReferenceNameAndClass(string $ref): array
     {
         $ref = trim($ref);
         $classHint = null;
-        // Strip common class/grade suffixes: "grade 7", "grade 6", "class 5", "form 1", etc.
+
+        // "grade 7", "class 5", "form 1", "std 3"
         if (preg_match('/\b(grade|class|form|std)\s*(\d+)\b/i', $ref, $m)) {
-            $classHint = strtoupper(trim($m[1] . ' ' . $m[2]));
+            $classHint = 'GRADE ' . $m[2];
             $ref = trim(preg_replace('/\b(grade|class|form|std)\s*\d+\b/i', '', $ref));
         }
+
+        // Compact "G3" / "G 8" (common parent shorthand — Everlyn Wanjiku G3)
+        if (!$classHint && preg_match('/\bG\s*(\d+)\b/i', $ref, $m)) {
+            $classHint = 'GRADE ' . $m[1];
+            $ref = trim(preg_replace('/\bG\s*\d+\b/i', '', $ref));
+        }
+
+        // Foundation / PP
+        if (!$classHint && preg_match('/\b(FND|FOUNDATION)\b/i', $ref, $m)) {
+            $classHint = 'FOUNDATION';
+            $ref = trim(preg_replace('/\b(FND|FOUNDATION)\b/i', '', $ref));
+        }
+        if (!$classHint && preg_match('/\bPP\s*([12])\b/i', $ref, $m)) {
+            $classHint = 'PP' . $m[1];
+            $ref = trim(preg_replace('/\bPP\s*[12]\b/i', '', $ref));
+        }
+
         $ref = trim(preg_replace('/\s+/', ' ', $ref));
         return ['name' => $ref, 'class_hint' => $classHint];
+    }
+
+    /**
+     * Whether a classroom name matches a parsed class hint.
+     */
+    protected function classroomMatchesHint(?string $classroomName, ?string $classHint): bool
+    {
+        if (!$classroomName || !$classHint) {
+            return false;
+        }
+        $room = strtoupper(trim($classroomName));
+        $hint = strtoupper(trim($classHint));
+
+        if (str_contains($room, $hint)) {
+            return true;
+        }
+        // GRADE 3 ↔ "GRADE 3" / "G3" already normalized to GRADE N
+        if (preg_match('/GRADE\s*(\d+)/', $hint, $hm) && preg_match('/(?:GRADE|G|CLASS|STD)\s*' . $hm[1] . '\b/', $room)) {
+            return true;
+        }
+        if ($hint === 'FOUNDATION' && (str_contains($room, 'FOUNDATION') || str_contains($room, 'FND'))) {
+            return true;
+        }
+        if (preg_match('/^PP([12])$/', $hint, $hm) && preg_match('/PP\s*' . $hm[1] . '\b/', $room)) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -548,7 +705,10 @@ class MpesaSmartMatchingService
         $refUpper = strtoupper($namePart);
         $refLower = strtolower($namePart);
 
-        // 1) Exact match on single first_name or last_name (e.g. "job")
+        // 1) Exact match on single first_name or last_name (e.g. "job", "Keisha", "Israel")
+        // When several students share the name, do NOT auto-pick — production corrections show
+        // Keisha/Israel/Gabriella repeatedly assigned to the wrong child at 95%.
+        $isSingleToken = !str_contains(trim($namePart), ' ');
         $exactMatches = Student::with('classroom')
             ->where('archive', 0)
             ->where('is_alumni', false)
@@ -560,12 +720,31 @@ class MpesaSmartMatchingService
             })
             ->get();
 
+        // Near-spelling first names (Keisha/Keysha, Talia/Tallia) as extra suggestions only
+        if ($isSingleToken && strlen($refLower) >= 4) {
+            $near = Student::with('classroom')
+                ->where('archive', 0)
+                ->where('is_alumni', false)
+                ->whereRaw('SOUNDEX(first_name) = SOUNDEX(?)', [$refLower])
+                ->whereRaw('UPPER(TRIM(first_name)) != ?', [$refUpper])
+                ->limit(10)
+                ->get()
+                ->filter(function ($s) use ($refLower) {
+                    $fn = strtolower(trim((string) $s->first_name));
+                    similar_text($refLower, $fn, $pct);
+                    return $pct >= 80 || levenshtein($refLower, $fn) <= 1;
+                });
+            $exactMatches = $exactMatches->merge($near)->unique('id');
+        }
+
         $matches = [];
         foreach ($exactMatches as $student) {
-            $confidence = 95;
+            $isExactFirst = strtoupper(trim((string) $student->first_name)) === $refUpper
+                || strtolower(trim((string) $student->first_name)) === $refLower;
+            $confidence = $isExactFirst ? 95 : 88;
             $reason = 'Reference matches student name: ' . $ref;
-            if ($classHint && $student->classroom && stripos($student->classroom->name, $classHint) !== false) {
-                $confidence = 98;
+            if ($this->classroomMatchesHint($student->classroom->name ?? null, $classHint)) {
+                $confidence = min(98, $confidence + 8);
                 $reason = 'Reference matches student name + class: ' . $ref;
             }
             $matches[] = [
@@ -576,10 +755,43 @@ class MpesaSmartMatchingService
                 'confidence' => $confidence,
                 'reason' => $reason,
                 'match_type' => 'reference_student_name',
+                'single_token_name' => $isSingleToken,
             ];
         }
 
         if (!empty($matches)) {
+            // Unique class-hint winner can stay auto-safe; otherwise mark ambiguous.
+            if (count($matches) > 1) {
+                $classWinners = array_values(array_filter($matches, function ($m) use ($classHint) {
+                    return $this->classroomMatchesHint($m['classroom_name'] ?? null, $classHint);
+                }));
+                if ($classHint && count($classWinners) === 1) {
+                    $winner = $classWinners[0];
+                    $winner['confidence'] = 96;
+                    $winner['ambiguous'] = false;
+                    $winner['single_token_name'] = $isSingleToken;
+                    $winner['reason'] = 'Reference matches student name + unique class: ' . $ref;
+                    // Keep others as lower-confidence suggestions
+                    $others = array_map(function ($m) use ($winner) {
+                        if ($m['student_id'] === $winner['student_id']) {
+                            return $winner;
+                        }
+                        $m['confidence'] = min(85, (int) $m['confidence']);
+                        $m['ambiguous'] = true;
+                        return $m;
+                    }, $matches);
+                    usort($others, fn ($a, $b) => $b['confidence'] <=> $a['confidence']);
+                    return $others;
+                }
+
+                foreach ($matches as &$m) {
+                    $m['confidence'] = min(85, (int) $m['confidence']);
+                    $m['ambiguous'] = true;
+                }
+                unset($m);
+                usort($matches, fn ($a, $b) => $b['confidence'] <=> $a['confidence']);
+            }
+
             return $matches;
         }
 
@@ -607,23 +819,35 @@ class MpesaSmartMatchingService
             }
         }
 
-        // 2b) Full name match: "peter mwangi" -> CONCAT(first_name, ' ', last_name) or first_name + last_name
+        // 2b) Full name match: "peter mwangi" -> first+last, first+middle, or soundex first + middle/last
+        // Covers "Phillip Njenga" -> Philip Njenga Karanja (middle name Njenga).
         $nameWords = array_values(array_filter(explode(' ', $namePart), function ($p) {
             return strlen(trim($p)) >= 2;
         }));
         if (count($nameWords) >= 2) {
             $first = $nameWords[0];
+            $second = $nameWords[1];
             $last = $nameWords[count($nameWords) - 1];
             $query = Student::with('classroom')
                 ->where('archive', 0)
                 ->where('is_alumni', false)
-                ->where(function ($q) use ($first, $last) {
+                ->where(function ($q) use ($first, $second, $last) {
                     $q->where(function ($q2) use ($first, $last) {
                         $q2->whereRaw('UPPER(TRIM(first_name)) = ?', [strtoupper($first)])
                            ->whereRaw('UPPER(TRIM(last_name)) = ?', [strtoupper($last)]);
                     })->orWhere(function ($q2) use ($first, $last) {
                         $q2->whereRaw('UPPER(TRIM(first_name)) = ?', [strtoupper($last)])
                            ->whereRaw('UPPER(TRIM(last_name)) = ?', [strtoupper($first)]);
+                    })->orWhere(function ($q2) use ($first, $second) {
+                        // first + middle (exact or soundex on first for Philip/Phillip)
+                        $q2->where(function ($q3) use ($first) {
+                            $q3->whereRaw('UPPER(TRIM(first_name)) = ?', [strtoupper($first)])
+                               ->orWhereRaw('SOUNDEX(first_name) = SOUNDEX(?)', [$first]);
+                        })->where(function ($q3) use ($second) {
+                            $q3->whereRaw('UPPER(TRIM(middle_name)) = ?', [strtoupper($second)])
+                               ->orWhereRaw('UPPER(TRIM(middle_name)) LIKE ?', ['%' . strtoupper($second) . '%'])
+                               ->orWhereRaw('UPPER(TRIM(last_name)) = ?', [strtoupper($second)]);
+                        });
                     });
                 });
             if ($classHint) {
@@ -633,32 +857,49 @@ class MpesaSmartMatchingService
             }
             $fullNameMatches = $query->get();
             foreach ($fullNameMatches as $student) {
-                $confidence = $classHint && $student->classroom && stripos($student->classroom->name, $classHint) !== false ? 98 : 95;
+                $classOk = $this->classroomMatchesHint($student->classroom->name ?? null, $classHint);
+                $confidence = $classOk ? 98 : 95;
                 $matches[] = [
                     'student_id' => $student->id,
                     'student_name' => $student->first_name . ' ' . $student->last_name,
                     'admission_number' => $student->admission_number,
                     'classroom_name' => $student->classroom ? $student->classroom->name : null,
                     'confidence' => $confidence,
-                    'reason' => 'Reference matches student name' . ($classHint ? ' + class' : '') . ': ' . $ref,
+                    'reason' => 'Reference matches student name' . ($classOk ? ' + class' : '') . ': ' . $ref,
                     'match_type' => 'reference_student_name',
+                    'given_name_matched' => true,
                 ];
             }
             if (!empty($matches)) {
+                // If class hint uniquely identifies one of several full-name hits, prefer it.
+                if ($classHint && count($matches) > 1) {
+                    $classWinners = array_values(array_filter($matches, fn ($m) => $this->classroomMatchesHint($m['classroom_name'] ?? null, $classHint)));
+                    if (count($classWinners) === 1) {
+                        usort($matches, function ($a, $b) use ($classWinners) {
+                            $aw = $a['student_id'] === $classWinners[0]['student_id'] ? 1 : 0;
+                            $bw = $b['student_id'] === $classWinners[0]['student_id'] ? 1 : 0;
+                            return $bw <=> $aw ?: ($b['confidence'] <=> $a['confidence']);
+                        });
+                    }
+                }
                 return $matches;
             }
         }
 
-        // 3) Name-parts + similarity (exclude numeric/class-like tokens); optionally filter by class hint
-        $nameParts = array_filter($nameWords ?? array_values(array_filter(explode(' ', $namePart), function ($p) {
+        // 3) Safer fuzzy match: require the given-name token to match first/middle.
+        // Plain similar_text("SHALIN WAINAINA", "ISRAEL WAINAINA") = 80% and used to auto-assign wrongly.
+        $nameParts = array_values(array_filter($nameWords ?? array_values(array_filter(explode(' ', $namePart), function ($p) {
             return strlen(trim($p)) >= 2 && !preg_match('/^\d+$/', trim($p));
         })), function ($p) {
             $p = strtolower(trim($p));
             return $p !== 'grade' && $p !== 'class' && $p !== 'form' && $p !== 'std';
-        });
+        }));
         if (empty($nameParts)) {
             return [];
         }
+
+        $givenToken = $nameParts[0];
+        $otherTokens = array_slice($nameParts, 1);
 
         $students = Student::with('classroom')
             ->where('archive', 0)
@@ -679,30 +920,149 @@ class MpesaSmartMatchingService
         }
         $students = $students->get();
 
-        $studentFullNameUpper = null;
         foreach ($students as $student) {
-            $studentFullName = strtoupper($student->first_name . ' ' . $student->last_name);
-            $similarity = 0;
-            similar_text($refUpper, $studentFullName, $similarity);
-            if ($similarity >= 65) {
-                $confidence = (int) round($similarity);
-                $confidence = min(92, max(80, $confidence));
-                if ($classHint && $student->classroom && stripos($student->classroom->name, $classHint) !== false) {
-                    $confidence = min(98, $confidence + 5);
-                }
-                $matches[] = [
-                    'student_id' => $student->id,
-                    'student_name' => $student->first_name . ' ' . $student->last_name,
-                    'admission_number' => $student->admission_number,
-                    'classroom_name' => $student->classroom ? $student->classroom->name : null,
-                    'confidence' => $confidence,
-                    'reason' => 'Matched: ' . $student->admission_number . ' ' . $confidence . '% confidence',
-                    'match_type' => 'reference_student_name',
-                ];
+            $givenMatched = $this->tokenMatchesGivenName($givenToken, $student);
+            $surnameMatched = empty($otherTokens)
+                ? true
+                : $this->tokensMatchSurnameParts($otherTokens, $student);
+
+            // Multi-word refs (e.g. "shalin wainaina") MUST match the given name.
+            // Surname-only collisions are suggestions at best, never strong auto-matches.
+            if (count($nameParts) >= 2 && !$givenMatched) {
+                continue;
             }
+
+            $bestSimilarity = $this->bestNameSimilarity($refUpper, $student);
+            if ($bestSimilarity < 70) {
+                continue;
+            }
+
+            // Cap confidence: given+surname strong → up to 88 (suggest/manual); exact paths already returned above at 95.
+            // Without given-name match (single-token refs only), keep low so shouldAutoAssign refuses.
+            if ($givenMatched && $surnameMatched) {
+                $confidence = min(88, max(78, (int) round($bestSimilarity)));
+            } elseif ($givenMatched) {
+                $confidence = min(75, max(60, (int) round($bestSimilarity)));
+            } else {
+                $confidence = min(70, max(50, (int) round($bestSimilarity)));
+            }
+
+            if ($classHint && $student->classroom && stripos($student->classroom->name, $classHint) !== false) {
+                $confidence = min(90, $confidence + 3);
+            }
+
+            $matches[] = [
+                'student_id' => $student->id,
+                'student_name' => trim($student->first_name . ' ' . ($student->middle_name ? $student->middle_name . ' ' : '') . $student->last_name),
+                'admission_number' => $student->admission_number,
+                'classroom_name' => $student->classroom ? $student->classroom->name : null,
+                'confidence' => $confidence,
+                'reason' => 'Matched: ' . $student->admission_number . ' ' . $confidence . '% confidence (fuzzy)',
+                'match_type' => 'reference_student_name',
+                'given_name_matched' => $givenMatched,
+            ];
         }
 
         return $matches;
+    }
+
+    /**
+     * Given-name token must align with first or middle name (exact, soundex, or high similarity).
+     */
+    protected function tokenMatchesGivenName(string $token, Student $student): bool
+    {
+        $token = strtolower(trim($token));
+        if ($token === '') {
+            return false;
+        }
+
+        foreach ([$student->first_name, $student->middle_name] as $part) {
+            $part = strtolower(trim((string) $part));
+            if ($part === '') {
+                continue;
+            }
+            // Middle may be multi-word ("Wainaina Ngige") — check each piece
+            foreach (preg_split('/\s+/', $part) as $piece) {
+                if ($piece === '') {
+                    continue;
+                }
+                if ($piece === $token) {
+                    return true;
+                }
+                if (strlen($token) >= 3 && strlen($piece) >= 3 && soundex($token) === soundex($piece)) {
+                    // soundex alone is weak (Philip/Phillip ok; reject distant collisions via similarity)
+                    similar_text($token, $piece, $pct);
+                    if ($pct >= 80 || levenshtein($token, $piece) <= 1) {
+                        return true;
+                    }
+                }
+                similar_text($token, $piece, $pct);
+                if ($pct >= 90 || (strlen($token) >= 4 && levenshtein($token, $piece) <= 1)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * At least one non-given token must match middle or last name.
+     */
+    protected function tokensMatchSurnameParts(array $tokens, Student $student): bool
+    {
+        $haystack = strtolower(trim(
+            preg_replace('/\s+/', ' ', trim(($student->middle_name ?? '') . ' ' . ($student->last_name ?? '')))
+        ));
+        if ($haystack === '') {
+            return false;
+        }
+
+        foreach ($tokens as $token) {
+            $token = strtolower(trim((string) $token));
+            if (strlen($token) < 2) {
+                continue;
+            }
+            if (str_contains($haystack, $token)) {
+                return true;
+            }
+            foreach (preg_split('/\s+/', $haystack) as $piece) {
+                if ($piece === '') {
+                    continue;
+                }
+                similar_text($token, $piece, $pct);
+                if ($pct >= 90 || (strlen($token) >= 4 && levenshtein($token, $piece) <= 1)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Best similar_text across common student name shapes (includes middle name).
+     */
+    protected function bestNameSimilarity(string $refUpper, Student $student): float
+    {
+        $first = strtoupper(trim((string) $student->first_name));
+        $middle = strtoupper(trim((string) $student->middle_name));
+        $last = strtoupper(trim((string) $student->last_name));
+
+        $candidates = array_filter([
+            trim($first . ' ' . $last),
+            $middle !== '' ? trim($first . ' ' . $middle) : null,
+            $middle !== '' ? trim($first . ' ' . $middle . ' ' . $last) : null,
+            $middle !== '' ? trim($first . ' ' . preg_replace('/\s+.*/', '', $middle) . ' ' . $last) : null,
+        ]);
+
+        $best = 0.0;
+        foreach ($candidates as $candidate) {
+            similar_text($refUpper, $candidate, $pct);
+            $best = max($best, (float) $pct);
+        }
+
+        return $best;
     }
 
     /**

@@ -8,6 +8,7 @@ use App\Models\Website\WebsiteSetting;
 use App\Policies\Website\ManagesWebsiteCms;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\View\View;
 
 class SeoManagerController extends Controller
@@ -42,6 +43,9 @@ class SeoManagerController extends Controller
         ]);
 
         WebsiteSetting::current()->update(['seo_defaults' => $validated['seo_defaults']]);
+
+        Cache::forget('website.api.settings.v2');
+        Cache::forget('website.api.settings');
 
         return back()->with('success', 'Default SEO settings updated.');
     }

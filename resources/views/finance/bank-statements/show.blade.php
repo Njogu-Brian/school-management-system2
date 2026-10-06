@@ -155,6 +155,7 @@
                             }
                             $isFullyCollected = ($remainingAmount ?? 0) <= 0.01 && ($activeTotal ?? 0) > 0.01;
                             $isPartiallyCollected = ($remainingAmount ?? 0) > 0.01 && ($activeTotal ?? 0) > 0.01;
+                            $splitComplete = (bool) ($isFeeActivitySplitComplete ?? false);
                             // Draft = has suggestions awaiting confirmation; Unmatched = no match at all
                             $hasSuggestions = count($possibleMatches ?? []) > 0 || !empty($rawTransaction->matching_suggestions ?? null);
                             $isUnmatched = ($bankStatement->match_status ?? '') === 'unmatched' && !$bankStatement->student_id;
@@ -164,6 +165,8 @@
                             <span class="badge bg-secondary">Unmatched</span>
                         @elseif($displayStatus == 'draft')
                             <span class="badge bg-warning">Draft</span>
+                        @elseif($displayStatus == 'confirmed' && $splitComplete)
+                            <span class="badge bg-info text-dark">Complete</span>
                         @elseif($displayStatus == 'confirmed' && $isFullyCollected)
                             <span class="badge bg-success">Collected</span>
                         @elseif($displayStatus == 'confirmed' && $isPartiallyCollected)
@@ -210,7 +213,9 @@
 
                                 <dt class="col-sm-5">Match Status:</dt>
                                 <dd class="col-sm-7">
-                                    @if($bankStatement->match_status == 'matched')
+                                    @if($isFeeActivitySplitComplete ?? false)
+                                        <span class="badge bg-info text-dark">Split complete</span>
+                                    @elseif($bankStatement->match_status == 'matched')
                                         <span class="badge bg-success">Matched</span>
                                     @elseif($bankStatement->match_status == 'multiple_matches')
                                         <span class="badge bg-warning">Multiple Matches</span>
@@ -221,7 +226,7 @@
                                     @else
                                         <span class="badge bg-secondary">Unmatched</span>
                                     @endif
-                                    @if($bankStatement->match_confidence)
+                                    @if($bankStatement->match_confidence && !($isFeeActivitySplitComplete ?? false))
                                         @php
                                             $conf = $bankStatement->match_confidence;
                                             $confPct = $conf > 1 ? min(100, (int) round($conf)) : min(100, (int) round($conf * 100));
@@ -802,7 +807,7 @@
                     @endif
 
                     @if(($activityAllocations ?? collect())->isNotEmpty())
-                        <div class="mb-0">
+                        <div class="mb-3">
                             <h6 class="text-primary mb-2">
                                 <i class="bi bi-diagram-3"></i> Activity fee split
                             </h6>
@@ -827,7 +832,8 @@
                                 @endforeach
                             </ul>
                         </div>
-                    @elseif(($swimmingAllocations ?? collect())->isNotEmpty())
+                    @endif
+                    @if(($swimmingAllocations ?? collect())->isNotEmpty())
                         <div class="mb-0">
                             <h6 class="text-info mb-2">
                                 <i class="bi bi-droplet-half"></i> Swimming Allocation(s)
@@ -1038,10 +1044,18 @@
                         @endif
                     @endif
 
-                    @if(in_array($bankStatement->status, ['draft', 'confirmed'], true) && !($bankStatement->is_swimming_transaction ?? false))
+                    @if(in_array($bankStatement->status, ['draft', 'confirmed'], true)
+                        && !($bankStatement->is_swimming_transaction ?? false)
+                        && !($alreadySplit ?? false)
+                        && !($isFeeActivitySplitComplete ?? false)
+                        && ($remainingAmount ?? 0) > 0.01)
                         <button type="button" class="btn btn-finance btn-finance-primary w-100 mb-2" data-bs-toggle="modal" data-bs-target="#splitTransactionModal">
                             <i class="bi bi-diagram-3"></i> Split Fees + Activity
                         </button>
+                    @elseif($isFeeActivitySplitComplete ?? false)
+                        <div class="alert alert-info py-2 px-3 small mb-2">
+                            <i class="bi bi-check-circle"></i> Fees + swimming/activity split is complete.
+                        </div>
                     @endif
 
                     @if($bankStatement->status !== 'rejected')
@@ -1201,7 +1215,11 @@
             @endif
 
             <!-- Split Transaction Modal -->
-            @if(in_array($bankStatement->status, ['draft', 'confirmed'], true) && !($bankStatement->is_swimming_transaction ?? false))
+            @if(in_array($bankStatement->status, ['draft', 'confirmed'], true)
+                && !($bankStatement->is_swimming_transaction ?? false)
+                && !($alreadySplit ?? false)
+                && !($isFeeActivitySplitComplete ?? false)
+                && ($remainingAmount ?? 0) > 0.01)
             <div class="modal fade" id="splitTransactionModal" tabindex="-1" aria-labelledby="splitTransactionModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
                 <div class="modal-dialog modal-lg modal-dialog-scrollable">
                     <div class="modal-content">

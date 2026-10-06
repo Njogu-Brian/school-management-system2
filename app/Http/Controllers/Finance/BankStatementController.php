@@ -1720,6 +1720,7 @@ class BankStatementController extends Controller
                 ->get();
         }
 
+        $activityTotal = (float) $activityAllocations->sum('amount');
         $remainingAmount = max(0, (float) $bankStatement->amount - $activeTotal - $swimmingTotal);
 
         $canCreateAdditionalPayments = $bankStatement->status === 'confirmed'
@@ -1728,18 +1729,21 @@ class BankStatementController extends Controller
             && !($bankStatement->is_swimming_transaction ?? false);
 
         $swimmingWalletCredited = false;
-        if ($bankStatement->is_swimming_transaction ?? false) {
-            if ($isC2B) {
-                $swimmingWalletCredited = \App\Models\SwimmingLedger::where('source_type', MpesaC2BTransaction::class)
-                    ->where('source_id', $bankStatement->id)
-                    ->where('type', \App\Models\SwimmingLedger::TYPE_CREDIT)
-                    ->exists();
-            } elseif (Schema::hasTable('swimming_transaction_allocations')) {
+        if ($isC2B) {
+            $swimmingWalletCredited = $swimmingTotal > 0.01;
+        } elseif ($bankStatement->is_swimming_transaction ?? false) {
+            if (Schema::hasTable('swimming_transaction_allocations')) {
                 $swimmingWalletCredited = \App\Models\SwimmingTransactionAllocation::where('bank_statement_transaction_id', $bankStatement->id)
                     ->where('status', '!=', \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED)
                     ->exists();
             }
         }
+
+        $isFeeActivitySplitComplete = $remainingAmount <= 0.01
+            && $activeTotal > 0.01
+            && ($swimmingTotal > 0.01 || $activityTotal > 0.01);
+
+        $alreadySplit = app(\App\Services\ActivityFeeSplitService::class)->alreadySplit($transaction, $isC2B);
 
         return view('finance.bank-statements.show', compact(
             'bankStatement',
@@ -1757,7 +1761,9 @@ class BankStatementController extends Controller
             'swimmingTotal',
             'swimmingWalletCredited',
             'activityAllocations',
-            'extraIncomeItems'
+            'extraIncomeItems',
+            'isFeeActivitySplitComplete',
+            'alreadySplit'
         ));
     }
 
@@ -3488,6 +3494,12 @@ class BankStatementController extends Controller
                         'allocation_status' => 'manually_allocated',
                         'allocated_amount' => $feeTotal + $activityTotal,
                         'unallocated_amount' => max(0, (float) $transaction->trans_amount - ($feeTotal + $activityTotal)),
+                        'match_reason' => trim(
+                            'Split complete: fees Ksh ' . number_format($feeTotal, 2)
+                            . ' + activity/swimming Ksh ' . number_format($activityTotal, 2)
+                        ),
+                        'processed_at' => now(),
+                        'processed_by' => auth()->id(),
                     ]);
                 } else {
                     $transaction->update([
@@ -3495,7 +3507,7 @@ class BankStatementController extends Controller
                         'payment_created' => !empty($feePayments) || $activityTotal > 0,
                         'status' => 'confirmed',
                         'match_status' => 'manual',
-                        'match_notes' => trim(($transaction->match_notes ?? '') . "\nSplit into fees + activity fees."),
+                        'match_notes' => trim(($transaction->match_notes ?? '') . "\nSplit complete: fees + activity/swimming."),
                     ]);
                 }
             });

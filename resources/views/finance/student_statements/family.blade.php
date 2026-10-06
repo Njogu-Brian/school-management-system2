@@ -41,26 +41,6 @@
         'familyId' => $family->id,
     ])
 
-    <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4">
-        <div class="finance-card-header d-flex align-items-center gap-2">
-            <i class="bi bi-people"></i> <span>Children Covered</span>
-        </div>
-        <div class="finance-card-body p-4">
-            <div class="row g-3">
-                @foreach($students as $student)
-                    <div class="col-md-4">
-                        <div class="border rounded-3 p-3 h-100">
-                            <div class="fw-semibold">{{ $student->full_name }}</div>
-                            <div class="text-muted small">{{ $student->admission_number }}</div>
-                            <div class="text-muted small">{{ optional($student->classroom)->name ?? 'No class' }}</div>
-                            <a href="{{ route('finance.student-statements.show', ['student' => $student->id, 'year' => $year, 'term' => $term]) }}" class="btn btn-sm btn-outline-primary mt-2">Individual Statement</a>
-                        </div>
-                    </div>
-                @endforeach
-            </div>
-        </div>
-    </div>
-
     <div class="row g-3 mb-4">
         <div class="col-md-3">
             <div class="finance-stat-card border-primary finance-animate">
@@ -96,9 +76,161 @@
         @endif
     </div>
 
+    {{-- Per-student invoice / payment summary --}}
+    <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4">
+        <div class="finance-card-header d-flex align-items-center gap-2">
+            <i class="bi bi-people"></i> <span>Per-Student Summary (Invoices &amp; Payments)</span>
+        </div>
+        <div class="finance-card-body p-0">
+            <div class="finance-table-wrapper">
+                <table class="finance-table align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Student</th>
+                            <th>Class</th>
+                            <th class="text-end">Invoiced</th>
+                            <th class="text-end">Payments</th>
+                            <th class="text-end">Discounts</th>
+                            <th class="text-end">Balance</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse(($studentSummaries ?? collect()) as $summary)
+                            @php $student = $summary['student']; @endphp
+                            <tr>
+                                <td>
+                                    <div class="fw-semibold">{{ $student->full_name }}</div>
+                                    <small class="text-muted">{{ $student->admission_number }}</small>
+                                </td>
+                                <td>{{ optional($student->classroom)->name ?? 'No class' }}</td>
+                                <td class="text-end">Ksh {{ number_format($summary['total_charges'], 2) }}</td>
+                                <td class="text-end text-success">Ksh {{ number_format($summary['total_payments'], 2) }}</td>
+                                <td class="text-end">Ksh {{ number_format($summary['total_discounts'], 2) }}</td>
+                                <td class="text-end fw-semibold" style="color: {{ $summary['final_balance'] > 0 ? '#dc3545' : '#10b981' }};">
+                                    Ksh {{ number_format($summary['final_balance'], 2) }}
+                                </td>
+                                <td class="text-end">
+                                    <a href="{{ route('finance.student-statements.show', ['student' => $student->id, 'year' => $year, 'term' => $term]) }}" class="btn btn-sm btn-outline-primary">
+                                        Statement
+                                    </a>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-muted">No students found for this family.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th colspan="2" class="text-end">Family totals:</th>
+                            <th class="text-end">Ksh {{ number_format($totalCharges, 2) }}</th>
+                            <th class="text-end">Ksh {{ number_format($totalPayments, 2) }}</th>
+                            <th class="text-end">Ksh {{ number_format($totalDiscounts, 2) }}</th>
+                            <th class="text-end">Ksh {{ number_format($finalBalance, 2) }}</th>
+                            <th></th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {{-- Invoices / charges for all students --}}
+    <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4">
+        <div class="finance-card-header d-flex align-items-center justify-content-between gap-2">
+            <span><i class="bi bi-receipt-cutoff"></i> Family Invoices / Charges</span>
+            <span class="badge bg-primary">{{ ($invoiceTransactions ?? collect())->count() }} lines</span>
+        </div>
+        <div class="finance-card-body p-0">
+            <div class="finance-table-wrapper">
+                <table class="finance-table align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Student</th>
+                            <th>Type</th>
+                            <th>Votehead</th>
+                            <th>Description</th>
+                            <th>Reference</th>
+                            <th class="text-end">Amount (Ksh)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse(($invoiceTransactions ?? collect()) as $transaction)
+                            <tr>
+                                <td>{{ \Carbon\Carbon::parse($transaction['date'])->format('d M Y') }}</td>
+                                <td>
+                                    <div class="fw-semibold">{{ $transaction['student_name'] ?? 'N/A' }}</div>
+                                    <small class="text-muted">{{ $transaction['admission_number'] ?? '' }}</small>
+                                </td>
+                                <td><span class="badge bg-danger-subtle text-danger">{{ $transaction['type'] ?? 'Charge' }}</span></td>
+                                <td>{{ $transaction['votehead'] ?? 'N/A' }}</td>
+                                <td style="white-space: pre-wrap;">{{ $transaction['narration'] ?? $transaction['description'] ?? 'N/A' }}</td>
+                                <td><code>{{ $transaction['reference'] ?? 'N/A' }}</code></td>
+                                <td class="text-end fw-semibold">Ksh {{ number_format($transaction['debit'] ?? 0, 2) }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-muted">No invoices/charges found for this period.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {{-- Payments for all students --}}
+    <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4">
+        <div class="finance-card-header d-flex align-items-center justify-content-between gap-2">
+            <span><i class="bi bi-cash-coin"></i> Family Payments &amp; Credits</span>
+            <span class="badge bg-success">{{ ($paymentTransactions ?? collect())->count() }} lines</span>
+        </div>
+        <div class="finance-card-body p-0">
+            <div class="finance-table-wrapper">
+                <table class="finance-table align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Student</th>
+                            <th>Type</th>
+                            <th>Votehead</th>
+                            <th>Description</th>
+                            <th>Reference</th>
+                            <th class="text-end">Amount (Ksh)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse(($paymentTransactions ?? collect()) as $transaction)
+                            <tr>
+                                <td>{{ \Carbon\Carbon::parse($transaction['date'])->format('d M Y') }}</td>
+                                <td>
+                                    <div class="fw-semibold">{{ $transaction['student_name'] ?? 'N/A' }}</div>
+                                    <small class="text-muted">{{ $transaction['admission_number'] ?? '' }}</small>
+                                </td>
+                                <td><span class="badge bg-success-subtle text-success">{{ $transaction['type'] ?? 'Payment' }}</span></td>
+                                <td>{{ $transaction['votehead'] ?? 'N/A' }}</td>
+                                <td style="white-space: pre-wrap;">{{ $transaction['narration'] ?? $transaction['description'] ?? 'N/A' }}</td>
+                                <td><code>{{ $transaction['reference'] ?? 'N/A' }}</code></td>
+                                <td class="text-end fw-semibold text-success">Ksh {{ number_format($transaction['credit'] ?? 0, 2) }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-muted">No payments/credits found for this period.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {{-- Combined running ledger --}}
     <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
         <div class="finance-card-header d-flex align-items-center gap-2">
-            <i class="bi bi-list-ul"></i> <span>Family Transaction History</span>
+            <i class="bi bi-list-ul"></i> <span>Family Transaction History (All Students)</span>
         </div>
         <div class="finance-card-body p-0">
             <div class="finance-table-wrapper">
@@ -117,7 +249,9 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @php($runningBalance = 0)
+                        @php
+                            $runningBalance = 0;
+                        @endphp
                         @forelse($detailedTransactions as $transaction)
                             @php
                                 if (array_key_exists('balance', $transaction) && ($transaction['kind'] ?? null)) {
@@ -125,6 +259,12 @@
                                 } else {
                                     $runningBalance += (($transaction['debit'] ?? 0) - ($transaction['credit'] ?? 0));
                                 }
+                                $typeLower = strtolower((string) ($transaction['type'] ?? ''));
+                                $badgeClass = str_contains($typeLower, 'payment') || str_contains($typeLower, 'discount') || str_contains($typeLower, 'credit')
+                                    ? 'bg-success'
+                                    : (str_contains($typeLower, 'invoice') || str_contains($typeLower, 'charge') || str_contains($typeLower, 'debit')
+                                        ? 'bg-danger'
+                                        : 'bg-secondary');
                             @endphp
                             <tr>
                                 <td>{{ \Carbon\Carbon::parse($transaction['date'])->format('d M Y') }}</td>
@@ -132,7 +272,7 @@
                                     <div class="fw-semibold">{{ $transaction['student_name'] ?? 'N/A' }}</div>
                                     <small class="text-muted">{{ $transaction['admission_number'] ?? '' }}</small>
                                 </td>
-                                <td><span class="badge bg-secondary">{{ $transaction['type'] ?? 'Entry' }}</span></td>
+                                <td><span class="badge {{ $badgeClass }}">{{ $transaction['type'] ?? 'Entry' }}</span></td>
                                 <td>{{ $transaction['votehead'] ?? 'N/A' }}</td>
                                 <td style="white-space: pre-wrap;">{{ $transaction['narration'] ?? $transaction['description'] ?? 'N/A' }}</td>
                                 <td><code>{{ $transaction['reference'] ?? 'N/A' }}</code></td>

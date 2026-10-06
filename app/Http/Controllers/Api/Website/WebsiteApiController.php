@@ -223,8 +223,6 @@ class WebsiteApiController extends Controller
             'status' => Enquiry::STATUS_NEW,
         ]);
 
-        Cache::forget('website.api.settings');
-
         return response()->json([
             'message' => 'Thank you! Our admissions team will contact you shortly.',
             'data' => ['id' => $enquiry->id],

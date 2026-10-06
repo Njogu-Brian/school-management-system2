@@ -98,6 +98,22 @@ class CommunicationTemplateSeeder extends Seeder
                 'content' => "{{greeting}},\n\nThank you for your payment of {{amount}} received on {{payment_date}} for {{student_name}}.\nPlease find the payment receipt attached.\n\nYou may also view invoices, receipts, and statements here:\n{{finance_portal_link}}\n\nWe appreciate your cooperation.\n\nKind regards,\n{{school_name}} Finance Office",
             ],
 
+            // Finance: payment reversed
+            [
+                'code'    => 'payment_reversal_sms',
+                'title'   => 'Payment Reversal (SMS)',
+                'type'    => 'sms',
+                'subject' => null,
+                'content' => "{{greeting}},\n\nA payment of {{amount}} for {{student_name}} ({{admission_number}}) dated {{payment_date}} has been reversed.\nReceipt: {{receipt_number}}\nReason: {{reversal_reason}}\n\n{{school_name}}",
+            ],
+            [
+                'code'    => 'payment_reversal_email',
+                'title'   => 'Payment Reversal (Email)',
+                'type'    => 'email',
+                'subject' => 'Payment Reversed – {{student_name}}',
+                'content' => "<p>{{greeting}},</p><p>A payment of <strong>{{amount}}</strong> for <strong>{{student_name}}</strong> (Admission: {{admission_number}}) dated {{payment_date}} has been <strong>reversed</strong>.</p><p><strong>Receipt:</strong> {{receipt_number}}<br><strong>Transaction:</strong> {{transaction_code}}<br><strong>Reason:</strong> {{reversal_reason}}</p><p>If you have questions, please contact the school finance office.</p><p>{{school_name}}</p>",
+            ],
+
             // Finance: share invoice/receipt/statement
             [
                 'code'    => 'finance_share_link_sms',

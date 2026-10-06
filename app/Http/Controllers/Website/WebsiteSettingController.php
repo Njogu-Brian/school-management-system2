@@ -8,6 +8,7 @@ use App\Models\Website\WebsiteSetting;
 use App\Policies\Website\ManagesWebsiteCms;
 use App\Services\Website\WebsiteMediaService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\View\View;
 
 class WebsiteSettingController extends Controller
@@ -52,6 +53,10 @@ class WebsiteSettingController extends Controller
         $data['admissions_open'] = $request->boolean('admissions_open');
 
         $settings->update($data);
+
+        // Bust both keys so a mid-deploy mix of .v2 / legacy never serves stale branding.
+        Cache::forget('website.api.settings.v2');
+        Cache::forget('website.api.settings');
 
         return redirect()->route('website.settings.edit')->with('success', 'Site settings updated.');
     }

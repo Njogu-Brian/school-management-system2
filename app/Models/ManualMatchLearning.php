@@ -52,13 +52,25 @@ class ManualMatchLearning extends Model
             }
         }
 
-        if (!empty($descriptionText) && strlen($descriptionText) >= 5) {
-            $descNorm = addcslashes(trim($descriptionText), '%_');
-            $candidates = $candidates->merge(
-                (clone $learned)->whereNotNull('description_text')
-                    ->whereRaw('UPPER(description_text) LIKE ?', ['%' . strtoupper($descNorm) . '%'])
-                    ->get()
-            );
+        $exactDescriptionIds = [];
+        if (!empty($descriptionText) && strlen(trim($descriptionText)) >= 3) {
+            $descExact = strtoupper(trim($descriptionText));
+            $exactRows = (clone $learned)->whereNotNull('description_text')
+                ->whereRaw('UPPER(TRIM(description_text)) = ?', [$descExact])
+                ->get();
+            foreach ($exactRows as $row) {
+                $exactDescriptionIds[$row->id] = true;
+            }
+            $candidates = $candidates->merge($exactRows);
+
+            if (strlen($descExact) >= 5) {
+                $descNorm = addcslashes(trim($descriptionText), '%_');
+                $candidates = $candidates->merge(
+                    (clone $learned)->whereNotNull('description_text')
+                        ->whereRaw('UPPER(description_text) LIKE ?', ['%' . strtoupper($descNorm) . '%'])
+                        ->get()
+                );
+            }
         }
 
         $byStudent = [];
@@ -72,9 +84,13 @@ class ManualMatchLearning extends Model
                     'learning' => $learning,
                     'count' => 0,
                     'latest_at' => $learning->updated_at,
+                    'exact' => false,
                 ];
             }
             $byStudent[$sid]['count']++;
+            if (isset($exactDescriptionIds[$learning->id])) {
+                $byStudent[$sid]['exact'] = true;
+            }
             if ($learning->updated_at > $byStudent[$sid]['latest_at']) {
                 $byStudent[$sid]['latest_at'] = $learning->updated_at;
                 $byStudent[$sid]['learning'] = $learning;
@@ -84,12 +100,16 @@ class ManualMatchLearning extends Model
         $suggestions = [];
         foreach ($byStudent as $sid => $data) {
             $student = $data['learning']->student;
+            // Exact bill-ref relearn is very strong (e.g. "shalin wainaina" → Shalin after a correction)
+            $confidence = $data['exact']
+                ? min(96, 90 + $data['count'] * 2)
+                : min(95, 85 + $data['count'] * 3);
             $suggestions[] = [
                 'student_id' => $student->id,
                 'student_name' => $student->first_name . ' ' . $student->last_name,
                 'admission_number' => $student->admission_number,
                 'classroom_name' => $student->classroom ? $student->classroom->name : null,
-                'confidence' => min(95, 85 + $data['count'] * 3),
+                'confidence' => $confidence,
                 'reason' => 'Learned from your past manual assignment' . ($data['count'] > 1 ? " ({$data['count']} times)" : ''),
                 'match_type' => 'learned',
             ];

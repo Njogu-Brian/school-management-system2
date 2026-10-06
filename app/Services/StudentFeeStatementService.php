@@ -177,6 +177,53 @@ class StudentFeeStatementService
     }
 
     /**
+     * After a payment amount/allocation changes (share/transfer), the frozen
+     * "balance as at this payment" snapshot is stale. Clear this payment and any
+     * later payments for the same student, then recompute from the ledger.
+     */
+    public function refreshSnapshotsAfterPaymentChange(Payment $payment): void
+    {
+        if (! Schema::hasColumn('payments', 'balance_after')) {
+            return;
+        }
+
+        $studentId = (int) $payment->student_id;
+        if ($studentId <= 0) {
+            return;
+        }
+
+        $payment->refresh();
+
+        Payment::withoutEvents(function () use ($payment, $studentId) {
+            $query = Payment::query()
+                ->where('student_id', $studentId)
+                ->where('reversed', false)
+                ->where(function ($q) use ($payment) {
+                    $q->where('id', $payment->id)
+                        ->orWhere(function ($q2) use ($payment) {
+                            $q2->where('payment_date', '>', $payment->payment_date)
+                                ->orWhere(function ($q3) use ($payment) {
+                                    $q3->where('payment_date', '=', $payment->payment_date)
+                                        ->where('id', '>=', $payment->id);
+                                });
+                        });
+                });
+
+            $query->update([
+                'balance_before' => null,
+                'balance_after' => null,
+                'updated_at' => now(),
+            ]);
+        });
+
+        $payment->balance_before = null;
+        $payment->balance_after = null;
+
+        $this->persistPaymentSnapshots($studentId);
+        $payment->refresh();
+    }
+
+    /**
      * Allocated payment frozen with a negative balance while nothing is unallocated.
      * Happens when payment_date is before the invoice it actually cleared.
      */
