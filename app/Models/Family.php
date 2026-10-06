@@ -30,6 +30,7 @@ class Family extends Model
         'email',
         'father_email',
         'mother_email',
+        'fiscal_task',
     ];
 
     /**

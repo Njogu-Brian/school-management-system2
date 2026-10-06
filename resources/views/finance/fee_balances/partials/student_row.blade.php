@@ -68,23 +68,53 @@
     </div>
 
     <div class="fee-child-status">
-        @if($fiscalTask !== 'none')
-            <span class="fiscal-task-badge fiscal-task-{{ $fiscalTask }}" title="Fiscal task (manual)">
-                <span class="fiscal-dot"></span>{{ $fiscalLabel }}
-            </span>
-        @endif
+        @unless($inFamilyGroup)
+            @if($fiscalTask !== 'none')
+                <span class="fiscal-task-badge fiscal-task-{{ $fiscalTask }}" title="Fiscal task (manual)">
+                    <span class="fiscal-dot"></span>{{ $fiscalLabel }}
+                </span>
+            @endif
 
-        <form method="POST" action="{{ route('finance.fee-balances.fiscal-task', $student['id']) }}" class="fee-promise-form" title="Set fiscal task">
-            @csrf
-            <input type="hidden" name="redirect_to" value="{{ url()->full() }}">
-            <label class="visually-hidden" for="fiscal-{{ $student['id'] }}">Fiscal task</label>
-            <select id="fiscal-{{ $student['id'] }}" name="fiscal_task" class="form-select form-select-sm" onchange="this.form.submit()">
-                <option value="" {{ $fiscalTask === 'none' ? 'selected' : '' }}>Task: unset</option>
-                <option value="green" {{ $fiscalTask === 'green' ? 'selected' : '' }}>Green</option>
-                <option value="yellow" {{ $fiscalTask === 'yellow' ? 'selected' : '' }}>Yellow</option>
-                <option value="red" {{ $fiscalTask === 'red' ? 'selected' : '' }}>Red</option>
-            </select>
-        </form>
+            <form method="POST" action="{{ route('finance.fee-balances.fiscal-task', $student['id']) }}" class="fee-promise-form" title="Set fiscal task">
+                @csrf
+                <input type="hidden" name="redirect_to" value="{{ url()->full() }}">
+                <label class="visually-hidden" for="fiscal-{{ $student['id'] }}">Fiscal task</label>
+                <select id="fiscal-{{ $student['id'] }}" name="fiscal_task" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="" {{ $fiscalTask === 'none' ? 'selected' : '' }}>Task: unset</option>
+                    <option value="green" {{ $fiscalTask === 'green' ? 'selected' : '' }}>Green</option>
+                    <option value="yellow" {{ $fiscalTask === 'yellow' ? 'selected' : '' }}>Yellow</option>
+                    <option value="red" {{ $fiscalTask === 'red' ? 'selected' : '' }}>Red</option>
+                </select>
+            </form>
+
+            @if($lastPromised)
+                <span class="fee-chip" title="Last promised date">
+                    <i class="bi bi-calendar-event"></i>
+                    Promised {{ $lastPromised instanceof \Carbon\Carbon ? $lastPromised->format('d M Y') : \Carbon\Carbon::parse($lastPromised)->format('d M Y') }}
+                </span>
+            @endif
+
+            <form method="POST" action="{{ route('finance.financial-notes.store') }}" class="fee-promise-form">
+                @csrf
+                <input type="hidden" name="student_id" value="{{ $student['id'] }}">
+                @if(!empty($student['family_id']))
+                    <input type="hidden" name="family_id" value="{{ $student['family_id'] }}">
+                @endif
+                <input type="hidden" name="redirect_to" value="{{ url()->full() }}">
+                <label class="visually-hidden" for="promise-{{ $student['id'] }}">Promise date</label>
+                <input
+                    type="date"
+                    id="promise-{{ $student['id'] }}"
+                    name="promise_date"
+                    class="form-control form-control-sm"
+                    value="{{ $lastPromised instanceof \Carbon\Carbon ? $lastPromised->format('Y-m-d') : ($lastPromised ? \Carbon\Carbon::parse($lastPromised)->format('Y-m-d') : '') }}"
+                    required
+                >
+                <button type="submit" class="btn btn-sm btn-outline-primary" title="Save promise date">
+                    <i class="bi bi-save"></i> Promise
+                </button>
+            </form>
+        @endunless
 
         @if($lastPaymentDate)
             <span class="fee-chip fee-chip-info" title="Last payment">
@@ -93,13 +123,6 @@
                 @if($lastPaymentAmount > 0)
                     · Ksh {{ number_format($lastPaymentAmount, 0) }}
                 @endif
-            </span>
-        @endif
-
-        @if($lastPromised)
-            <span class="fee-chip" title="Last promised date">
-                <i class="bi bi-calendar-event"></i>
-                Promised {{ $lastPromised instanceof \Carbon\Carbon ? $lastPromised->format('d M Y') : \Carbon\Carbon::parse($lastPromised)->format('d M Y') }}
             </span>
         @endif
 
@@ -125,27 +148,6 @@
                 @endif
             </span>
         @endif
-
-        <form method="POST" action="{{ route('finance.financial-notes.store') }}" class="fee-promise-form">
-            @csrf
-            <input type="hidden" name="student_id" value="{{ $student['id'] }}">
-            @if(!empty($student['family_id']))
-                <input type="hidden" name="family_id" value="{{ $student['family_id'] }}">
-            @endif
-            <input type="hidden" name="redirect_to" value="{{ url()->full() }}">
-            <label class="visually-hidden" for="promise-{{ $student['id'] }}">Promise date</label>
-            <input
-                type="date"
-                id="promise-{{ $student['id'] }}"
-                name="promise_date"
-                class="form-control form-control-sm"
-                value="{{ $lastPromised instanceof \Carbon\Carbon ? $lastPromised->format('Y-m-d') : ($lastPromised ? \Carbon\Carbon::parse($lastPromised)->format('Y-m-d') : '') }}"
-                required
-            >
-            <button type="submit" class="btn btn-sm btn-outline-primary" title="Save promise date">
-                <i class="bi bi-save"></i> Promise
-            </button>
-        </form>
     </div>
 
     <div class="fee-child-actions table-actions">

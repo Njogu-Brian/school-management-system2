@@ -129,9 +129,18 @@ class FeeBalanceController extends Controller
             $familyPromise = $student->family_id
                 ? ($promiseMaps['by_family'][$student->family_id] ?? null)
                 : null;
-            $lastPromised = $this->resolveLatestPromiseDate($studentPromise, $familyPromise);
-            // Fiscal task is staff-set (green/yellow/red), not auto-derived from promise dates.
-            $fiscalTask = $this->normalizeFiscalTask($student->fiscal_task ?? null);
+            // Families share one promise date — prefer family note, fall back to any child note.
+            $lastPromised = $student->family_id
+                ? ($familyPromise?->copy() ?? $studentPromise?->copy())
+                : $studentPromise?->copy();
+
+            // Families share one fiscal task status.
+            $familyTask = $student->family_id
+                ? ($promiseMaps['family_fiscal_task'][$student->family_id] ?? null)
+                : null;
+            $fiscalTask = $this->normalizeFiscalTask(
+                $familyTask ?? $student->fiscal_task ?? null
+            );
             $payStats = $paymentStats[$student->id] ?? [
                 'last_payment_date' => null,
                 'last_payment_amount' => 0.0,
@@ -469,9 +478,9 @@ class FeeBalanceController extends Controller
     }
 
     /**
-     * Batch-load latest promise_date per student and per family from financial notes.
+     * Batch-load latest promise_date and family fiscal_task.
      *
-     * @return array{by_student: array<int, Carbon>, by_family: array<int, Carbon>}
+     * @return array{by_student: array<int, Carbon>, by_family: array<int, Carbon>, family_fiscal_task: array<int, string>}
      */
     private function loadLastPromiseDates(Collection $students): array
     {
@@ -492,6 +501,7 @@ class FeeBalanceController extends Controller
         }
 
         $byFamily = [];
+        $familyFiscalTask = [];
         if (!empty($familyIds)) {
             $rows = FinancialNote::query()
                 ->select('family_id', DB::raw('MAX(promise_date) as last_promised'))
@@ -502,25 +512,24 @@ class FeeBalanceController extends Controller
             foreach ($rows as $row) {
                 $byFamily[(int) $row->family_id] = Carbon::parse($row->last_promised)->startOfDay();
             }
+
+            $familyFiscalTask = \App\Models\Family::query()
+                ->whereIn('id', $familyIds)
+                ->whereNotNull('fiscal_task')
+                ->pluck('fiscal_task', 'id')
+                ->map(fn ($v) => $this->normalizeFiscalTask($v))
+                ->all();
         }
 
         return [
             'by_student' => $byStudent,
             'by_family' => $byFamily,
+            'family_fiscal_task' => $familyFiscalTask,
         ];
     }
 
-    private function resolveLatestPromiseDate(?Carbon $studentPromise, ?Carbon $familyPromise): ?Carbon
-    {
-        if ($studentPromise && $familyPromise) {
-            return $studentPromise->gte($familyPromise) ? $studentPromise->copy() : $familyPromise->copy();
-        }
-
-        return $studentPromise?->copy() ?? $familyPromise?->copy();
-    }
-
     /**
-     * Staff-set fiscal task colour (not auto-derived).
+     * Staff-set fiscal task colour. Families share one status for all siblings.
      */
     public function updateFiscalTask(Request $request, Student $student)
     {
@@ -530,14 +539,46 @@ class FeeBalanceController extends Controller
         ]);
 
         $task = $validated['fiscal_task'] ?? null;
-        $student->fiscal_task = $task ?: null;
-        $student->save();
+        $task = $task ?: null;
+
+        if ($student->family_id) {
+            $family = \App\Models\Family::find($student->family_id);
+            if ($family) {
+                $family->fiscal_task = $task;
+                $family->save();
+            }
+            // Keep sibling student columns in sync for filters/exports.
+            Student::where('family_id', $student->family_id)->update(['fiscal_task' => $task]);
+        } else {
+            $student->fiscal_task = $task;
+            $student->save();
+        }
 
         if (!empty($validated['redirect_to'])) {
             return redirect($validated['redirect_to'])->with('success', 'Fiscal task updated.');
         }
 
         return back()->with('success', 'Fiscal task updated.');
+    }
+
+    public function updateFamilyFiscalTask(Request $request, \App\Models\Family $family)
+    {
+        $validated = $request->validate([
+            'fiscal_task' => 'nullable|in:green,yellow,red',
+            'redirect_to' => 'nullable|string|max:500',
+        ]);
+
+        $task = $validated['fiscal_task'] ?? null;
+        $task = $task ?: null;
+        $family->fiscal_task = $task;
+        $family->save();
+        Student::where('family_id', $family->id)->update(['fiscal_task' => $task]);
+
+        if (!empty($validated['redirect_to'])) {
+            return redirect($validated['redirect_to'])->with('success', 'Family fiscal task updated.');
+        }
+
+        return back()->with('success', 'Family fiscal task updated.');
     }
 
     private function normalizeFiscalTask(?string $value): string
@@ -569,14 +610,11 @@ class FeeBalanceController extends Controller
             }
 
             $owingChildren = $children->filter(fn ($c) => ($c['balance'] ?? 0) > 0);
-            $fiscalStatuses = $owingChildren->pluck('fiscal_task')->all();
-            $lastPromised = $children
-                ->pluck('last_promised')
-                ->filter()
-                ->sortByDesc(fn ($d) => $d instanceof Carbon ? $d->timestamp : strtotime((string) $d))
-                ->first();
-
             $first = $children->first();
+            // Shared family values (same for every sibling)
+            $lastPromised = $first['last_promised'] ?? null;
+            $fiscalTask = $this->normalizeFiscalTask($first['fiscal_task'] ?? 'none');
+
             $childNames = $children->map(function ($c) {
                 $adm = $c['admission_number'] ?? '';
                 $name = $c['full_name'] ?? 'Student';
@@ -606,7 +644,7 @@ class FeeBalanceController extends Controller
                 'paid_in_term_period' => (float) $children->sum('paid_in_term_period'),
                 'balance' => (float) $children->sum('balance'),
                 'last_promised' => $lastPromised,
-                'fiscal_task' => $this->worstFiscalTask($fiscalStatuses),
+                'fiscal_task' => $fiscalTask,
                 'children' => $children,
             ]);
         }

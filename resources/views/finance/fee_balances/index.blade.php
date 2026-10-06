@@ -602,7 +602,7 @@
                 <div class="col-md-6">
                     <ul class="mb-0">
                         <li><strong>Term invoiced / paid in term:</strong> Selected term invoice vs cash dated in term</li>
-                        <li><strong>Fiscal Task:</strong> You set green / yellow / red per student</li>
+                        <li><strong>Fiscal Task / Promise:</strong> Shared per family (set once on the family header)</li>
                         <li><strong>All tab:</strong> Students with outstanding &gt; 0 only</li>
                         <li><strong>Term Start:</strong> {{ $currentTerm?->opening_date ? $currentTerm->opening_date->format('M d, Y') : 'Not set' }}</li>
                     </ul>
