@@ -369,7 +369,15 @@ public function mark(Request $request)
         }
     }
 
-    return back()->with('success', 'Attendance updated successfully.');
+    return redirect()->route('attendance.mark.form', array_filter([
+        'date' => $date,
+        'class' => $request->input('class'),
+        'stream' => $request->input('stream'),
+        'campus' => $request->input('campus'),
+        'marked_filter' => $request->input('marked_filter'),
+        'q' => $request->input('q'),
+    ], fn ($value) => $value !== null && $value !== ''))
+        ->with('success', 'Attendance updated successfully.');
 }
 
 // -------------------- TEMPLATE NOTIFY --------------------

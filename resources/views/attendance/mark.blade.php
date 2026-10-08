@@ -113,7 +113,6 @@
       </div>
     </div>
 
-    @if ($students->isNotEmpty())
     <form method="GET" action="{{ route('attendance.mark.form') }}" class="settings-card mb-3">
       <div class="card-body row g-3 align-items-end">
         <div class="col-md-4 col-lg-3">
@@ -128,16 +127,20 @@
           <input type="hidden" name="q" value="{{ $q ?? '' }}">
         </div>
         <div class="col-md-8 col-lg-9 text-muted small">
-          Change the date to mark or review attendance for another school day (same class/stream). Filters above stay applied.
+          Change the date to mark or review attendance for another school day. The date stays after you save.
         </div>
       </div>
     </form>
 
+    @if ($students->isNotEmpty())
     <form id="attendanceForm" method="POST" action="{{ route('attendance.mark') }}">
       @csrf
       <input type="hidden" name="date" value="{{ $selectedDate }}">
       <input type="hidden" name="class" value="{{ $selectedClass }}">
       <input type="hidden" name="stream" value="{{ $selectedStream }}">
+      <input type="hidden" name="campus" value="{{ $selectedCampus ?? '' }}">
+      <input type="hidden" name="marked_filter" value="{{ $markedFilter ?? 'all' }}">
+      <input type="hidden" name="q" value="{{ $q ?? '' }}">
 
       <div class="settings-card mb-3">
         <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -254,7 +257,14 @@
     </form>
     @else
       <div class="alert alert-soft border-0">
-        <i class="bi bi-info-circle"></i> No students found for this selection. Please select a class and date.
+        <i class="bi bi-info-circle"></i>
+        @if(($markedFilter ?? 'all') === 'unmarked')
+          No unmarked students for {{ \Carbon\Carbon::parse($selectedDate)->format('d M Y') }}. Everyone in this selection is already marked.
+        @elseif(($markedFilter ?? 'all') === 'marked')
+          No marked students for {{ \Carbon\Carbon::parse($selectedDate)->format('d M Y') }}.
+        @else
+          No students found for this selection on {{ \Carbon\Carbon::parse($selectedDate)->format('d M Y') }}.
+        @endif
       </div>
     @endif
   </div>
