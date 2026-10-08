@@ -63,10 +63,7 @@ class HostelController extends Controller
 
     public function edit(Hostel $hostel)
     {
-        // Active staff only, plus the currently assigned warden if archived.
-        $wardens = Staff::where(function ($q) use ($hostel) {
-                $q->where('status', 'active')->orWhere('id', $hostel->warden_id);
-            })
+        $wardens = Staff::where('status', 'active')
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->get();

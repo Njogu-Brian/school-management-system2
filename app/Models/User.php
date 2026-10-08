@@ -858,6 +858,16 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
         return $this->hasOne(\App\Models\Staff::class, 'user_id');
     }
 
+    /**
+     * Hide users whose staff record has been archived.
+     */
+    public function scopeExcludeArchivedStaff($query)
+    {
+        return $query->whereDoesntHave('staff', function ($q) {
+            $q->where('status', 'archived');
+        });
+    }
+
     public function parentProfile()
     {
         return $this->belongsTo(ParentInfo::class, 'parent_id');

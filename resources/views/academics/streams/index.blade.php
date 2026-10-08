@@ -95,7 +95,7 @@
       <div>
         <div class="crumb">Academics</div>
         <h1 class="mb-1">Class Streams</h1>
-        <p class="text-muted mb-0">Create classes and streams, assign class teachers, and manage student placement.</p>
+        <p class="text-muted mb-0">Classes stay as they are. Assign an existing stream, then set the teacher for that class.</p>
       </div>
       <div class="d-flex gap-2 flex-wrap">
         @if(Route::has('students.bulk.assign-streams'))
@@ -107,7 +107,7 @@
           <i class="bi bi-building"></i> Add Class
         </a>
         <a href="{{ route('academics.streams.create') }}" class="btn btn-settings-primary">
-          <i class="bi bi-plus-circle"></i> Add Stream
+          <i class="bi bi-diagram-3"></i> Assign Stream
         </a>
       </div>
     </div>
@@ -115,6 +115,12 @@
     @if (session('success'))
       <div class="alert alert-success alert-dismissible fade show">
         {{ session('success') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    @endif
+    @if (session('error'))
+      <div class="alert alert-warning alert-dismissible fade show">
+        {{ session('error') }}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
       </div>
     @endif
@@ -170,9 +176,7 @@
                   <div class="stream-card-meta">{{ $studentCount }} student(s)</div>
                 </div>
 
-                <a href="{{ route('academics.streams.create') }}?classroom_id={{ $classroom->id }}" class="add-stream-card text-center">
-                  <span><i class="bi bi-plus-lg"></i><br><small>Add Stream</small></span>
-                </a>
+                @include('academics.streams.partials.add-stream', ['classroom' => $classroom, 'streams' => $streams, 'catalogStreams' => $catalogStreams, 'staffTeachers' => $staffTeachers])
 
                 {{-- Modal: classroom without streams --}}
                 <div class="modal fade" id="editClassModal{{ $classroom->id }}" tabindex="-1">
@@ -228,20 +232,21 @@
                     $slotKey = $classroom->id . ':' . $stream->id;
                     $ct = $classTeacherMap[$slotKey] ?? null;
                     $at = $assistantMap[$slotKey] ?? null;
-                    $studentCount = $studentCountsByStream[$stream->id] ?? 0;
+                    $studentCount = $studentCountsByStream[$classroom->id . ':' . $stream->id] ?? 0;
                     $displayName = $classroom->name . ' ' . $stream->name;
-                    $modalId = 'editStreamModal' . $stream->id;
+                    $modalId = 'editStreamModal' . $classroom->id . '_' . $stream->id;
                   @endphp
                   <div class="stream-card">
                     <div class="stream-card-actions">
                       <button type="button" class="btn btn-sm btn-ghost-strong" data-bs-toggle="modal" data-bs-target="#{{ $modalId }}" title="Edit">
                         <i class="bi bi-pencil text-primary"></i>
                       </button>
-                      <button type="button" class="btn btn-sm btn-ghost-strong" onclick="deleteStream({{ $stream->id }})" title="Delete">
+                      <button type="button" class="btn btn-sm btn-ghost-strong" onclick="unassignStream('{{ $classroom->id }}-{{ $stream->id }}', '{{ $stream->name }}', '{{ $classroom->name }}')" title="Remove from this class">
                         <i class="bi bi-trash text-danger"></i>
                       </button>
-                      <form id="delete-form-{{ $stream->id }}" action="{{ route('academics.streams.destroy', $stream->id) }}" method="POST" class="d-none">
-                        @csrf @method('DELETE')
+                      <form id="unassign-form-{{ $classroom->id }}-{{ $stream->id }}" action="{{ route('academics.streams.unassign-classroom', $stream->id) }}" method="POST" class="d-none">
+                        @csrf
+                        <input type="hidden" name="classroom_id" value="{{ $classroom->id }}">
                       </form>
                     </div>
                     <div class="stream-card-title">{{ $displayName }}</div>
@@ -275,10 +280,11 @@
                               <label class="form-label text-muted small">Class</label>
                               <input type="text" class="form-control" value="{{ $classroom->name }}" readonly>
                             </div>
+                            <input type="hidden" name="classroom_id" value="{{ $classroom->id }}">
                             <div class="mb-3">
-                              <label class="form-label">Stream name <span class="text-danger">*</span></label>
-                              <input type="text" name="name" class="form-control" value="{{ $stream->name }}" required placeholder="e.g. LOVE, PEACE">
-                              <small class="text-muted">Displayed as "{{ $classroom->name }} [stream name]"</small>
+                              <label class="form-label text-muted small">Stream</label>
+                              <input type="text" class="form-control" value="{{ $stream->name }}" readonly>
+                              <small class="text-muted">This is the school stream. The teacher below is for {{ $classroom->name }} only.</small>
                             </div>
                             <div class="mb-3">
                               <label class="form-label">Assigned class teacher</label>
@@ -315,9 +321,7 @@
                   </div>
                 @endforeach
 
-                <a href="{{ route('academics.streams.create') }}?classroom_id={{ $classroom->id }}" class="add-stream-card text-center">
-                  <span><i class="bi bi-plus-lg"></i><br><small>Add Stream</small></span>
-                </a>
+                @include('academics.streams.partials.add-stream', ['classroom' => $classroom, 'streams' => $streams, 'catalogStreams' => $catalogStreams, 'staffTeachers' => $staffTeachers])
               @endif
             </div>
           </div>
@@ -334,9 +338,9 @@
 </div>
 
 <script>
-function deleteStream(id) {
-    if (confirm('Delete this stream? Students will be unassigned from the stream (class unchanged).')) {
-        document.getElementById('delete-form-' + id).submit();
+function unassignStream(key, streamName, className) {
+    if (confirm('Remove ' + streamName + ' from ' + className + ' only? Students in other classes stay in ' + streamName + '.')) {
+        document.getElementById('unassign-form-' + key).submit();
     }
 }
 </script>

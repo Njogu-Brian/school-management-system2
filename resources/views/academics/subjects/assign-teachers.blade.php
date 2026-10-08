@@ -184,7 +184,7 @@
                         <small class="text-muted">{{ $assignment->subject->code ?? '' }} @if($assignment->subject && $assignment->subject->level) • {{ $assignment->subject->level }} @endif</small>
                       </td>
                       <td>
-                        @if($assignment->teacher)
+                        @if($assignment->teacher && $assignment->teacher->status !== 'archived')
                           <span class="pill-badge pill-success">{{ $assignment->teacher->full_name }}</span>
                         @else
                           <span class="text-muted">Unassigned</span>

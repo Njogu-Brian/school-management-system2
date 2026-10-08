@@ -154,6 +154,7 @@ class SeniorTeacherController extends Controller
         $supervisedStaff = empty($staffIds)
             ? collect()
             : Staff::whereIn('id', $staffIds)
+                ->where('status', 'active')
                 ->with(['user', 'position'])
                 ->get();
         

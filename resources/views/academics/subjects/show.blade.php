@@ -91,7 +91,7 @@
                       <tr>
                         <td>{{ $assignment->classroom->name }}</td>
                         <td>{{ $assignment->stream->name ?? '—' }}</td>
-                        <td>{{ $assignment->teacher->full_name ?? '—' }}</td>
+                        <td>{{ ($assignment->teacher && $assignment->teacher->status !== 'archived') ? $assignment->teacher->full_name : '—' }}</td>
                         <td>{{ $assignment->academicYear->year ?? '—' }}</td>
                         <td>{{ $assignment->term->name ?? '—' }}</td>
                         <td>

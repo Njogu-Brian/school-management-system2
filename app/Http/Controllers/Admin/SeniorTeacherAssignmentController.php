@@ -19,7 +19,7 @@ class SeniorTeacherAssignmentController extends Controller
     {
         $seniorTeachers = User::whereHas('roles', function ($q) {
             $q->where('name', 'Senior Teacher');
-        })->with(['staff', 'campusAssignment'])->get();
+        })->excludeArchivedStaff()->with(['staff', 'campusAssignment'])->get();
 
         $campusAssignments = CampusSeniorTeacher::all()->keyBy('senior_teacher_id');
 

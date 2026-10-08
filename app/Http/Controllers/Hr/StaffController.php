@@ -368,11 +368,7 @@ class StaffController extends Controller
     public function edit($id)
     {
         $staff        = Staff::with('meta', 'user.roles', 'statutoryExemptions', 'supervisors')->findOrFail($id);
-        // Active staff only, plus this staff member's current supervisors if archived.
-        $currentSupervisorIds = $staff->supervisors->pluck('id')->all();
-        $supervisors  = Staff::where(function ($q) use ($currentSupervisorIds) {
-                $q->where('status', 'active')->orWhereIn('id', $currentSupervisorIds);
-            })
+        $supervisors  = Staff::where('status', 'active')
             ->where('id', '!=', $id)
             ->orderBy('first_name')
             ->orderBy('last_name')

@@ -45,10 +45,7 @@ class AttendanceNotificationController extends Controller
     public function edit($id)
     {
         $recipient = AttendanceRecipient::findOrFail($id);
-        // Keep the currently assigned staff member selectable even if archived.
-        $staff = \App\Models\Staff::where(function ($q) use ($recipient) {
-                $q->where('status', 'active')->orWhere('id', $recipient->staff_id);
-            })
+        $staff = \App\Models\Staff::where('status', 'active')
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->get();

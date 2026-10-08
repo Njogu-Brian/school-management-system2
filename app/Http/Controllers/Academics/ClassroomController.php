@@ -20,7 +20,7 @@ class ClassroomController extends Controller
 
     public function index(Request $request)
     {
-        $query = Classroom::with(['teachers.staff', 'streams', 'nextClass', 'previousClasses'])
+        $query = Classroom::with(['teachers.staff', 'streams', 'primaryStreams', 'nextClass', 'previousClasses'])
             ->withCount('students');
 
         // Teachers can only see their assigned classes
@@ -47,7 +47,11 @@ class ClassroomController extends Controller
 
     public function create()
     {
-        $teachers = User::whereHas('roles', fn($q) => $q->where('name', 'teacher'))->get();
+        $teachers = User::with('staff')
+            ->whereHas('roles', fn($q) => $q->where('name', 'teacher'))
+            ->excludeArchivedStaff()
+            ->orderBy('name')
+            ->get();
         $classrooms = Classroom::orderBy('name')->get();
         
         // Get classes that are already selected as next_class_id by another class
@@ -92,7 +96,11 @@ class ClassroomController extends Controller
     public function edit($id)
     {
         $classroom = Classroom::with('teachers.staff')->findOrFail($id);
-        $teachers = User::with('staff')->whereHas('roles', fn($q) => $q->where('name', 'teacher'))->get();
+        $teachers = User::with('staff')
+            ->whereHas('roles', fn($q) => $q->where('name', 'teacher'))
+            ->excludeArchivedStaff()
+            ->orderBy('name')
+            ->get();
         $assignedTeachers = $classroom->teachers->pluck('id')->toArray();
         $classrooms = Classroom::where('id', '!=', $id)->orderBy('name')->get();
         

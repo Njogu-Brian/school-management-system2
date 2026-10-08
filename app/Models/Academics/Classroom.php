@@ -75,7 +75,10 @@ class Classroom extends Model
 
     public function teachers()
     {
-        return $this->belongsToMany(User::class, 'classroom_teacher', 'classroom_id', 'teacher_id');
+        return $this->belongsToMany(User::class, 'classroom_teacher', 'classroom_id', 'teacher_id')
+            ->whereDoesntHave('staff', function ($q) {
+                $q->where('status', 'archived');
+            });
     }
 
     /**
@@ -117,7 +120,7 @@ class Classroom extends Model
             $primaryStreamTeacherIds
         ));
         
-        return User::whereIn('id', $allTeacherIds)->get();
+        return User::whereIn('id', $allTeacherIds)->excludeArchivedStaff()->get();
     }
     public function subjects()
     {

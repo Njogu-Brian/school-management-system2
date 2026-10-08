@@ -501,6 +501,8 @@ Route::middleware('auth')->group(function () {
         Route::resource('classrooms',      ClassroomController::class)->except(['show']);
         Route::resource('streams',         StreamController::class)->except(['show']);
         Route::post('streams/{id}/quick-update', [StreamController::class, 'quickUpdate'])->name('streams.quick-update');
+        Route::post('streams/{id}/unassign-classroom', [StreamController::class, 'unassignFromClassroom'])->name('streams.unassign-classroom');
+        Route::post('classrooms/{classroom}/assign-stream', [StreamController::class, 'assignToClassroom'])->name('classrooms.assign-stream');
         Route::post('classrooms/{classroom}/quick-homeroom', [StreamController::class, 'quickUpdateClassroom'])->name('classrooms.quick-homeroom');
         Route::post('streams/{id}/assign-teachers', [StreamController::class, 'assignTeachers'])->name('streams.assign-teachers');
         Route::get('subjects/teacher-assignments', [SubjectController::class, 'teacherAssignments'])->name('subjects.teacher-assignments');

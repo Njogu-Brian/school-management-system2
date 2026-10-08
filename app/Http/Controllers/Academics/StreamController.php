@@ -52,6 +52,9 @@ class StreamController extends Controller
             ->get();
         $classTeacherMap = [];
         foreach ($classTeacherRows as $row) {
+            if (!$row->staff || $row->staff->isArchived()) {
+                continue;
+            }
             $key = (int) $row->classroom_id . ':' . ($row->stream_id === null ? 'null' : (int) $row->stream_id);
             $classTeacherMap[$key] = $row->staff;
         }
@@ -61,32 +64,34 @@ class StreamController extends Controller
             ->get();
         $assistantMap = [];
         foreach ($assistantRows as $row) {
+            if (!$row->staff || $row->staff->isArchived()) {
+                continue;
+            }
             $key = (int) $row->classroom_id . ':' . ($row->stream_id === null ? 'null' : (int) $row->stream_id);
             $assistantMap[$key] = $row->staff;
         }
 
         $teacherRoleNames = ['Teacher', 'teacher', 'Senior Teacher', 'senior teacher', 'Supervisor', 'supervisor'];
-        $assignedStaffIds = collect($classTeacherMap)->pluck('id')
-            ->merge(collect($assistantMap)->pluck('id'))
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
         $staffTeachers = Staff::with('user')
-            ->where(function ($q) use ($assignedStaffIds) {
-                $q->where('status', 'active')->orWhereIn('id', $assignedStaffIds);
-            })
+            ->where('status', 'active')
             ->whereHas('user.roles', fn ($q) => $q->whereIn('name', $teacherRoleNames))
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->get();
 
-        $studentCountsByStream = Student::query()
+        $studentCountRows = Student::query()
             ->where('archive', 0)
             ->whereNotNull('stream_id')
-            ->selectRaw('stream_id, count(*) as total')
-            ->groupBy('stream_id')
-            ->pluck('total', 'stream_id');
+            ->whereNotNull('classroom_id')
+            ->selectRaw('classroom_id, stream_id, count(*) as total')
+            ->groupBy('classroom_id', 'stream_id')
+            ->get();
+        $studentCountsByStream = [];
+        foreach ($studentCountRows as $row) {
+            $studentCountsByStream[(int) $row->classroom_id . ':' . (int) $row->stream_id] = (int) $row->total;
+        }
+
+        $catalogStreams = Stream::query()->orderBy('name')->get();
 
         return view('academics.streams.index', compact(
             'classrooms',
@@ -94,6 +99,7 @@ class StreamController extends Controller
             'assistantMap',
             'staffTeachers',
             'studentCountsByStream',
+            'catalogStreams',
         ));
     }
 
@@ -104,54 +110,23 @@ class StreamController extends Controller
         if (!empty($supervisedIds)) {
             $classrooms = $classrooms->whereIn('id', $supervisedIds)->values();
         }
-        return view('academics.streams.create', compact('classrooms'));
+        $catalogStreams = Stream::query()->orderBy('name')->get();
+
+        return view('academics.streams.create', compact('classrooms', 'catalogStreams'));
     }
 
     public function store(Request $request)
     {
-        $supervisedIds = $this->supervisedClassroomIds();
         $request->validate([
-            'name' => [
-                'required',
-                'string',
-                'max:255',
-                // Unique per primary classroom: same name can exist in different classrooms
-                Rule::unique('streams')->where(function ($query) use ($request) {
-                    return $query->where('classroom_id', $request->classroom_id);
-                }),
-            ],
+            'stream_id' => 'required|exists:streams,id',
             'classroom_id' => 'required|exists:classrooms,id',
-            'classroom_ids' => 'nullable|array',
-            'classroom_ids.*' => 'exists:classrooms,id',
-        ]);
-        if (!empty($supervisedIds)) {
-            if (!in_array((int) $request->classroom_id, $supervisedIds, true)) {
-                abort(403, 'You can only assign streams to classes you supervise.');
-            }
-            if ($request->has('classroom_ids')) {
-                foreach ((array) $request->classroom_ids as $cid) {
-                    if (!in_array((int) $cid, $supervisedIds, true)) {
-                        abort(403, 'You can only assign streams to classes you supervise.');
-                    }
-                }
-            }
-        }
-
-        $stream = Stream::create([
-            'name' => $request->name,
-            'classroom_id' => $request->classroom_id,
         ]);
 
-        // Assign to additional classrooms via pivot table
-        if ($request->has('classroom_ids')) {
-            $additionalClassrooms = array_filter($request->classroom_ids, fn($id) => $id != $request->classroom_id);
-            if (!empty($additionalClassrooms)) {
-                $stream->classrooms()->sync($additionalClassrooms);
-            }
-        }
+        $classroom = Classroom::findOrFail($request->classroom_id);
+        $this->linkExistingStream($classroom, (int) $request->stream_id);
 
         return redirect()->route('academics.streams.index')
-            ->with('success', 'Stream added successfully.');
+            ->with('success', 'Stream assigned to ' . $classroom->name . '.');
     }
 
     public function edit($id)
@@ -226,6 +201,11 @@ class StreamController extends Controller
             $stream->classrooms()->detach();
         }
 
+        // The primary classroom must stay linked, otherwise the class list hides the stream.
+        if ($stream->classroom_id) {
+            $stream->classrooms()->syncWithoutDetaching([(int) $stream->classroom_id]);
+        }
+
         $stream->refresh();
         $stream->load(['classrooms', 'classroom']);
         $currentClassroomIds = $this->streamLifecycle->collectLinkedClassroomIds($stream);
@@ -254,20 +234,20 @@ class StreamController extends Controller
         }
 
         $request->validate([
-            'name' => [
-                'required',
-                'string',
-                'max:255',
-                Rule::unique('streams')->where(fn ($q) => $q->where('classroom_id', $stream->classroom_id))->ignore($id),
-            ],
+            'classroom_id' => 'required|exists:classrooms,id',
             'class_teacher_staff_id' => 'nullable|integer|exists:staff,id',
             'assistant_teacher_staff_id' => 'nullable|integer|exists:staff,id',
         ]);
 
-        $stream->update(['name' => $request->name]);
-
-        $classroomId = (int) $stream->classroom_id;
+        $classroomId = (int) $request->classroom_id;
         $streamId = (int) $stream->id;
+        $linked = $this->streamLifecycle->collectLinkedClassroomIds($stream);
+        if (! in_array($classroomId, $linked, true)) {
+            abort(403, 'This stream is not assigned to that class.');
+        }
+        if (! empty($supervisedIds) && ! in_array($classroomId, $supervisedIds, true)) {
+            abort(403, 'You can only edit classes you supervise.');
+        }
 
         if ($request->filled('class_teacher_staff_id')) {
             ClassTeacherAssignment::updateOrCreate(
@@ -424,6 +404,110 @@ class StreamController extends Controller
         $classroom = Classroom::find($classroomId);
         return redirect()->route('academics.assign-teachers')
             ->with('success', "Teachers assigned to '{$stream->name}' stream in '{$classroom->name}' successfully.");
+    }
+
+    /**
+     * Attach an existing school stream (Love, Peace) to a class. Does not create a class or a new stream.
+     */
+    public function assignToClassroom(Request $request, Classroom $classroom)
+    {
+        $request->validate([
+            'stream_id' => 'required|exists:streams,id',
+            'class_teacher_staff_id' => 'nullable|integer|exists:staff,id',
+            'assistant_teacher_staff_id' => 'nullable|integer|exists:staff,id',
+        ]);
+
+        $stream = $this->linkExistingStream($classroom, (int) $request->stream_id);
+
+        if ($request->filled('class_teacher_staff_id')) {
+            ClassTeacherAssignment::updateOrCreate(
+                ['classroom_id' => $classroom->id, 'stream_id' => $stream->id],
+                ['staff_id' => (int) $request->class_teacher_staff_id]
+            );
+        }
+
+        if ($request->filled('assistant_teacher_staff_id')) {
+            AssistantClassTeacherAssignment::updateOrCreate(
+                ['classroom_id' => $classroom->id, 'stream_id' => $stream->id],
+                ['staff_id' => (int) $request->assistant_teacher_staff_id]
+            );
+        }
+
+        return redirect()->route('academics.streams.index')
+            ->with('success', $stream->name . ' assigned to ' . $classroom->name . '.');
+    }
+
+    /**
+     * Remove a stream from one class. Other classes, and the stream itself, stay as they are.
+     */
+    public function unassignFromClassroom(Request $request, $id)
+    {
+        $request->validate([
+            'classroom_id' => 'required|exists:classrooms,id',
+        ]);
+
+        $stream = Stream::with('classrooms')->findOrFail($id);
+        $classroomId = (int) $request->classroom_id;
+        $supervisedIds = $this->supervisedClassroomIds();
+        if (! empty($supervisedIds) && ! in_array($classroomId, $supervisedIds, true)) {
+            abort(403, 'You can only edit classes you supervise.');
+        }
+
+        $linked = $this->streamLifecycle->collectLinkedClassroomIds($stream);
+        if (! in_array($classroomId, $linked, true)) {
+            return redirect()->route('academics.streams.index')
+                ->with('success', 'That stream is not assigned to this class.');
+        }
+
+        $others = array_values(array_filter($linked, fn ($cid) => (int) $cid !== $classroomId));
+        if ($others === []) {
+            return redirect()->route('academics.streams.index')
+                ->with('error', $stream->name . ' is only on this class, so it was left in place.');
+        }
+
+        if ((int) $stream->classroom_id === $classroomId) {
+            $stream->update(['classroom_id' => $others[0]]);
+        }
+
+        $stream->classrooms()->detach($classroomId);
+        if ($stream->classroom_id) {
+            $stream->classrooms()->syncWithoutDetaching([(int) $stream->classroom_id]);
+        }
+
+        $this->streamLifecycle->propagateWhenClassroomsRemoved($stream, [$classroomId]);
+
+        ClassTeacherAssignment::query()
+            ->where('classroom_id', $classroomId)
+            ->where('stream_id', $stream->id)
+            ->delete();
+        AssistantClassTeacherAssignment::query()
+            ->where('classroom_id', $classroomId)
+            ->where('stream_id', $stream->id)
+            ->delete();
+
+        $classroom = Classroom::find($classroomId);
+
+        return redirect()->route('academics.streams.index')
+            ->with('success', $stream->name . ' removed from ' . ($classroom->name ?? 'that class') . '. Students and teachers in other classes were left unchanged.');
+    }
+
+    protected function linkExistingStream(Classroom $classroom, int $streamId): Stream
+    {
+        $supervisedIds = $this->supervisedClassroomIds();
+        if (! empty($supervisedIds) && ! in_array((int) $classroom->id, $supervisedIds, true)) {
+            abort(403, 'You can only assign streams to classes you supervise.');
+        }
+
+        $stream = Stream::with('classrooms')->findOrFail($streamId);
+        $linked = $this->streamLifecycle->collectLinkedClassroomIds($stream);
+        if (! in_array((int) $classroom->id, $linked, true)) {
+            $stream->classrooms()->syncWithoutDetaching([(int) $classroom->id]);
+        }
+        if ($stream->classroom_id) {
+            $stream->classrooms()->syncWithoutDetaching([(int) $stream->classroom_id]);
+        }
+
+        return $stream;
     }
 
     public function destroy($id)

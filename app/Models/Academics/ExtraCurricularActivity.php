@@ -62,7 +62,7 @@ class ExtraCurricularActivity extends Model
         if (!$this->staff_ids) {
             return collect();
         }
-        return \App\Models\Staff::whereIn('id', $this->staff_ids)->get();
+        return \App\Models\Staff::whereIn('id', $this->staff_ids)->where('status', 'active')->get();
     }
 
     public function votehead()

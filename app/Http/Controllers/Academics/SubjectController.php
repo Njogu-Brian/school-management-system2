@@ -140,10 +140,7 @@ class SubjectController extends Controller
         $classroomAssignments = $subject->classroomSubjects()
             ->with(['classroom', 'stream', 'teacher'])
             ->get();
-        $assignedStaffIds = $classroomAssignments->pluck('staff_id')->filter()->all();
-        $teachers = Staff::where(function ($q) use ($assignedStaffIds) {
-                $q->where('status', 'active')->orWhereIn('id', $assignedStaffIds);
-            })
+        $teachers = Staff::where('status', 'active')
             ->whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher', 'Senior Teacher', 'Supervisor', 'supervisor']))
             ->get();
         $years = \App\Support\AcademicContext::years();

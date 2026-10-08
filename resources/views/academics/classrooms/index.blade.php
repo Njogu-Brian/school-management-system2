@@ -53,7 +53,7 @@
         <div class="settings-card stat-card border-start border-4 border-info h-100">
           <div class="card-body">
             <div class="text-muted text-uppercase fw-semibold small">Total Streams</div>
-            <h3 class="mb-0">{{ $classrooms->sum(fn($c) => $c->streams->count()) }}</h3>
+            <h3 class="mb-0">{{ $classrooms->sum(fn($c) => $c->allStreams()->count()) }}</h3>
           </div>
         </div>
       </div>
@@ -129,9 +129,10 @@
                   @endif
                 </td>
                 <td>
-                  @if($classroom->streams->count())
+                  @php $assignedStreams = $classroom->allStreams(); @endphp
+                  @if($assignedStreams->count())
                     <div class="d-flex flex-wrap gap-1">
-                      @foreach($classroom->streams as $stream)
+                      @foreach($assignedStreams as $stream)
                         <span class="pill-badge pill-info">{{ $stream->name }}</span>
                       @endforeach
                     </div>
