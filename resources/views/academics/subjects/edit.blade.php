@@ -255,12 +255,7 @@
 @push('scripts')
 <script>
   const streamsByClassroom = @json($streamsByClassroom ?? new \stdClass());
-  const existingSlots = @json($classroomAssignments->map(fn ($assignment) => [
-      'id' => $assignment->id,
-      'classroom_id' => $assignment->classroom_id,
-      'stream_id' => $assignment->stream_id,
-      'staff_id' => $assignment->staff_id,
-  ])->values());
+  const existingSlots = @json($existingSlots ?? []);
   let assignmentIndex = {{ max($classroomAssignments->count(), 1) }};
   const addBtn = document.getElementById('add-classroom-assignment');
   const container = document.getElementById('classroom-assignments');

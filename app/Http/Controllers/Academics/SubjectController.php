@@ -162,6 +162,13 @@ class SubjectController extends Controller
             ];
         });
 
+        $existingSlots = $classroomAssignments->map(fn ($assignment) => [
+            'id' => $assignment->id,
+            'classroom_id' => $assignment->classroom_id,
+            'stream_id' => $assignment->stream_id,
+            'staff_id' => $assignment->staff_id,
+        ])->values();
+
         return view('academics.subjects.edit', compact(
             'subject',
             'classrooms',
@@ -169,7 +176,8 @@ class SubjectController extends Controller
             'years',
             'terms',
             'classroomAssignments',
-            'streamsByClassroom'
+            'streamsByClassroom',
+            'existingSlots'
         ));
     }
 
