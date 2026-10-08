@@ -127,4 +127,63 @@ class ClassroomSubjectSlotService
 
         return $streams->count();
     }
+
+    /**
+     * A class with streams is a separate class per stream. Copy each whole-class
+     * subject row onto every stream, keeping the current teacher, then drop the shared row.
+     */
+    public function splitWholeClassSlots(Classroom $classroom): int
+    {
+        $classroom->loadMissing(['primaryStreams', 'streams']);
+        $streams = $classroom->allStreams();
+        if ($streams->isEmpty()) {
+            return 0;
+        }
+
+        $wholeClassRows = ClassroomSubject::query()
+            ->where('classroom_id', $classroom->id)
+            ->whereNull('stream_id')
+            ->get();
+
+        $created = 0;
+        foreach ($wholeClassRows as $row) {
+            foreach ($streams as $stream) {
+                $exists = ClassroomSubject::query()
+                    ->where('classroom_id', $classroom->id)
+                    ->where('subject_id', $row->subject_id)
+                    ->where('stream_id', $stream->id)
+                    ->when(
+                        $row->academic_year_id === null,
+                        fn ($q) => $q->whereNull('academic_year_id'),
+                        fn ($q) => $q->where('academic_year_id', $row->academic_year_id)
+                    )
+                    ->when(
+                        $row->term_id === null,
+                        fn ($q) => $q->whereNull('term_id'),
+                        fn ($q) => $q->where('term_id', $row->term_id)
+                    )
+                    ->exists();
+
+                if ($exists) {
+                    continue;
+                }
+
+                ClassroomSubject::create([
+                    'classroom_id' => $row->classroom_id,
+                    'stream_id' => $stream->id,
+                    'subject_id' => $row->subject_id,
+                    'staff_id' => $row->staff_id,
+                    'academic_year_id' => $row->academic_year_id,
+                    'term_id' => $row->term_id,
+                    'is_compulsory' => $row->is_compulsory,
+                    'lessons_per_week' => $row->lessons_per_week,
+                ]);
+                $created++;
+            }
+
+            $row->delete();
+        }
+
+        return $created;
+    }
 }

@@ -507,6 +507,8 @@ class StreamController extends Controller
             $stream->classrooms()->syncWithoutDetaching([(int) $stream->classroom_id]);
         }
 
+        app(\App\Services\ClassroomSubjectSlotService::class)->splitWholeClassSlots($classroom->fresh());
+
         return $stream;
     }
 

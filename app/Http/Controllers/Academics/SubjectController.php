@@ -439,6 +439,11 @@ class SubjectController extends Controller
         $perPage = (int) $request->input('per_page', 25);
         $perPage = max(10, min(100, $perPage));
 
+        $slotService = app(ClassroomSubjectSlotService::class);
+        Classroom::with(['primaryStreams', 'streams'])->get()->each(
+            fn (Classroom $classroom) => $slotService->splitWholeClassSlots($classroom)
+        );
+
         $query = ClassroomSubject::with(['classroom', 'stream', 'subject', 'teacher']);
 
         if ($request->filled('subject_id')) {
