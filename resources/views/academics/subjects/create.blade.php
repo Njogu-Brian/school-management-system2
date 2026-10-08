@@ -120,7 +120,7 @@
           <h5 class="mb-0">Classroom Assignments (Optional)</h5>
         </div>
         <div class="card-body">
-          <p class="text-muted">Assign this subject to classrooms and streams. Leave stream as âAll streamsâ to create one row per stream with the same teacher.</p>
+          <p class="text-muted">Assign this subject to classrooms. A class with Love and Peace gets one row per stream.</p>
           <div id="classroom-assignments">
             <div class="classroom-assignment-item mb-3 p-3 border rounded">
               <div class="row g-3">
@@ -198,28 +198,79 @@
   const addBtn = document.getElementById('add-classroom-assignment');
   const container = document.getElementById('classroom-assignments');
 
+  function streamsFor(classroomId) {
+    if (!classroomId) return [];
+    return streamsByClassroom[classroomId] || streamsByClassroom[String(classroomId)] || [];
+  }
+
   function fillStreams(selectEl, classroomId, selectedStreamId) {
     if (!selectEl) return;
-    const streams = streamsByClassroom[classroomId] || [];
+    const streams = streamsFor(classroomId);
     selectEl.innerHTML = '';
-    const allOpt = document.createElement('option');
-    allOpt.value = '';
-    allOpt.textContent = streams.length ? 'All streams' : 'No streams / class-level';
-    selectEl.appendChild(allOpt);
-    streams.forEach((s) => {
+    if (!streams.length) {
       const opt = document.createElement('option');
-      opt.value = s.id;
-      opt.textContent = s.name;
-      if (String(selectedStreamId) === String(s.id)) opt.selected = true;
+      opt.value = '';
+      opt.textContent = classroomId ? 'No streams / class-level' : 'Select a class first';
       selectEl.appendChild(opt);
+      return;
+    }
+    streams.forEach((stream) => {
+      const opt = document.createElement('option');
+      opt.value = stream.id;
+      opt.textContent = stream.name;
+      if (String(selectedStreamId || '') === String(stream.id)) opt.selected = true;
+      selectEl.appendChild(opt);
+    });
+  }
+
+  function usedStreamIds(classroomId, exceptRow) {
+    const ids = new Set();
+    container.querySelectorAll('.classroom-assignment-item').forEach((row) => {
+      if (row === exceptRow) return;
+      if (row.querySelector('.js-classroom-select')?.value !== String(classroomId)) return;
+      const value = row.querySelector('.js-stream-select')?.value;
+      if (value) ids.add(String(value));
+    });
+    return ids;
+  }
+
+  function expandStreams(row) {
+    const classSel = row.querySelector('.js-classroom-select');
+    const streamSel = row.querySelector('.js-stream-select');
+    if (!classSel || !streamSel) return;
+    const classroomId = classSel.value;
+    const streams = streamsFor(classroomId);
+    if (!streams.length) {
+      fillStreams(streamSel, classroomId, '');
+      return;
+    }
+    const used = usedStreamIds(classroomId, row);
+    const free = streams.find((stream) => !used.has(String(stream.id)));
+    fillStreams(streamSel, classroomId, free ? free.id : streams[0].id);
+    streams.forEach((stream) => {
+      if (String(stream.id) === String(streamSel.value) || used.has(String(stream.id))) return;
+      const clone = row.cloneNode(true);
+      delete clone.dataset.bound;
+      clone.querySelectorAll('[name]').forEach((el) => {
+        el.name = el.name.replace(/\[(\d+)\]/, `[${assignmentIndex}]`);
+      });
+      assignmentIndex++;
+      container.appendChild(clone);
+      clone.querySelector('.js-classroom-select').value = classroomId;
+      const teacher = clone.querySelector('[name*="[staff_id]"]');
+      if (teacher) teacher.value = '';
+      fillStreams(clone.querySelector('.js-stream-select'), classroomId, stream.id);
+      bindClassroomStream(clone);
+      used.add(String(stream.id));
     });
   }
 
   function bindClassroomStream(row) {
     const classSel = row.querySelector('.js-classroom-select');
     const streamSel = row.querySelector('.js-stream-select');
-    if (!classSel || !streamSel) return;
-    classSel.addEventListener('change', () => fillStreams(streamSel, classSel.value, ''));
+    if (!classSel || !streamSel || row.dataset.bound === '1') return;
+    row.dataset.bound = '1';
+    classSel.addEventListener('change', () => expandStreams(row));
   }
 
   if (container) {
@@ -231,6 +282,7 @@
       const first = container.firstElementChild;
       if (!first) return;
       const clone = first.cloneNode(true);
+      delete clone.dataset.bound;
       clone.querySelectorAll('select, input').forEach(el => {
         if (el.name) {
           el.name = el.name.replace(/\[\d+\]/, `[${assignmentIndex}]`);

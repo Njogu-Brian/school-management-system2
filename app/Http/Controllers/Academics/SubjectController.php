@@ -137,9 +137,17 @@ class SubjectController extends Controller
     public function edit(Subject $subject)
     {
         $classrooms = Classroom::with(['primaryStreams', 'streams'])->orderBy('name')->get();
+        $slotService = app(ClassroomSubjectSlotService::class);
+        $classrooms->each(fn (Classroom $classroom) => $slotService->splitWholeClassSlots($classroom));
         $classroomAssignments = $subject->classroomSubjects()
             ->with(['classroom', 'stream', 'teacher'])
-            ->get();
+            ->get()
+            ->sortBy(fn ($assignment) => sprintf(
+                '%s %s',
+                $assignment->classroom->name ?? '',
+                $assignment->stream->name ?? ''
+            ))
+            ->values();
         $teachers = Staff::where('status', 'active')
             ->whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher', 'Senior Teacher', 'Supervisor', 'supervisor']))
             ->get();

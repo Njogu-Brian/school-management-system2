@@ -115,9 +115,12 @@
       </div>
 
       <div class="settings-card">
-        <div class="card-header d-flex align-items-center gap-2">
-          <i class="bi bi-building"></i>
-          <h5 class="mb-0">Classroom Assignments</h5>
+        <div class="card-header">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-building"></i>
+            <h5 class="mb-0">Classroom Assignments</h5>
+          </div>
+          <p class="text-muted small mb-0 mt-1">A class with Love and Peace has one row per stream, so each stream can have its own teacher.</p>
         </div>
         <div class="card-body">
           <div id="classroom-assignments">
@@ -252,34 +255,134 @@
 @push('scripts')
 <script>
   const streamsByClassroom = @json($streamsByClassroom ?? new \stdClass());
+  const existingSlots = @json($classroomAssignments->map(fn ($assignment) => [
+      'id' => $assignment->id,
+      'classroom_id' => $assignment->classroom_id,
+      'stream_id' => $assignment->stream_id,
+      'staff_id' => $assignment->staff_id,
+  ])->values());
   let assignmentIndex = {{ max($classroomAssignments->count(), 1) }};
   const addBtn = document.getElementById('add-classroom-assignment');
   const container = document.getElementById('classroom-assignments');
 
+  function streamsFor(classroomId) {
+    if (!classroomId) return [];
+    return streamsByClassroom[classroomId] || streamsByClassroom[String(classroomId)] || [];
+  }
+
+  function findSlot(classroomId, streamId) {
+    return existingSlots.find((slot) => String(slot.classroom_id) === String(classroomId) && String(slot.stream_id) === String(streamId)) || null;
+  }
+
   function fillStreams(selectEl, classroomId, selectedStreamId) {
     if (!selectEl) return;
-    const streams = streamsByClassroom[classroomId] || [];
+    const streams = streamsFor(classroomId);
     selectEl.innerHTML = '';
-    const allOpt = document.createElement('option');
-    allOpt.value = '';
-    allOpt.textContent = streams.length ? 'All streams' : 'No streams / class-level';
-    selectEl.appendChild(allOpt);
-    streams.forEach((s) => {
+    if (!streams.length) {
       const opt = document.createElement('option');
-      opt.value = s.id;
-      opt.textContent = s.name;
-      if (String(selectedStreamId || '') === String(s.id)) opt.selected = true;
+      opt.value = '';
+      opt.textContent = classroomId ? 'No streams / class-level' : 'Select a class first';
       selectEl.appendChild(opt);
+      return;
+    }
+    streams.forEach((stream) => {
+      const opt = document.createElement('option');
+      opt.value = stream.id;
+      opt.textContent = stream.name;
+      if (String(selectedStreamId || '') === String(stream.id)) opt.selected = true;
+      selectEl.appendChild(opt);
+    });
+  }
+
+  function setNamedValue(row, field, value) {
+    const el = row.querySelector(`[name*="[${field}]"]`);
+    if (!el) return;
+    if (el.type === 'checkbox') {
+      el.checked = !!value;
+    } else {
+      el.value = value ? String(value) : '';
+    }
+  }
+
+  function usedStreamIds(classroomId, exceptRow) {
+    const ids = new Set();
+    container.querySelectorAll('.classroom-assignment-item').forEach((row) => {
+      if (row === exceptRow) return;
+      if (row.querySelector('.js-classroom-select')?.value !== String(classroomId)) return;
+      const value = row.querySelector('.js-stream-select')?.value;
+      if (value) ids.add(String(value));
+    });
+    return ids;
+  }
+
+  function cloneAssignment(source) {
+    const template = source.cloneNode(true);
+    delete template.dataset.bound;
+    template.querySelectorAll('[name]').forEach((el) => {
+      el.name = el.name.replace(/\[(\d+)\]/, `[${assignmentIndex}]`);
+    });
+    assignmentIndex++;
+    const streamSel = template.querySelector('.js-stream-select');
+    if (streamSel) streamSel.removeAttribute('data-selected-stream');
+    return template;
+  }
+
+  function expandStreams(row) {
+    const classSel = row.querySelector('.js-classroom-select');
+    const streamSel = row.querySelector('.js-stream-select');
+    if (!classSel || !streamSel) return;
+    const classroomId = classSel.value;
+    const streams = streamsFor(classroomId);
+    const preferred = streamSel.getAttribute('data-selected-stream') || streamSel.value || '';
+
+    if (!streams.length) {
+      fillStreams(streamSel, classroomId, '');
+      return;
+    }
+
+    const used = usedStreamIds(classroomId, row);
+    const free = streams.find((stream) => !used.has(String(stream.id)) && String(stream.id) !== String(preferred));
+    const chosen = preferred && !used.has(String(preferred)) ? preferred : (free ? free.id : streams[0].id);
+    fillStreams(streamSel, classroomId, chosen);
+    streamSel.removeAttribute('data-selected-stream');
+
+    const chosenSlot = findSlot(classroomId, streamSel.value);
+    if (chosenSlot) {
+      setNamedValue(row, 'id', chosenSlot.id);
+      setNamedValue(row, 'staff_id', chosenSlot.staff_id);
+    }
+
+    streams.forEach((stream) => {
+      if (String(stream.id) === String(streamSel.value) || used.has(String(stream.id))) return;
+      const clone = cloneAssignment(row);
+      container.appendChild(clone);
+      clone.querySelector('.js-classroom-select').value = classroomId;
+      fillStreams(clone.querySelector('.js-stream-select'), classroomId, stream.id);
+      const slot = findSlot(classroomId, stream.id);
+      setNamedValue(clone, 'id', slot ? slot.id : '');
+      setNamedValue(clone, 'staff_id', slot ? slot.staff_id : '');
+      bindClassroomStream(clone);
+      used.add(String(stream.id));
     });
   }
 
   function bindClassroomStream(row) {
     const classSel = row.querySelector('.js-classroom-select');
     const streamSel = row.querySelector('.js-stream-select');
-    if (!classSel || !streamSel) return;
-    const selected = streamSel.getAttribute('data-selected-stream') || streamSel.value || '';
-    fillStreams(streamSel, classSel.value, selected);
-    classSel.addEventListener('change', () => fillStreams(streamSel, classSel.value, ''));
+    if (!classSel || !streamSel || row.dataset.bound === '1') return;
+    row.dataset.bound = '1';
+    const saved = streamSel.getAttribute('data-selected-stream') || '';
+    if (saved) {
+      fillStreams(streamSel, classSel.value, saved);
+    } else {
+      expandStreams(row);
+    }
+    classSel.addEventListener('change', () => {
+      streamSel.removeAttribute('data-selected-stream');
+      setNamedValue(row, 'id', '');
+      setNamedValue(row, 'staff_id', '');
+      expandStreams(row);
+    });
   }
 
   if (container) {
@@ -312,6 +415,7 @@
 
       const streamSel = template.querySelector('.js-stream-select');
       if (streamSel) streamSel.removeAttribute('data-selected-stream');
+      delete template.dataset.bound;
 
       if (!template.querySelector('.remove-assignment')) {
         const btn = document.createElement('button');
