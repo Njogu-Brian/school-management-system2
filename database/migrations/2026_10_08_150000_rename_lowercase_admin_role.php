@@ -8,8 +8,12 @@ return new class extends Migration
 {
     public function up(): void
     {
-        $lowercase = DB::table('roles')->where('name', 'admin')->where('guard_name', 'web')->first();
-        $title = DB::table('roles')->where('name', 'Admin')->where('guard_name', 'web')->first();
+        $lowercase = DB::table('roles')->where('guard_name', 'web')->whereRaw('BINARY name = ?', ['admin'])->first();
+        $title = DB::table('roles')->where('guard_name', 'web')->whereRaw('BINARY name = ?', ['Admin'])->first();
+
+        if ($lowercase && $title && (int) $lowercase->id === (int) $title->id) {
+            return;
+        }
 
         if ($lowercase && ! $title) {
             DB::table('roles')->where('id', $lowercase->id)->update(['name' => 'Admin']);
