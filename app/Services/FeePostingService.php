@@ -54,10 +54,12 @@ class FeePostingService
                         ->where('status', 'active')
                         ->first();
                     if ($transportItem) {
+                        // Compare the pre-credit charge. A credit note lowers amount but must not look like a fee increase.
+                        $transportItem->loadMissing(['creditNotes', 'debitNotes']);
                         $existingTransport = [
                             'id' => $transportItem->id,
                             'votehead_id' => $transportItem->votehead_id,
-                            'amount' => (float) $transportItem->amount,
+                            'amount' => $this->getOriginalAmountBeforeNotes($transportItem),
                             'source' => $transportItem->source ?? 'transport',
                         ];
                     }

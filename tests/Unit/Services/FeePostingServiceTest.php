@@ -5,7 +5,7 @@ namespace Tests\Unit\Services;
 use Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use App\Services\FeePostingService;
-use App\Models\{Student, Votehead, FeeStructure, Invoice, InvoiceItem, FeePostingRun, AcademicYear, Term, OptionalFee, ExtraIncomeItem, FeePostingDismissal};
+use App\Models\{Student, Votehead, FeeStructure, Invoice, InvoiceItem, FeePostingRun, AcademicYear, Term, OptionalFee, ExtraIncomeItem, FeePostingDismissal, CreditNote, TransportFee};
 use Illuminate\Support\Facades\DB;
 
 class FeePostingServiceTest extends TestCase
@@ -254,6 +254,52 @@ class FeePostingServiceTest extends TestCase
 
         $second = collect($this->service->previewWithDiffs($filters)['diffs']);
         $this->assertFalse($second->contains(fn ($diff) => (int) $diff['votehead_id'] === (int) $votehead->id));
+    }
+
+    /** @test */
+    public function credited_transport_matching_the_assigned_fee_is_not_posted_again()
+    {
+        $student = Student::factory()->create(['category_id' => null, 'stream_id' => null]);
+        $votehead = Votehead::factory()->create([
+            'code' => 'TRANSPORT',
+            'name' => 'Transport',
+            'is_mandatory' => true,
+        ]);
+        $invoice = Invoice::factory()->create([
+            'student_id' => $student->id,
+            'year' => 2026,
+            'term' => 3,
+        ]);
+        $item = InvoiceItem::factory()->create([
+            'invoice_id' => $invoice->id,
+            'votehead_id' => $votehead->id,
+            'amount' => 0,
+            'original_amount' => 500,
+            'status' => 'active',
+            'source' => 'transport',
+        ]);
+        CreditNote::create([
+            'invoice_id' => $invoice->id,
+            'invoice_item_id' => $item->id,
+            'amount' => 500,
+            'reason' => 'discount',
+        ]);
+        TransportFee::create([
+            'student_id' => $student->id,
+            'year' => 2026,
+            'term' => 3,
+            'amount' => 500,
+            'source' => 'manual',
+        ]);
+
+        $diffs = collect($this->service->previewWithDiffs([
+            'year' => 2026,
+            'term' => 3,
+            'student_id' => $student->id,
+        ])['diffs']);
+
+        $this->assertFalse($diffs->contains(fn ($diff) => (int) $diff['votehead_id'] === (int) $votehead->id));
+        $this->assertSame('0.00', number_format((float) $item->fresh()->amount, 2, '.', ''));
     }
 }
 
