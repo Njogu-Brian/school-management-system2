@@ -1538,6 +1538,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('fee-structures/template/download', [FeeStructureController::class, 'downloadTemplate'])->name('fee-structures.download-template');
 
         // Financial notes (student / family)
+        Route::get('financial-notes', [\App\Http\Controllers\Finance\FinancialNoteController::class, 'index'])->name('financial-notes.index');
         Route::post('financial-notes', [\App\Http\Controllers\Finance\FinancialNoteController::class, 'store'])->name('financial-notes.store');
         Route::put('financial-notes/{financialNote}', [\App\Http\Controllers\Finance\FinancialNoteController::class, 'update'])->name('financial-notes.update');
         Route::delete('financial-notes/{financialNote}', [\App\Http\Controllers\Finance\FinancialNoteController::class, 'destroy'])->name('financial-notes.destroy');

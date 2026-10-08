@@ -35,12 +35,7 @@
                     {{ implode(' · ', $childNames) }}
                 </div>
                 <div class="fee-family-meta">
-                    @if($parentPhone)
-                        <span><i class="bi bi-telephone"></i> {{ $parentPhone }}</span>
-                    @endif
-                    @if(!empty($parentNames))
-                        <span>{{ implode(' / ', $parentNames) }}</span>
-                    @endif
+                    @include('finance.fee_balances.partials.parent_contacts', ['contacts' => $group['parent_contacts'] ?? []])
                     @if($lastPromised)
                         <span>
                             <i class="bi bi-calendar-event"></i>
@@ -76,24 +71,28 @@
                                 value="{{ $lastPromisedValue }}"
                             >
                         </div>
+
+                        @include('finance.partials.fee-notes-launcher', [
+                            'familyId' => $familyId,
+                            'title' => $group['label'] ?? 'Family',
+                            'noteCount' => $group['note_count'] ?? 0,
+                            'scope' => 'family',
+                            'buttonClass' => 'btn btn-sm btn-outline-secondary',
+                        ])
                     @endif
                 </div>
             </div>
             <div class="fee-family-totals">
                 <div class="fee-metric">
-                    <span class="fee-metric-label">Term invoiced</span>
-                    <span class="fee-metric-value">Ksh {{ number_format($group['total_invoiced'], 0) }}</span>
+                    <span class="fee-metric-label">Previous terms</span>
+                    <span class="fee-metric-value">Ksh {{ number_format($group['prior_term_balance'] ?? 0, 0) }}</span>
                 </div>
                 <div class="fee-metric">
-                    <span class="fee-metric-label">On term invoices</span>
-                    <span class="fee-metric-value text-success">Ksh {{ number_format($group['total_paid'], 0) }}</span>
-                </div>
-                <div class="fee-metric">
-                    <span class="fee-metric-label">Paid in term period</span>
-                    <span class="fee-metric-value">Ksh {{ number_format($group['paid_in_term_period'] ?? 0, 0) }}</span>
+                    <span class="fee-metric-label">This term</span>
+                    <span class="fee-metric-value">Ksh {{ number_format($group['current_term_balance'] ?? 0, 0) }}</span>
                 </div>
                 <div class="fee-metric fee-metric-emphasis">
-                    <span class="fee-metric-label">Family balance</span>
+                    <span class="fee-metric-label">Total owed</span>
                     <span class="fee-metric-value {{ ($group['balance'] ?? 0) > 0 ? 'text-danger' : 'text-success' }}">
                         Ksh {{ number_format($group['balance'], 0) }}
                     </span>

@@ -85,6 +85,8 @@ class FeeBalanceController extends Controller
 
         $promiseMaps = $this->loadLastPromiseDates($students);
         $paymentStats = $this->loadPaymentActivityStats($students, $selectedTerm);
+        $termBalances = $this->loadTermInvoiceBalances($students, (int) $year, $termId ? (int) $termId : null, (int) $termNumber);
+        $noteCounts = $this->loadFinancialNoteCounts($students);
         
         // Get balance brought forward votehead
         $balanceBroughtForwardVotehead = Votehead::where('code', 'BAL_BF')->first();
@@ -92,7 +94,7 @@ class FeeBalanceController extends Controller
         $statementService = app(StudentFeeStatementService::class);
 
         // Enrich each student with financial and attendance data
-        $enrichedStudents = $students->map(function ($student) use ($year, $termNumber, $termId, $selectedTerm, $balanceBroughtForwardVotehead, $statementService, $promiseMaps, $paymentStats) {
+        $enrichedStudents = $students->map(function ($student) use ($year, $termNumber, $termId, $selectedTerm, $balanceBroughtForwardVotehead, $statementService, $promiseMaps, $paymentStats, $termBalances, $noteCounts) {
             // Term invoice (for payment plans / BBF status context)
             $invoice = Invoice::where('student_id', $student->id)
                 ->when($termId, fn($q) => $q->where('term_id', $termId))
@@ -154,6 +156,9 @@ class FeeBalanceController extends Controller
                     ? ($student->parent->father_phone ?? $student->parent->mother_phone ?? $student->parent->guardian_phone)
                     : null
             );
+            $split = $termBalances[$student->id] ?? ['current' => 0.0, 'prior' => 0.0];
+            $familyNoteCount = $student->family_id ? (int) ($noteCounts['family'][$student->family_id] ?? 0) : 0;
+            $studentNoteCount = (int) ($noteCounts['student'][$student->id] ?? 0);
             
             return [
                 'id' => $student->id,
@@ -176,6 +181,19 @@ class FeeBalanceController extends Controller
                 'term_invoiced' => $termInvoiced,
                 'term_paid' => $termPaid,
                 'term_balance' => $termBalance,
+                'current_term_balance' => round((float) ($split['current'] ?? 0), 2),
+                'prior_term_balance' => round((float) ($split['prior'] ?? 0), 2),
+                'own_note_count' => $studentNoteCount,
+                'family_note_count' => $familyNoteCount,
+                'note_count' => $studentNoteCount + $familyNoteCount,
+                'parent_contacts' => $this->parentContactsFromFields(
+                    $this->cleanDisplayValue($student->parent?->father_name),
+                    $this->cleanDisplayValue($student->parent?->father_phone),
+                    $this->cleanDisplayValue($student->parent?->mother_name),
+                    $this->cleanDisplayValue($student->parent?->mother_phone),
+                    $this->cleanDisplayValue($student->parent?->guardian_name),
+                    $this->cleanDisplayValue($student->parent?->guardian_phone),
+                ),
                 // Cash collected during the selected term window (even if applied to prior dues)
                 'paid_in_term_period' => (float) ($payStats['paid_in_term_period'] ?? 0),
                 'last_payment_date' => $payStats['last_payment_date'] ?? null,
@@ -763,6 +781,19 @@ class FeeBalanceController extends Controller
                 $first['guardian_name'] ?? null,
             ])->filter()->unique()->values();
 
+            $parentContacts = [];
+            $seenContacts = [];
+            foreach ($children as $child) {
+                foreach ($child['parent_contacts'] ?? [] as $contact) {
+                    $key = strtolower(($contact['role'] ?? '').'|'.($contact['phone'] ?? '').'|'.($contact['name'] ?? ''));
+                    if (isset($seenContacts[$key])) {
+                        continue;
+                    }
+                    $seenContacts[$key] = true;
+                    $parentContacts[] = $contact;
+                }
+            }
+
             $groups->push([
                 'family_id' => $familyId,
                 'is_family' => $familyId && $children->count() > 1,
@@ -772,11 +803,15 @@ class FeeBalanceController extends Controller
                 'child_names' => $childNames,
                 'parent_phone' => $first['parent_phone'] ?? null,
                 'parent_names' => $parentParts->all(),
+                'parent_contacts' => $parentContacts,
                 'father_name' => $first['father_name'] ?? null,
                 'mother_name' => $first['mother_name'] ?? null,
+                'note_count' => (int) ($first['family_note_count'] ?? 0) + (int) $children->sum('own_note_count'),
                 // Term totals for invoiced/paid; combined outstanding for balance
                 'total_invoiced' => (float) $children->sum('term_invoiced'),
                 'total_paid' => (float) $children->sum('term_paid'),
+                'prior_term_balance' => round((float) $children->sum('prior_term_balance'), 2),
+                'current_term_balance' => round((float) $children->sum('current_term_balance'), 2),
                 'paid_in_term_period' => (float) $children->sum('paid_in_term_period'),
                 'balance' => (float) $children->sum('balance'),
                 'last_promised' => $lastPromised,
@@ -786,6 +821,107 @@ class FeeBalanceController extends Controller
         }
 
         return $groups->values();
+    }
+
+    /**
+     * Positive invoice balances split into the selected term and earlier terms in the same year.
+     *
+     * @return array<int, array{current: float, prior: float}>
+     */
+    private function loadTermInvoiceBalances(Collection $students, int $year, ?int $termId, int $termNumber): array
+    {
+        $studentIds = $students->pluck('id')->filter()->unique()->values()->all();
+        if (empty($studentIds)) {
+            return [];
+        }
+
+        $invoices = Invoice::query()
+            ->notReversed()
+            ->whereIn('student_id', $studentIds)
+            ->where('year', $year)
+            ->get(['student_id', 'term_id', 'term', 'year', 'balance']);
+
+        $split = [];
+        foreach ($invoices as $invoice) {
+            $studentId = (int) $invoice->student_id;
+            $balance = max(0, (float) $invoice->balance);
+            if (!isset($split[$studentId])) {
+                $split[$studentId] = ['current' => 0.0, 'prior' => 0.0];
+            }
+
+            $isCurrent = false;
+            if ($termId && (int) $invoice->term_id === $termId) {
+                $isCurrent = true;
+            } elseif (!$invoice->term_id && (int) $invoice->year === $year && (int) $invoice->term === $termNumber) {
+                $isCurrent = true;
+            }
+
+            if ($isCurrent) {
+                $split[$studentId]['current'] += $balance;
+            } else {
+                $split[$studentId]['prior'] += $balance;
+            }
+        }
+
+        return $split;
+    }
+
+    /**
+     * @return array{student: array<int, int>, family: array<int, int>}
+     */
+    private function loadFinancialNoteCounts(Collection $students): array
+    {
+        $studentIds = $students->pluck('id')->filter()->unique()->values()->all();
+        $familyIds = $students->pluck('family_id')->filter()->unique()->values()->all();
+
+        $byStudent = [];
+        if (!empty($studentIds)) {
+            $byStudent = FinancialNote::query()
+                ->whereIn('student_id', $studentIds)
+                ->select('student_id', DB::raw('COUNT(*) as note_count'))
+                ->groupBy('student_id')
+                ->pluck('note_count', 'student_id')
+                ->map(fn ($count) => (int) $count)
+                ->all();
+        }
+
+        $byFamily = [];
+        if (!empty($familyIds)) {
+            $byFamily = FinancialNote::query()
+                ->whereIn('family_id', $familyIds)
+                ->whereNull('student_id')
+                ->select('family_id', DB::raw('COUNT(*) as note_count'))
+                ->groupBy('family_id')
+                ->pluck('note_count', 'family_id')
+                ->map(fn ($count) => (int) $count)
+                ->all();
+        }
+
+        return [
+            'student' => $byStudent,
+            'family' => $byFamily,
+        ];
+    }
+
+    /**
+     * Father and mother contacts. Guardian is used only when neither parent is on file.
+     *
+     * @return array<int, array{role: string, name: ?string, phone: ?string}>
+     */
+    private function parentContactsFromFields(?string $fatherName, ?string $fatherPhone, ?string $motherName, ?string $motherPhone, ?string $guardianName, ?string $guardianPhone): array
+    {
+        $contacts = [];
+        if ($fatherName || $fatherPhone) {
+            $contacts[] = ['role' => 'Father', 'name' => $fatherName, 'phone' => $fatherPhone];
+        }
+        if ($motherName || $motherPhone) {
+            $contacts[] = ['role' => 'Mother', 'name' => $motherName, 'phone' => $motherPhone];
+        }
+        if (empty($contacts) && ($guardianName || $guardianPhone)) {
+            $contacts[] = ['role' => 'Guardian', 'name' => $guardianName, 'phone' => $guardianPhone];
+        }
+
+        return $contacts;
     }
 
     /**
@@ -1030,7 +1166,7 @@ class FeeBalanceController extends Controller
             
             $headers = ['Family ID', 'Admission No', 'Student Name', 'Class', 'Stream', 'Father Name', 'Father Phone', 'Mother Name', 'Mother Phone', 'Last Promised', 'Fiscal Task'];
             if ($includeAmounts) {
-                $headers = array_merge($headers, ['Term Invoiced', 'Term Paid', 'Outstanding Balance', 'Balance %', 'Payment Status', 'BBF Outstanding', 'Days in School', 'Days Present', 'Days Absent', 'Attendance %', 'In School', 'Has Payment Plan', 'Plan Status', 'Next Installment']);
+                $headers = array_merge($headers, ['Term Invoiced', 'Term Paid', 'Previous Term Balance', 'Current Term Balance', 'Total Owed', 'Balance %', 'Payment Status', 'BBF Outstanding', 'Days in School', 'Days Present', 'Days Absent', 'Attendance %', 'In School', 'Has Payment Plan', 'Plan Status', 'Next Installment']);
             }
             fputcsv($handle, $headers);
 
@@ -1054,6 +1190,8 @@ class FeeBalanceController extends Controller
                         $familyRow = array_merge($familyRow, [
                             number_format($group['total_invoiced'], 2),
                             number_format($group['total_paid'], 2),
+                            number_format($group['prior_term_balance'] ?? 0, 2),
+                            number_format($group['current_term_balance'] ?? 0, 2),
                             number_format($group['balance'], 2),
                             '',
                             'Family',
@@ -1093,6 +1231,8 @@ class FeeBalanceController extends Controller
                         $row = array_merge($row, [
                             number_format($student['term_invoiced'] ?? $student['total_invoiced'], 2),
                             number_format($student['term_paid'] ?? $student['total_paid'], 2),
+                            number_format($student['prior_term_balance'] ?? 0, 2),
+                            number_format($student['current_term_balance'] ?? 0, 2),
                             number_format($student['balance'], 2),
                             $student['balance_percentage'] . '%',
                             ucfirst(str_replace('_', ' ', $student['payment_status'])),

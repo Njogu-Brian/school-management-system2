@@ -172,7 +172,9 @@
                     <th style="width: {{ $includeAmounts ?? true ? '18%' : '26%' }};">Child's Name</th>
                     <th style="width: {{ $includeAmounts ?? true ? '10%' : '14%' }};">Adm No</th>
                     @if($includeAmounts ?? true)
-                    <th style="width: 12%;" class="text-end">Fee Balance</th>
+                    <th style="width: 11%;" class="text-end">Previous</th>
+                    <th style="width: 11%;" class="text-end">This term</th>
+                    <th style="width: 12%;" class="text-end">Total owed</th>
                     @endif
                     <th style="width: 11%;">Last Promised</th>
                     <th style="width: 10%;">Fiscal Task</th>
@@ -208,6 +210,8 @@
                     </td>
                     <td>{{ $student['admission_number'] }}</td>
                     @if($includeAmounts ?? true)
+                    <td class="text-end">Ksh {{ number_format($student['prior_term_balance'] ?? 0, 2) }}</td>
+                    <td class="text-end">Ksh {{ number_format($student['current_term_balance'] ?? 0, 2) }}</td>
                     <td class="text-end {{ $student['balance'] > 0 ? 'balance-positive' : 'balance-zero' }}">
                         Ksh {{ number_format($student['balance'], 2) }}
                     </td>
@@ -246,6 +250,8 @@
             <tfoot>
                 <tr style="background-color: #e2e8f0; font-weight: bold;">
                     <td colspan="3" class="text-end">Total Class Fee Balance:</td>
+                    <td class="text-end">Ksh {{ number_format($students->sum('prior_term_balance'), 2) }}</td>
+                    <td class="text-end">Ksh {{ number_format($students->sum('current_term_balance'), 2) }}</td>
                     <td class="text-end {{ $students->sum('balance') > 0 ? 'balance-positive' : 'balance-zero' }}">
                         Ksh {{ number_format($students->sum('balance'), 2) }}
                     </td>

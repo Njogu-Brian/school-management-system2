@@ -14,8 +14,6 @@
         : ($lastPromised ? \Carbon\Carbon::parse($lastPromised)->format('Y-m-d') : '');
     $lastPaymentDate = $student['last_payment_date'] ?? null;
     $lastPaymentAmount = (float) ($student['last_payment_amount'] ?? 0);
-    $paidInTermPeriod = (float) ($student['paid_in_term_period'] ?? 0);
-    $termInvoicePaid = (float) ($student['term_paid'] ?? $student['total_paid'] ?? 0);
     $hasUnclearedBbf = !empty($student['has_uncleared_bbf']);
     $statusColors = [
         'paid' => 'success',
@@ -37,36 +35,28 @@
             @if(!empty($student['classroom']))
                 <span>{{ $student['classroom'] }}@if(!empty($student['stream'])) · {{ $student['stream'] }}@endif</span>
             @endif
-            @if(!empty($student['parent_phone']) && !$inFamilyGroup)
-                <span><i class="bi bi-telephone"></i> {{ $student['parent_phone'] }}</span>
+            @if(!empty($student['parent_contacts']) && !$inFamilyGroup)
+                <div class="mt-2">
+                    @include('finance.fee_balances.partials.parent_contacts', ['contacts' => $student['parent_contacts']])
+                </div>
             @endif
         </div>
     </div>
 
     <div class="fee-child-figures">
         <div class="fee-metric">
-            <span class="fee-metric-label">Term invoiced</span>
-            <span class="fee-metric-value">Ksh {{ number_format($student['term_invoiced'] ?? $student['total_invoiced'], 0) }}</span>
+            <span class="fee-metric-label">Previous terms</span>
+            <span class="fee-metric-value">Ksh {{ number_format($student['prior_term_balance'] ?? 0, 0) }}</span>
         </div>
         <div class="fee-metric">
-            <span class="fee-metric-label">On this term invoice</span>
-            <span class="fee-metric-value text-success">Ksh {{ number_format($termInvoicePaid, 0) }}</span>
-        </div>
-        <div class="fee-metric">
-            <span class="fee-metric-label">Paid in term period</span>
-            <span class="fee-metric-value">Ksh {{ number_format($paidInTermPeriod, 0) }}</span>
-            <small class="text-muted">cash dated in term</small>
+            <span class="fee-metric-label">This term</span>
+            <span class="fee-metric-value">Ksh {{ number_format($student['current_term_balance'] ?? 0, 0) }}</span>
         </div>
         <div class="fee-metric fee-metric-emphasis">
-            <span class="fee-metric-label">Outstanding</span>
+            <span class="fee-metric-label">Total owed</span>
             <span class="fee-metric-value {{ $student['balance'] > 0 ? 'text-danger' : 'text-success' }}">
                 Ksh {{ number_format($student['balance'], 0) }}
             </span>
-            @if($student['balance'] > 0 && ($student['year_invoiced'] ?? 0) > 0)
-                <small class="text-muted">{{ $student['balance_percentage'] }}% of year</small>
-            @elseif($student['balance'] < 0)
-                <small class="text-success">Credit</small>
-            @endif
         </div>
     </div>
 
@@ -168,5 +158,13 @@
                 </a>
             @endif
         </div>
+        @include('finance.partials.fee-notes-launcher', [
+            'studentId' => $student['id'],
+            'familyId' => $student['family_id'] ?? null,
+            'title' => $student['full_name'],
+            'noteCount' => $student['note_count'] ?? 0,
+            'scope' => 'student',
+            'buttonClass' => 'btn btn-sm btn-outline-secondary',
+        ])
     </div>
 </div>

@@ -37,8 +37,9 @@
     </div>
 
     @include('finance.partials.financial-notes', [
-        'studentId' => $students->first()?->id,
         'familyId' => $family->id,
+        'title' => 'Family fee notes',
+        'scope' => 'family',
     ])
 
     <div class="row g-3 mb-4">

@@ -192,7 +192,35 @@
             gap: 10px 14px;
             color: var(--fin-muted);
             font-size: 0.85rem;
+            align-items: flex-start;
         }
+        .fee-parent-contacts {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .fee-parent-contact {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            min-width: 0;
+            padding: 6px 10px;
+            border-radius: 10px;
+            background: rgba(37, 99, 235, 0.06);
+            color: inherit;
+            text-decoration: none;
+            max-width: 100%;
+        }
+        a.fee-parent-contact:hover { background: rgba(37, 99, 235, 0.12); color: inherit; }
+        .fee-parent-role {
+            font-size: 0.68rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: #64748b;
+        }
+        .fee-parent-name { font-weight: 700; color: #1e293b; font-size: 0.84rem; }
+        .fee-parent-phone { font-size: 0.8rem; color: #334155; word-break: break-all; }
         .fee-family-totals {
             display: grid;
             grid-template-columns: repeat(3, minmax(90px, 1fr));
@@ -266,13 +294,8 @@
 
         .fee-child-figures {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 8px;
-        }
-        @media (min-width: 1200px) {
-            .fee-child-figures {
-                grid-template-columns: repeat(4, minmax(0, 1fr));
-            }
         }
 
         .fee-promise-form {
@@ -313,7 +336,14 @@
         .fee-chip-info { background: rgba(59, 130, 246, 0.14); color: #1d4ed8; }
         .fee-chip-muted { background: rgba(239, 68, 68, 0.1); color: #b91c1c; }
 
-        .fee-child-actions { justify-self: end; align-self: center; }
+        .fee-child-actions {
+            justify-self: end;
+            align-self: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+        }
 
         @media (max-width: 991.98px) {
             .fee-child-card {
@@ -654,9 +684,9 @@
                 </div>
                 <div class="col-md-6">
                     <ul class="mb-0">
-                        <li><strong>Term invoiced / paid in term:</strong> Selected term invoice vs cash dated in term</li>
-                        <li><strong>Fiscal Task / Promise:</strong> Shared per family — edit on this page, then use <em>Save status &amp; dates</em></li>
-                        <li><strong>All tab:</strong> Students with outstanding &gt; 0 only · 20 per page</li>
+                        <li><strong>Previous terms / this term:</strong> Unpaid invoice balances for earlier terms vs the selected term. <strong>Total owed</strong> is the year statement balance for the student or family.</li>
+                        <li><strong>Parents:</strong> Father and mother contacts when both are on file; one contact when only one is recorded. Tap a number to call.</li>
+                        <li><strong>Fee notes:</strong> Open from the Fee notes button — a panel on this page, not a new window</li>
                         <li><strong>Term Start:</strong> {{ $currentTerm?->opening_date ? $currentTerm->opening_date->format('M d, Y') : 'Not set' }}</li>
                     </ul>
                 </div>
