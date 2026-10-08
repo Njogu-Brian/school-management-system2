@@ -4,11 +4,13 @@ namespace App\Services;
 
 use App\Models\{
     Student, Votehead, FeeStructure, FeeCharge, OptionalFee, InvoiceItem,
-    Invoice, FeePostingRun, PostingDiff, AcademicYear, Term, FeeConcession, User
+    Invoice, FeePostingRun, PostingDiff, AcademicYear, Term, FeeConcession, User,
+    ExtraIncomeItem, FeePostingDismissal
 };
 use App\Services\{DiscountService, InvoiceService, TransportFeeService};
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Enhanced Fee Posting Service
@@ -16,6 +18,9 @@ use Illuminate\Support\Facades\DB;
  */
 class FeePostingService
 {
+    /** @var array<string, list<int>> */
+    private array $extraIncomeVoteheadCache = [];
+
     /**
      * Build preview with diff calculation
      */
@@ -60,8 +65,13 @@ class FeePostingService
             }
             
             // Calculate diffs
+            $extraIncomeVoteheadIds = $this->extraIncomeVoteheadIds($year, $term);
+
             foreach ($proposedItems as $proposed) {
                 $voteheadId = $proposed['votehead_id'];
+                if (in_array((int) $voteheadId, $extraIncomeVoteheadIds, true)) {
+                    continue;
+                }
                 if (($proposed['origin'] ?? '') === 'transport') {
                     // Only show transport when it actually changes (added/increased/decreased)
                     $diff = $this->calculateDiff($student, $voteheadId, $existingTransport, $proposed);
@@ -107,6 +117,10 @@ class FeePostingService
             foreach ($existingItems as $existing) {
                 $source = $existing['source'] ?? 'structure';
                 $voteheadId = $existing['votehead_id'];
+
+                if ($source === 'extra_income' || in_array((int) $voteheadId, $extraIncomeVoteheadIds, true)) {
+                    continue;
+                }
                 
                 // If votehead filter is applied, only process this existing item if it matches the filter
                 if (!empty($filters['votehead_id']) && $voteheadId != (int)$filters['votehead_id']) {
@@ -265,10 +279,14 @@ class FeePostingService
             }
         }
         
-        // Filter out unchanged items - user only wants to see actual changes
-        $diffs = $diffs->filter(function($diff) {
-            return isset($diff['action']) && $diff['action'] !== 'unchanged';
-        });
+        // Filter out unchanged items and changes already rejected for this term.
+        $diffs = $diffs->filter(function ($diff) use ($year, $term) {
+            if (!isset($diff['action']) || $diff['action'] === 'unchanged') {
+                return false;
+            }
+
+            return !$this->isDismissed($diff, $year, $term);
+        })->values();
         
         return [
             'diffs' => $diffs,
@@ -330,6 +348,7 @@ class FeePostingService
             ]);
             
             $count = 0;
+            $extraIncomeVoteheadIds = $this->extraIncomeVoteheadIds($year, $term);
             
             foreach ($diffs as $diff) {
                 // Skip unchanged items
@@ -343,6 +362,12 @@ class FeePostingService
                 }
                 
                 $source = $diff['origin'] ?? 'structure';
+
+                if (in_array((int) $diff['votehead_id'], $extraIncomeVoteheadIds, true)
+                    || $source === 'extra_income'
+                    || str_contains($source, 'extra_income')) {
+                    continue;
+                }
 
                 // Handle removals (for optional, structure, and transport)
                 if (isset($diff['action']) && $diff['action'] === 'removed') {
@@ -458,7 +483,7 @@ class FeePostingService
                 // Compare original_amount (fee structure) so we don't skip when only credit/debit notes differ.
                 if (isset($diff['invoice_item_id']) && $diff['invoice_item_id']) {
                     $existingItem = InvoiceItem::find($diff['invoice_item_id']);
-                    if ($existingItem && in_array($existingItem->source, ['transport', 'balance_brought_forward', 'swimming_attendance'])) {
+                    if ($existingItem && in_array($existingItem->source, ['transport', 'balance_brought_forward', 'swimming_attendance', 'extra_income'])) {
                         continue;
                     }
                     $newAmount = (float)($diff['new_amount'] ?? 0);
@@ -478,7 +503,7 @@ class FeePostingService
                     ->first();
                 
                 // Skip if item exists and is transport, BBF, or swimming daily attendance (managed separately)
-                if ($existingItem && in_array($existingItem->source, ['transport', 'balance_brought_forward', 'swimming_attendance'])) {
+                if ($existingItem && in_array($existingItem->source, ['transport', 'balance_brought_forward', 'swimming_attendance', 'extra_income'])) {
                     continue;
                 }
 
@@ -662,8 +687,9 @@ class FeePostingService
     }
 
     /**
-     * Reject selected pending diffs and undo source changes where possible.
-     * Only optional and transport changes are reverted; structure changes are skipped.
+     * Reject selected pending diffs.
+     * The invoice is left as it is. The pending change is removed so the next
+     * preview does not show the same student, votehead, and amount again.
      */
     public function rejectPendingDiffs(Collection $diffs, int $year, int $term, array $rejectedIndices): void
     {
@@ -676,12 +702,14 @@ class FeePostingService
         });
 
         foreach ($rejected as $diff) {
-            $origin = $diff['origin'] ?? 'structure';
-            if ($origin === 'optional') {
+            $origin = (string) ($diff['origin'] ?? 'structure');
+            if (str_contains($origin, 'optional')) {
                 $this->revertOptionalFeeDiff($diff, $year, $term);
-            } elseif ($origin === 'transport') {
+            }
+            if (str_contains($origin, 'transport')) {
                 $this->revertTransportFeeDiff($diff, $year, $term);
             }
+            $this->dismissDiff($diff, $year, $term);
         }
     }
 
@@ -778,6 +806,78 @@ class FeePostingService
                 'skip_invoice' => true,
             ]);
         }
+    }
+
+    private function dismissDiff(array $diff, int $year, int $term): void
+    {
+        $studentId = (int) ($diff['student_id'] ?? 0);
+        $voteheadId = (int) ($diff['votehead_id'] ?? 0);
+        if (!$studentId || !$voteheadId || !Schema::hasTable('fee_posting_dismissals')) {
+            return;
+        }
+
+        FeePostingDismissal::query()->updateOrCreate(
+            [
+                'student_id' => $studentId,
+                'votehead_id' => $voteheadId,
+                'year' => $year,
+                'term' => $term,
+                'new_amount_cents' => $this->amountCents($diff['new_amount'] ?? 0),
+            ],
+            [
+                'action' => (string) ($diff['action'] ?? 'changed'),
+            ]
+        );
+    }
+
+    private function isDismissed(array $diff, int $year, int $term): bool
+    {
+        $studentId = (int) ($diff['student_id'] ?? 0);
+        $voteheadId = (int) ($diff['votehead_id'] ?? 0);
+        if (!$studentId || !$voteheadId || !Schema::hasTable('fee_posting_dismissals')) {
+            return false;
+        }
+
+        return FeePostingDismissal::query()
+            ->where('student_id', $studentId)
+            ->where('votehead_id', $voteheadId)
+            ->where('year', $year)
+            ->where('term', $term)
+            ->where('new_amount_cents', $this->amountCents($diff['new_amount'] ?? 0))
+            ->exists();
+    }
+
+    private function amountCents(mixed $amount): int
+    {
+        return (int) round(((float) $amount) * 100);
+    }
+
+    /**
+     * Voteheads billed through extra income are already on the invoice, or are
+     * not posted by this screen. They must not appear as pending fee changes.
+     *
+     * @return list<int>
+     */
+    private function extraIncomeVoteheadIds(int $year, int $term): array
+    {
+        $key = $year.'-'.$term;
+        if (array_key_exists($key, $this->extraIncomeVoteheadCache)) {
+            return $this->extraIncomeVoteheadCache[$key];
+        }
+
+        if (!Schema::hasTable('extra_income_items')) {
+            return $this->extraIncomeVoteheadCache[$key] = [];
+        }
+
+        return $this->extraIncomeVoteheadCache[$key] = ExtraIncomeItem::query()
+            ->where('year', $year)
+            ->where('term', $term)
+            ->whereNotNull('votehead_id')
+            ->pluck('votehead_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
     }
     
     /**
@@ -1299,7 +1399,8 @@ class FeePostingService
         $excludeSources = function ($q) {
             $q->where('source', '!=', 'transport')
               ->where('source', '!=', 'balance_brought_forward')
-              ->where('source', '!=', 'swimming_attendance');
+              ->where('source', '!=', 'swimming_attendance')
+              ->where('source', '!=', 'extra_income');
         };
 
         $invoice = Invoice::where('student_id', $studentId)
@@ -1365,6 +1466,7 @@ class FeePostingService
     private function getProposedItems(Student $student, int $year, int $term, array $filters): Collection
     {
         $items = collect();
+        $extraIncomeVoteheadIds = $this->extraIncomeVoteheadIds($year, $term);
         
         // From fee structure - match by classroom, academic_year, term, stream, and student category
         $structureQuery = FeeStructure::with('charges.votehead')
@@ -1450,6 +1552,9 @@ class FeePostingService
             foreach ($charges as $charge) {
                 $votehead = $charge->votehead;
                 if (!$votehead) continue;
+                if (in_array((int) $votehead->id, $extraIncomeVoteheadIds, true)) {
+                    continue;
+                }
                 
                 // Check charge type constraints (handles preferred_term and once-only for new students)
                 if (!$votehead->canChargeForStudent($student, $year, $term)) {
@@ -1485,6 +1590,10 @@ class FeePostingService
             ->get();
         
         foreach ($optional as $opt) {
+            if (in_array((int) $opt->votehead_id, $extraIncomeVoteheadIds, true)) {
+                continue;
+            }
+
             $amount = (float)($opt->amount ?? 0);
             
             // If amount is 0 or null, try to get it from the fee structure

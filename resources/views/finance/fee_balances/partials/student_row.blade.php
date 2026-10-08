@@ -121,12 +121,28 @@
             </span>
         @endif
 
-        <span class="fee-chip {{ $student['is_in_school'] ? 'fee-chip-ok' : 'fee-chip-muted' }}">
-            @if($student['is_in_school'])
-                <i class="bi bi-check-circle"></i> In school · {{ $student['attendance_rate'] }}%
-            @else
-                <i class="bi bi-x-circle"></i> Not reported · {{ $student['attendance_rate'] }}%
-            @endif
+        @php
+            $todayStatus = $student['today_status'] ?? 'unmarked';
+        @endphp
+        @if($todayStatus === 'absent')
+            <span class="fee-chip fee-chip-muted" title="Marked absent today">
+                <i class="bi bi-x-circle"></i> Absent today
+            </span>
+        @elseif($todayStatus === 'late')
+            <span class="fee-chip fee-chip-warn" title="Marked late today">
+                <i class="bi bi-clock"></i> Late today
+            </span>
+        @elseif($todayStatus === 'present')
+            <span class="fee-chip fee-chip-ok" title="Marked present today">
+                <i class="bi bi-check-circle"></i> Present today
+            </span>
+        @else
+            <span class="fee-chip fee-chip-unmarked" title="Attendance not taken today">
+                <i class="bi bi-dash-circle"></i> Unmarked
+            </span>
+        @endif
+        <span class="fee-chip" title="Attendance since term start">
+            {{ $student['attendance_rate'] }}% this term
         </span>
 
         @if($student['has_payment_plan'])

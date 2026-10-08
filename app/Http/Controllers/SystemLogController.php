@@ -10,7 +10,7 @@ class SystemLogController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('role:Super Admin|Admin');
+        $this->middleware('role:Super Admin');
     }
 
     public function index(Request $request)

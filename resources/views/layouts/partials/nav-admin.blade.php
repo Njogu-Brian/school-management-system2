@@ -1122,6 +1122,8 @@ class="{{ $isSettingsActive ? 'parent-active' : '' }}">
     class="sublink {{ Request::is('activity-logs*') ? 'active' : '' }}">
     <i class="bi bi-clock-history"></i> Activity Logs
     </a>
+    @endif
+    @if(auth()->user()->hasRole('Super Admin'))
     <a href="{{ route('system-logs.index') }}" 
     class="sublink {{ Request::is('system-logs*') ? 'active' : '' }}">
     <i class="bi bi-file-earmark-text"></i> System Logs

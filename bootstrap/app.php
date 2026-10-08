@@ -85,7 +85,7 @@ return Application::configure(basePath: dirname(__DIR__))
             try {
                 app(\App\Services\SystemAlertService::class)->raiseProcessingError(
                     title: 'Unhandled application error',
-                    message: class_basename($e).': '.$e->getMessage(),
+                    message: \App\Services\SystemAlertService::publicMessageForException($e),
                     category: 'system',
                     fingerprint: \App\Services\SystemAlertService::fingerprintForException($e),
                     deepLink: '/system-logs',

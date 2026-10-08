@@ -8,14 +8,14 @@ return [
     |--------------------------------------------------------------------------
     |
     | Web (database) notifications and mobile push are always delivered.
-    | Email and SMS escalation are opt-in because they consume SMS credits
-    | and flood admin inboxes when a fault repeats.
+    | Email and SMS escalation stay off until explicitly re-enabled in code.
+    | Do not read these from the environment while they are paused.
     |
     */
 
     'escalation' => [
-        'email' => env('SYSTEM_ALERT_ESCALATION_EMAIL', false),
-        'sms' => env('SYSTEM_ALERT_ESCALATION_SMS', false),
+        'email' => false,
+        'sms' => false,
     ],
 
 ];

@@ -121,7 +121,11 @@
                         <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Change Details</h5>
                         <small class="finance-muted">{{ $allDiffs->count() }} total changes across {{ $groupedDiffs->total() }} students</small>
                     </div>
-                    <div class="d-flex align-items-center gap-2 mt-2 mt-md-0">
+                    <div class="d-flex align-items-center gap-3 mt-2 mt-md-0 flex-wrap">
+                        <div class="form-check mb-0">
+                            <input class="form-check-input" type="checkbox" name="reject_all" value="1" id="rejectAllChildren">
+                            <label class="form-check-label small" for="rejectAllChildren">Reject all children</label>
+                        </div>
                         <label class="mb-0 small finance-muted">Per Page:</label>
                         <select class="form-select form-select-sm" style="width: auto;" onchange="changePerPage(this.value)">
                             <option value="25" {{ $perPage == 25 ? 'selected' : '' }}>25</option>
@@ -142,7 +146,7 @@
                                 <th class="text-end" style="width: 12%;">Old Total</th>
                                 <th class="text-end" style="width: 12%;">New Total</th>
                                 <th class="text-end" style="width: 12%;">Difference</th>
-                                <th style="width: 4%;"></th>
+                                <th style="width: 8%;">Reject</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -209,9 +213,6 @@
                                                         $oldAmount = $diff['old_amount'] ?? 0;
                                                         $newAmount = $diff['new_amount'] ?? 0;
                                                         $difference = $newAmount - $oldAmount;
-                                                        $origin = $diff['origin'] ?? 'structure';
-                                                        $canReject = in_array($origin, ['optional', 'transport']);
-                                                        
                                                         $badgeClass = match($diff['action']) {
                                                             'added' => 'bg-success',
                                                             'increased' => 'bg-warning',
@@ -227,11 +228,14 @@
                                                         <td class="text-end"><small>Ksh {{ number_format($newAmount, 2) }}</small></td>
                                                         <td class="text-end"><small>{{ $difference != 0 ? ($difference > 0 ? '+' : '') . number_format($difference, 2) : '0.00' }}</small></td>
                                                         <td class="text-end">
-                                                            @if($canReject)
-                                                                <input type="checkbox" name="rejected[]" value="{{ $diff['_preview_index'] ?? '' }}">
-                                                            @else
-                                                                <span class="text-muted">—</span>
-                                                            @endif
+                                                            <input
+                                                                type="checkbox"
+                                                                class="form-check-input reject-diff"
+                                                                name="rejected[]"
+                                                                value="{{ $diff['_preview_index'] ?? '' }}"
+                                                                data-student="{{ $studentId }}"
+                                                                aria-label="Reject this change"
+                                                            >
                                                         </td>
                                                     </tr>
                                                     @endforeach
@@ -261,7 +265,19 @@
                                         <span class="text-muted">0.00</span>
                                     @endif
                                 </td>
-                                <td></td>
+                                <td>
+                                    <div class="form-check mb-0">
+                                        <input
+                                            class="form-check-input reject-student"
+                                            type="checkbox"
+                                            name="rejected_students[]"
+                                            value="{{ $studentId }}"
+                                            id="reject-student-{{ $studentId }}"
+                                            data-student="{{ $studentId }}"
+                                        >
+                                        <label class="form-check-label small" for="reject-student-{{ $studentId }}">All</label>
+                                    </div>
+                                </td>
                             </tr>
                             @endforeach
                         </tbody>
@@ -307,8 +323,8 @@
                     <div class="col-md-6">
                         <small class="text-muted">
                             <i class="bi bi-info-circle"></i> 
-                            Review all changes before committing. This action will create/update invoice items.
-                            Reject is available for optional and transport changes only.
+                            Review all changes before committing. Extra income is not listed here.
+                            Rejecting a change leaves the invoice as it is and removes that change from the next post.
                         </small>
                     </div>
                     <div class="col-md-6 text-end">
@@ -366,9 +382,43 @@
 function changePerPage(value) {
     const url = new URL(window.location.href);
     url.searchParams.set('per_page', value);
-    url.searchParams.set('page', '1'); // Reset to first page
+    url.searchParams.set('page', '1');
     window.location.href = url.toString();
 }
+
+document.getElementById('rejectAllChildren')?.addEventListener('change', function () {
+    document.querySelectorAll('.reject-diff, .reject-student').forEach(function (box) {
+        box.checked = this.checked;
+    }, this);
+});
+
+document.querySelectorAll('.reject-student').forEach(function (box) {
+    box.addEventListener('change', function () {
+        const studentId = this.dataset.student;
+        document.querySelectorAll('.reject-diff[data-student="' + studentId + '"]').forEach(function (change) {
+            change.checked = box.checked;
+        });
+        if (!box.checked) {
+            const all = document.getElementById('rejectAllChildren');
+            if (all) all.checked = false;
+        }
+    });
+});
+
+document.querySelectorAll('.reject-diff').forEach(function (box) {
+    box.addEventListener('change', function () {
+        const studentId = this.dataset.student;
+        const changes = Array.from(document.querySelectorAll('.reject-diff[data-student="' + studentId + '"]'));
+        const studentBox = document.querySelector('.reject-student[data-student="' + studentId + '"]');
+        if (studentBox) {
+            studentBox.checked = changes.length > 0 && changes.every(function (change) { return change.checked; });
+        }
+        if (!box.checked) {
+            const all = document.getElementById('rejectAllChildren');
+            if (all) all.checked = false;
+        }
+    });
+});
 </script>
 @endpush
 @endsection

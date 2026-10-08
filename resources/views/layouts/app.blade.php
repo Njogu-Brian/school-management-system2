@@ -392,11 +392,6 @@
             font-size: 0.85rem;
             color: #6c757d;
         }
-        .system-alert-banner {
-            position: sticky;
-            top: 0;
-            z-index: 1040;
-        }
         .header-actions {
             display: flex;
             align-items: center;
@@ -669,7 +664,7 @@
     <div class="content @if($isFinance) finance-content @endif">
         @auth
         @php $isSuperAdmin = auth()->user()->hasRole('Super Admin'); @endphp
-        @php $canViewSystemAlerts = auth()->user()->hasAnyRole(['Super Admin', 'Secretary']); @endphp
+        @php $canViewSystemAlerts = auth()->user()->hasRole('Super Admin'); @endphp
         <div class="app-header d-flex align-items-center gap-3 mb-3 flex-wrap">
             @include('layouts.partials.header-search')
             <div class="header-actions ms-auto">
@@ -746,7 +741,6 @@
             </div>
         </div>
         @endauth
-        <div id="systemAlertBannerHost"></div>
         <div class="page-wrapper">
             @if(session('warning'))
             <div class="alert alert-warning alert-dismissible fade show mx-3 mt-3 mb-0" role="alert">
@@ -856,7 +850,6 @@
             (function initSystemAlerts() {
                 const menu = document.getElementById('headerAlertsMenu');
                 const badge = document.getElementById('headerAlertsBadge');
-                const bannerHost = document.getElementById('systemAlertBannerHost');
                 const smsValue = document.getElementById('headerSmsBalanceValue');
                 const smsMeta = document.getElementById('headerSmsBalanceMeta');
                 const smsBadge = document.getElementById('headerSmsBalanceBadge');
@@ -925,29 +918,6 @@
                         .replace(/</g, '&lt;')
                         .replace(/>/g, '&gt;')
                         .replace(/"/g, '&quot;');
-                }
-
-                function renderBanner(alerts) {
-                    if (!bannerHost) return;
-                    bannerHost.innerHTML = '';
-                    const critical = alerts.filter(a => a.severity === 'critical');
-                    if (!critical.length) return;
-
-                    critical.slice(0, 2).forEach(alert => {
-                        const wrap = document.createElement('div');
-                        wrap.className = 'alert alert-danger alert-dismissible fade show system-alert-banner mx-3 mt-3 mb-0';
-                        wrap.innerHTML = `
-                            <i class="bi bi-exclamation-octagon-fill me-2"></i>
-                            <strong>${escapeHtml(alert.title)}</strong> — ${escapeHtml(alert.body)}
-                            <div class="mt-2 d-flex gap-2 flex-wrap">
-                                ${alert.deep_link ? `<a class="btn btn-sm btn-light" href="${escapeHtml(alert.deep_link)}">Open</a>` : ''}
-                                <button type="button" class="btn btn-sm btn-outline-light" data-alert-id="${escapeHtml(alert.id)}">Mark done</button>
-                            </div>
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                        `;
-                        wrap.querySelector('[data-alert-id]')?.addEventListener('click', () => acknowledgeAlert(alert.id));
-                        bannerHost.appendChild(wrap);
-                    });
                 }
 
                 function renderMenu(alerts) {
@@ -1038,7 +1008,6 @@
                     const count = payload?.data?.pending_count || 0;
                     updateBadge(count);
                     renderMenu(alerts);
-                    renderBanner(alerts);
 
                     const newCritical = alerts.filter(a => a.severity === 'critical' && !knownIds.has(a.id));
                     if (playOnNew && newCritical.length) {

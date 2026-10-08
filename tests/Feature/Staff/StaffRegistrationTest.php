@@ -102,4 +102,34 @@ class StaffRegistrationTest extends TestCase
         $this->assertSame('j.nereah@royalkingsschools.sc.ke', $staff->work_email);
         $this->assertTrue($staff->user->hasRole('Teacher') || $staff->user->hasRole('teacher'));
     }
+
+    public function test_approve_with_existing_email_shows_a_validation_error(): void
+    {
+        Setting::set('staff_email_domain', 'royalkingsschools.sc.ke');
+
+        $this->post(route('staff.public-register.submit'), $this->validPayload([
+            'first_name' => 'Mercy',
+            'last_name' => 'Okwaro',
+            'id_number' => '30111222',
+            'personal_email' => 'mercy.okwaro@gmail.com',
+        ]))->assertRedirect();
+
+        $registration = StaffRegistration::firstOrFail();
+        User::factory()->create([
+            'email' => 'm.okwaro@royalkingsschools.sc.ke',
+        ]);
+
+        $this->actingAs($this->createAdmin())
+            ->from(route('staff.registrations.show', $registration))
+            ->post(route('staff.registrations.approve', $registration), [
+                'work_email' => 'm.okwaro@royalkingsschools.sc.ke',
+            ])
+            ->assertRedirect(route('staff.registrations.show', $registration))
+            ->assertSessionHasErrors('work_email');
+
+        $registration->refresh();
+        $this->assertSame('pending', $registration->status);
+        $this->assertSame(0, Staff::where('id_number', '30111222')->count());
+        $this->assertSame(1, User::where('email', 'm.okwaro@royalkingsschools.sc.ke')->count());
+    }
 }

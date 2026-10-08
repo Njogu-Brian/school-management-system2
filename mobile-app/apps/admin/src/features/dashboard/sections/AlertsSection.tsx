@@ -2,7 +2,9 @@ import {
   useApprovalList,
   useAcknowledgeSystemAlert,
   useCan,
+  useHasRole,
   useSystemAlerts,
+  UserRole,
 } from '@erp/core';
 import { AlertCard, DashboardSection, EmptyState, useTheme } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
@@ -30,7 +32,7 @@ function mapSystemSeverity(severity: string): AlertRow['severity'] {
 export const AlertsSection: React.FC = () => {
   const canViewAlerts = useCan(['dashboard.alerts.view', 'dashboard.view']);
   const canViewApprovals = useCan(['approvals.view', 'dashboard.approvals.view', 'dashboard.view']);
-  const canViewSystem = useCan(['dashboard.view']);
+  const canViewSystem = useHasRole(UserRole.SUPER_ADMIN);
   const navigation = useNavigation();
   const acknowledge = useAcknowledgeSystemAlert();
   const { spacing, palette } = useTheme();

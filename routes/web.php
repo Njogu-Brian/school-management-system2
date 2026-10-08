@@ -2284,14 +2284,14 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     | System Logs
     |----------------------------------------------------------------------
     */
-    Route::prefix('system-logs')->name('system-logs.')->middleware('role:Super Admin|Admin')->group(function () {
+    Route::prefix('system-logs')->name('system-logs.')->middleware('role:Super Admin')->group(function () {
         Route::get('/', [\App\Http\Controllers\SystemLogController::class, 'index'])->name('index');
         Route::post('/clear', [\App\Http\Controllers\SystemLogController::class, 'clear'])->name('clear');
         Route::get('/download', [\App\Http\Controllers\SystemLogController::class, 'download'])->name('download');
     });
 
     Route::prefix('admin/alerts')->name('admin.alerts.')->group(function () {
-        Route::middleware('role:Super Admin|Secretary')->group(function () {
+        Route::middleware('role:Super Admin')->group(function () {
             Route::get('/', [\App\Http\Controllers\AdminAlertController::class, 'index'])->name('index');
             Route::post('/{id}/acknowledge', [\App\Http\Controllers\AdminAlertController::class, 'acknowledge'])->name('acknowledge');
         });

@@ -10,6 +10,8 @@ use App\Models\StaffCategory;
 use App\Models\StaffRegistration;
 use App\Models\User;
 use App\Services\PhoneNumberService;
+use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -101,7 +103,7 @@ class StaffRegistrationService
 
         $candidate = $base.'@'.$domain;
         $n = 2;
-        while (User::where('email', $candidate)->exists() || Staff::where('work_email', $candidate)->exists()) {
+        while ($this->workEmailTaken($candidate)) {
             $candidate = $base.$n.'@'.$domain;
             $n++;
         }
@@ -136,19 +138,29 @@ class StaffRegistrationService
         return DB::transaction(function () use ($registration, $hr, $reviewer) {
             $workEmail = strtolower(trim((string) ($hr['work_email'] ?? $this->suggestWorkEmail($registration->first_name, $registration->last_name))));
 
-            if (User::where('email', $workEmail)->exists() || Staff::where('work_email', $workEmail)->exists()) {
+            if ($this->workEmailTaken($workEmail)) {
                 throw ValidationException::withMessages([
-                    'work_email' => 'This work email is already in use.',
+                    'work_email' => $this->duplicateWorkEmailMessage($registration),
                 ]);
             }
 
-            $user = User::create([
-                'name' => $registration->full_name,
-                'email' => $workEmail,
-                'password' => $registration->id_number,
-                'phone_number' => $registration->phone_number,
-                'must_change_password' => false,
-            ]);
+            try {
+                $user = User::create([
+                    'name' => $registration->full_name,
+                    'email' => $workEmail,
+                    'password' => $registration->id_number,
+                    'phone_number' => $registration->phone_number,
+                    'must_change_password' => false,
+                ]);
+            } catch (QueryException $e) {
+                if (! $this->isDuplicateKey($e)) {
+                    throw $e;
+                }
+
+                throw ValidationException::withMessages([
+                    'work_email' => $this->duplicateWorkEmailMessage($registration),
+                ]);
+            }
 
             $role = $this->resolveRole($hr['spatie_role_id'] ?? null);
             $user->assignRole($role);
@@ -232,6 +244,35 @@ class StaffRegistrationService
         Storage::disk($disk)->copy($registration->photo, $newPath);
 
         return $newPath;
+    }
+
+    protected function workEmailTaken(string $email): bool
+    {
+        $email = strtolower(trim($email));
+        if ($email === '') {
+            return true;
+        }
+
+        return DB::table('users')->whereRaw('LOWER(TRIM(email)) = ?', [$email])->exists()
+            || DB::table('staff')->whereRaw('LOWER(TRIM(work_email)) = ?', [$email])->exists();
+    }
+
+    protected function duplicateWorkEmailMessage(StaffRegistration $registration): string
+    {
+        return 'This work email is already in use. Try '.$this->suggestWorkEmail($registration->first_name, $registration->last_name).'.';
+    }
+
+    protected function isDuplicateKey(QueryException $e): bool
+    {
+        if ($e instanceof UniqueConstraintViolationException) {
+            return true;
+        }
+
+        $state = (string) ($e->errorInfo[0] ?? '');
+
+        return $state === '23000'
+            || str_contains($e->getMessage(), '1062')
+            || str_contains($e->getMessage(), 'UNIQUE constraint failed');
     }
 
     protected function resolveRole(mixed $roleId): Role

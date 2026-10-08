@@ -5,7 +5,7 @@ namespace Tests\Unit\Services;
 use Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use App\Services\FeePostingService;
-use App\Models\{Student, Votehead, FeeStructure, Invoice, InvoiceItem, FeePostingRun, AcademicYear, Term};
+use App\Models\{Student, Votehead, FeeStructure, Invoice, InvoiceItem, FeePostingRun, AcademicYear, Term, OptionalFee, ExtraIncomeItem, FeePostingDismissal};
 use Illuminate\Support\Facades\DB;
 
 class FeePostingServiceTest extends TestCase
@@ -161,6 +161,99 @@ class FeePostingServiceTest extends TestCase
         $run->refresh();
         $this->assertEquals('reversed', $run->status);
         $this->assertNotNull($run->reversed_at);
+    }
+
+    /** @test */
+    public function extra_income_is_left_out_of_the_posting_preview(): void
+    {
+        $student = Student::factory()->create();
+        $votehead = Votehead::factory()->create([
+            'name' => 'TRIP',
+            'is_mandatory' => false,
+            'is_optional' => true,
+            'is_activity_fee' => true,
+            'charge_type' => 'per_student',
+        ]);
+
+        OptionalFee::create([
+            'student_id' => $student->id,
+            'votehead_id' => $votehead->id,
+            'year' => 2026,
+            'term' => 3,
+            'amount' => 20000,
+            'status' => 'billed',
+        ]);
+
+        ExtraIncomeItem::create([
+            'name' => 'TRIP',
+            'kind' => ExtraIncomeItem::KIND_TRIP,
+            'votehead_id' => $votehead->id,
+            'year' => 2026,
+            'term' => 3,
+            'amount' => 20000,
+        ]);
+
+        $result = $this->service->previewWithDiffs([
+            'year' => 2026,
+            'term' => 3,
+            'student_id' => $student->id,
+        ]);
+
+        $this->assertFalse(
+            collect($result['diffs'])->contains(fn ($diff) => (int) $diff['votehead_id'] === (int) $votehead->id)
+        );
+    }
+
+    /** @test */
+    public function rejecting_a_change_keeps_the_invoice_and_hides_it_next_time(): void
+    {
+        $student = Student::factory()->create();
+        $votehead = Votehead::factory()->create([
+            'is_mandatory' => false,
+            'is_optional' => true,
+            'charge_type' => 'per_student',
+        ]);
+
+        OptionalFee::create([
+            'student_id' => $student->id,
+            'votehead_id' => $votehead->id,
+            'year' => 2026,
+            'term' => 3,
+            'amount' => 500,
+            'status' => 'billed',
+        ]);
+
+        $filters = [
+            'year' => 2026,
+            'term' => 3,
+            'student_id' => $student->id,
+        ];
+
+        $first = collect($this->service->previewWithDiffs($filters)['diffs'])->values();
+        $match = $first->first(fn ($diff) => (int) $diff['votehead_id'] === (int) $votehead->id);
+        $this->assertNotNull($match);
+
+        $match['_preview_index'] = 0;
+        $this->service->rejectPendingDiffs(collect([$match]), 2026, 3, [0]);
+
+        $this->assertSame(0, InvoiceItem::count());
+        $this->assertDatabaseMissing('optional_fees', [
+            'student_id' => $student->id,
+            'votehead_id' => $votehead->id,
+        ]);
+        $this->assertTrue(FeePostingDismissal::query()->where('student_id', $student->id)->where('votehead_id', $votehead->id)->exists());
+
+        OptionalFee::create([
+            'student_id' => $student->id,
+            'votehead_id' => $votehead->id,
+            'year' => 2026,
+            'term' => 3,
+            'amount' => 500,
+            'status' => 'billed',
+        ]);
+
+        $second = collect($this->service->previewWithDiffs($filters)['diffs']);
+        $this->assertFalse($second->contains(fn ($diff) => (int) $diff['votehead_id'] === (int) $votehead->id));
     }
 }
 

@@ -245,8 +245,8 @@
                 const titleEl = document.getElementById('feeNotesTitle');
                 const form = document.getElementById('feeNotesForm');
                 const errorEl = document.getElementById('feeNotesError');
-                const indexUrl = @json(route('finance.financial-notes.index'));
-                const storeUrl = @json(route('finance.financial-notes.store'));
+                const indexUrl = @json(\Illuminate\Support\Facades\Route::has('finance.financial-notes.index') ? route('finance.financial-notes.index') : url('/finance/financial-notes'));
+                const storeUrl = @json(\Illuminate\Support\Facades\Route::has('finance.financial-notes.store') ? route('finance.financial-notes.store') : url('/finance/financial-notes'));
                 const destroyBase = @json(url('/finance/financial-notes'));
                 const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
                 let context = { studentId: '', familyId: '', scope: 'student' };

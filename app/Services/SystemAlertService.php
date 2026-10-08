@@ -19,6 +19,25 @@ class SystemAlertService
 
     public const ESCALATION_MINUTES = 30;
 
+    public static function publicMessageForException(\Throwable $e): string
+    {
+        if ($e instanceof \Illuminate\Database\QueryException) {
+            $state = (string) ($e->errorInfo[0] ?? '');
+            if ($state === '23000' || str_contains($e->getMessage(), '1062') || str_contains($e->getMessage(), 'UNIQUE')) {
+                return 'A save failed because a value already exists.';
+            }
+
+            return 'A database error occurred.';
+        }
+
+        $message = $e->getMessage();
+        if (str_contains($message, 'SQL:') || str_contains($message, 'SQLSTATE')) {
+            return class_basename($e).' (database).';
+        }
+
+        return Str::limit(class_basename($e).': '.$message, 240);
+    }
+
     public static function shouldReportException(\Throwable $e): bool
     {
         $message = $e->getMessage();

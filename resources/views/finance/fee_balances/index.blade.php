@@ -335,6 +335,46 @@
         .fee-chip-warn { background: rgba(245, 158, 11, 0.16); color: #b45309; }
         .fee-chip-info { background: rgba(59, 130, 246, 0.14); color: #1d4ed8; }
         .fee-chip-muted { background: rgba(239, 68, 68, 0.1); color: #b91c1c; }
+        .fee-chip-unmarked { background: rgba(100, 116, 139, 0.16); color: #334155; }
+
+        .fee-today-row {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .fee-today-card {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+            padding: 12px 14px;
+            border-radius: 14px;
+            border: 1px solid var(--fin-border);
+            background: var(--fin-surface);
+            text-decoration: none;
+            color: inherit;
+        }
+        .fee-today-card strong {
+            font-size: 1.35rem;
+            line-height: 1.1;
+        }
+        .fee-today-card span {
+            font-size: 0.78rem;
+            font-weight: 700;
+        }
+        .fee-today-card small {
+            color: var(--fin-muted);
+            font-size: 0.72rem;
+        }
+        .fee-today-card.present { border-color: rgba(16, 185, 129, 0.45); }
+        .fee-today-card.present strong { color: #047857; }
+        .fee-today-card.absent { border-color: rgba(239, 68, 68, 0.4); }
+        .fee-today-card.absent strong { color: #b91c1c; }
+        .fee-today-card.unmarked { border-color: rgba(100, 116, 139, 0.4); }
+        .fee-today-card.unmarked strong { color: #334155; }
+        .fee-today-card.is-active {
+            box-shadow: inset 0 0 0 2px currentColor;
+        }
 
         .fee-child-actions {
             justify-self: end;
@@ -370,6 +410,8 @@
             .fee-metric-emphasis {
                 grid-column: 1 / -1;
             }
+            .fee-today-card { padding: 10px; }
+            .fee-today-card strong { font-size: 1.1rem; }
             .nav-tabs-finance {
                 flex-wrap: nowrap;
                 overflow-x: auto;
@@ -506,6 +548,40 @@
             </div>
         </div>
 
+        {{-- Today's attendance --}}
+        @php
+            $todayFilter = request('attendance_filter');
+            $todayQuery = request()->except(['page', 'attendance_filter']);
+        @endphp
+        <div class="mb-4">
+            <div class="d-flex justify-content-between align-items-baseline flex-wrap gap-2 mb-2">
+                <h6 class="mb-0 fw-bold">Today's attendance · {{ now()->format('d M Y') }}</h6>
+                @if(in_array($todayFilter, ['present_today', 'absent_today', 'unmarked_today'], true))
+                    <a href="{{ route('finance.fee-balances.index', $todayQuery) }}" class="small">Show all</a>
+                @endif
+            </div>
+            <div class="fee-today-row">
+                <a href="{{ route('finance.fee-balances.index', $todayFilter === 'present_today' ? $todayQuery : $todayQuery + ['attendance_filter' => 'present_today']) }}"
+                   class="fee-today-card present {{ $todayFilter === 'present_today' ? 'is-active' : '' }}">
+                    <strong>{{ $todayAttendanceCounts['present'] ?? 0 }}</strong>
+                    <span><i class="bi bi-check-circle"></i> Present</span>
+                    <small>Marked in school today</small>
+                </a>
+                <a href="{{ route('finance.fee-balances.index', $todayFilter === 'absent_today' ? $todayQuery : $todayQuery + ['attendance_filter' => 'absent_today']) }}"
+                   class="fee-today-card absent {{ $todayFilter === 'absent_today' ? 'is-active' : '' }}">
+                    <strong>{{ $todayAttendanceCounts['absent'] ?? 0 }}</strong>
+                    <span><i class="bi bi-x-circle"></i> Absent</span>
+                    <small>Marked absent today</small>
+                </a>
+                <a href="{{ route('finance.fee-balances.index', $todayFilter === 'unmarked_today' ? $todayQuery : $todayQuery + ['attendance_filter' => 'unmarked_today']) }}"
+                   class="fee-today-card unmarked {{ $todayFilter === 'unmarked_today' ? 'is-active' : '' }}">
+                    <strong>{{ $todayAttendanceCounts['unmarked'] ?? 0 }}</strong>
+                    <span><i class="bi bi-dash-circle"></i> Unmarked</span>
+                    <small>No attendance taken today</small>
+                </a>
+            </div>
+        </div>
+
         {{-- View Tabs --}}
         <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4">
             <div class="card-body p-0">
@@ -583,8 +659,11 @@
                     <label class="finance-form-label">Attendance</label>
                     <select name="attendance_filter" class="finance-form-select">
                         <option value="">All</option>
-                        <option value="in_school" {{ request('attendance_filter') === 'in_school' ? 'selected' : '' }}>In School</option>
-                        <option value="not_reported" {{ request('attendance_filter') === 'not_reported' ? 'selected' : '' }}>Not Reported</option>
+                        <option value="present_today" {{ request('attendance_filter') === 'present_today' ? 'selected' : '' }}>Present today</option>
+                        <option value="absent_today" {{ request('attendance_filter') === 'absent_today' ? 'selected' : '' }}>Absent today</option>
+                        <option value="unmarked_today" {{ request('attendance_filter') === 'unmarked_today' ? 'selected' : '' }}>Attendance unmarked</option>
+                        <option value="in_school" {{ request('attendance_filter') === 'in_school' ? 'selected' : '' }}>In School this term</option>
+                        <option value="not_reported" {{ request('attendance_filter') === 'not_reported' ? 'selected' : '' }}>Not Reported this term</option>
                         <option value="poor_attendance" {{ request('attendance_filter') === 'poor_attendance' ? 'selected' : '' }}>Poor Attendance (&lt;75%)</option>
                     </select>
                 </div>

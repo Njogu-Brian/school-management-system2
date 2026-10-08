@@ -187,6 +187,9 @@ class PostingController extends Controller
             'diffs_json'=>'required|string', // JSON-encoded diffs to avoid max_input_vars limit
             'rejected' => 'nullable|array',
             'rejected.*' => 'integer',
+            'rejected_students' => 'nullable|array',
+            'rejected_students.*' => 'integer',
+            'reject_all' => 'nullable|boolean',
         ]);
 
         // Decode JSON-encoded diffs (base64 encoded to avoid issues with special characters)
@@ -196,7 +199,7 @@ class PostingController extends Controller
         }
         
         $diffs = collect($diffsArray);
-        $rejected = collect($request->input('rejected', []))->map(fn($v) => (int) $v)->unique()->values();
+        $rejected = $this->rejectedPreviewIndices($request, $diffs);
         
         if ($rejected->isNotEmpty()) {
             $this->postingService->rejectPendingDiffs($diffs, (int) $request->year, (int) $request->term, $rejected->all());
@@ -208,7 +211,7 @@ class PostingController extends Controller
         if ($diffs->isEmpty()) {
             return redirect()
                 ->route('finance.posting.index')
-                ->with('info', 'All changes were rejected. No fees were posted.');
+                ->with('info', 'All changes were rejected. Invoices were left as they are, and those changes will not appear the next time you post.');
         }
         
         try {
@@ -221,9 +224,14 @@ class PostingController extends Controller
                 $request->only(['votehead_id', 'class_id', 'stream_id', 'student_id', 'student_ids', 'student_category_id'])
             );
 
+            $message = "Posting run #{$run->id} completed. {$run->items_posted_count} items posted.";
+            if ($rejected->isNotEmpty()) {
+                $message .= ' '.$rejected->count().' change(s) were rejected and left as they are.';
+            }
+
             return redirect()
                 ->route('finance.posting.show', $run)
-                ->with('success', "Posting run #{$run->id} completed. {$run->items_posted_count} items posted.");
+                ->with('success', $message);
         } catch (\InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage())->withInput();
         }
@@ -279,5 +287,39 @@ class PostingController extends Controller
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());
         }
+    }
+
+    /**
+     * Preview indexes to leave unchanged: one change, every change for a child, or every child.
+     */
+    private function rejectedPreviewIndices(Request $request, \Illuminate\Support\Collection $diffs): \Illuminate\Support\Collection
+    {
+        if ($request->boolean('reject_all')) {
+            return $diffs
+                ->pluck('_preview_index')
+                ->filter(fn ($index) => $index !== null && $index !== '')
+                ->map(fn ($index) => (int) $index)
+                ->unique()
+                ->values();
+        }
+
+        $rejected = collect($request->input('rejected', []))
+            ->map(fn ($value) => (int) $value)
+            ->filter(fn ($value) => $value >= 0);
+
+        $studentIds = collect($request->input('rejected_students', []))
+            ->map(fn ($value) => (int) $value)
+            ->filter(fn ($value) => $value > 0);
+
+        if ($studentIds->isNotEmpty()) {
+            $studentIndexes = $diffs
+                ->filter(fn ($diff) => $studentIds->contains((int) ($diff['student_id'] ?? 0)))
+                ->pluck('_preview_index')
+                ->filter(fn ($index) => $index !== null && $index !== '')
+                ->map(fn ($index) => (int) $index);
+            $rejected = $rejected->merge($studentIndexes);
+        }
+
+        return $rejected->unique()->values();
     }
 }

@@ -87,6 +87,7 @@ class FeeBalanceController extends Controller
         $paymentStats = $this->loadPaymentActivityStats($students, $selectedTerm);
         $termBalances = $this->loadTermInvoiceBalances($students, (int) $year, $termId ? (int) $termId : null, (int) $termNumber);
         $noteCounts = $this->loadFinancialNoteCounts($students);
+        $todayAttendance = $this->loadTodayAttendance($students);
         
         // Get balance brought forward votehead
         $balanceBroughtForwardVotehead = Votehead::where('code', 'BAL_BF')->first();
@@ -94,7 +95,7 @@ class FeeBalanceController extends Controller
         $statementService = app(StudentFeeStatementService::class);
 
         // Enrich each student with financial and attendance data
-        $enrichedStudents = $students->map(function ($student) use ($year, $termNumber, $termId, $selectedTerm, $balanceBroughtForwardVotehead, $statementService, $promiseMaps, $paymentStats, $termBalances, $noteCounts) {
+        $enrichedStudents = $students->map(function ($student) use ($year, $termNumber, $termId, $selectedTerm, $balanceBroughtForwardVotehead, $statementService, $promiseMaps, $paymentStats, $termBalances, $noteCounts, $todayAttendance) {
             // Term invoice (for payment plans / BBF status context)
             $invoice = Invoice::where('student_id', $student->id)
                 ->when($termId, fn($q) => $q->where('term_id', $termId))
@@ -210,6 +211,7 @@ class FeeBalanceController extends Controller
                 'days_late' => $attendanceData['late'],
                 'attendance_rate' => $attendanceData['attendance_rate'],
                 'is_in_school' => $attendanceData['present'] > 0,
+                'today_status' => $todayAttendance[$student->id] ?? 'unmarked',
                 'has_payment_plan' => $paymentPlan !== null,
                 'payment_plan_status' => $paymentPlanStatus['status'],
                 'payment_plan_progress' => $paymentPlanStatus['progress'],
@@ -247,9 +249,16 @@ class FeeBalanceController extends Controller
             });
         }
         
+        $todayAttendanceCounts = [
+            'present' => $filteredStudents->filter(fn ($s) => in_array($s['today_status'] ?? 'unmarked', ['present', 'late'], true))->count(),
+            'absent' => $filteredStudents->filter(fn ($s) => ($s['today_status'] ?? '') === 'absent')->count(),
+            'unmarked' => $filteredStudents->filter(fn ($s) => ($s['today_status'] ?? 'unmarked') === 'unmarked')->count(),
+        ];
+
         // Attendance filter
         if ($attendanceFilter) {
             $filteredStudents = $filteredStudents->filter(function ($student) use ($attendanceFilter) {
+                $today = $student['today_status'] ?? 'unmarked';
                 switch ($attendanceFilter) {
                     case 'in_school':
                         return $student['is_in_school'];
@@ -257,6 +266,12 @@ class FeeBalanceController extends Controller
                         return !$student['is_in_school'];
                     case 'poor_attendance':
                         return $student['attendance_rate'] < 75;
+                    case 'present_today':
+                        return in_array($today, ['present', 'late'], true);
+                    case 'absent_today':
+                        return $today === 'absent';
+                    case 'unmarked_today':
+                        return $today === 'unmarked';
                     default:
                         return true;
                 }
@@ -448,6 +463,7 @@ class FeeBalanceController extends Controller
             'selectedYear' => $year,
             'selectedTermNumber' => $termNumber,
             'filters' => $request->all(),
+            'todayAttendanceCounts' => $todayAttendanceCounts,
         ]);
     }
 
@@ -959,6 +975,37 @@ class FeeBalanceController extends Controller
         return $worst;
     }
     
+    /**
+     * Today's roll-call status keyed by student id. Missing row means unmarked.
+     *
+     * @return array<int, string>
+     */
+    private function loadTodayAttendance(Collection $students): array
+    {
+        $studentIds = $students->pluck('id')->filter()->unique()->values()->all();
+        if (empty($studentIds)) {
+            return [];
+        }
+
+        $rows = Attendance::query()
+            ->whereIn('student_id', $studentIds)
+            ->whereDate('date', Carbon::today())
+            ->orderByDesc('id')
+            ->get(['student_id', 'status']);
+
+        $map = [];
+        foreach ($rows as $row) {
+            $studentId = (int) $row->student_id;
+            if (isset($map[$studentId])) {
+                continue;
+            }
+            $status = strtolower(trim((string) $row->status));
+            $map[$studentId] = in_array($status, ['present', 'absent', 'late'], true) ? $status : 'unmarked';
+        }
+
+        return $map;
+    }
+
     /**
      * Get attendance statistics for a student since term start
      */
