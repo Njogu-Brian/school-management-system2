@@ -40,7 +40,7 @@ class NavAccess
 
         $allowed = config("nav_access.sections.{$section}", []);
 
-        return ! empty($allowed) && $user->hasAnyRole($allowed);
+        return ! empty($allowed) && self::hasAnyRoleName($user, $allowed);
     }
 
     public static function canDashboard(string $routeName): bool
@@ -57,7 +57,32 @@ class NavAccess
         $dashboards = config('nav_access.dashboards', []);
         $allowed = $dashboards[$routeName] ?? [];
 
-        return ! empty($allowed) && $user->hasAnyRole($allowed);
+        return ! empty($allowed) && self::hasAnyRoleName($user, $allowed);
+    }
+
+    /**
+     * Match role names without caring about letter case.
+     *
+     * @param  list<string>  $names
+     */
+    public static function hasAnyRoleName(?User $user, array $names): bool
+    {
+        if (! $user || $names === []) {
+            return false;
+        }
+
+        $wanted = array_map(fn ($name) => strtolower(trim((string) $name)), $names);
+
+        return $user->roles->contains(
+            fn ($role) => in_array(strtolower($role->name), $wanted, true)
+        );
+    }
+
+    public static function canSeeSalaries(?User $user = null): bool
+    {
+        $user ??= self::user();
+
+        return self::can('payroll') && $user !== null;
     }
 
     /**
@@ -84,7 +109,7 @@ class NavAccess
             return 'layouts.partials.nav-senior-teacher';
         }
 
-        if (($onTeacherRoute || $isTeacher) && $isTeacher && ! $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary'])) {
+        if (($onTeacherRoute || $isTeacher) && $isTeacher && ! self::hasAnyRoleName($user, ['Super Admin', 'Admin', 'Secretary'])) {
             return 'layouts.partials.nav-teacher';
         }
 

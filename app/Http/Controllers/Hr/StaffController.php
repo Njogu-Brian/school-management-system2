@@ -198,6 +198,7 @@ class StaffController extends Controller
         $staffData['payment_method'] = $staffData['payment_method'] ?? 'bank';
         $staffData['user_id']  = $user->id;
         $staffData['staff_id'] = $staffId;
+        $staffData = $this->withoutPayFields($staffData);
 
         if ($request->hasFile('photo')) {
             $staffData['photo'] = $request->file('photo')->store('staff_photos', config('filesystems.public_disk', 'public'));
@@ -213,7 +214,9 @@ class StaffController extends Controller
         Setting::setInt('staff_id_start', $start + 1);
 
         // 6) Save statutory exemptions
-        $this->syncStatutoryExemptions($staff, $request->input('statutory_exemptions', []));
+        if (\App\Support\NavAccess::canSeeSalaries()) {
+            $this->syncStatutoryExemptions($staff, $request->input('statutory_exemptions', []));
+        }
 
         // 6) Save custom fields metadata
         if ($request->has('custom_fields')) {
@@ -226,7 +229,7 @@ class StaffController extends Controller
         }
 
         // 6.5) Create salary structure if basic_salary is provided
-        if ($request->filled('basic_salary')) {
+        if (\App\Support\NavAccess::canSeeSalaries() && $request->filled('basic_salary')) {
             \App\Models\SalaryStructure::updateOrCreate(
                 [
                     'staff_id' => $staff->id,
@@ -497,6 +500,7 @@ class StaffController extends Controller
             if (empty($staffData['payment_method'])) {
                 $staffData['payment_method'] = 'bank';
             }
+            $staffData = $this->withoutPayFields($staffData);
 
             if ($request->hasFile('photo')) {
                 // Delete old photo if exists
@@ -514,7 +518,9 @@ class StaffController extends Controller
             $this->logPhoneNormalization(Staff::class, $staff->id, 'phone_number', $staff->getOriginal('phone_number'), $staffData['phone_number'] ?? null, '+254', 'staff_update', $userId);
             $this->logPhoneNormalization(Staff::class, $staff->id, 'emergency_contact_phone', $staff->getOriginal('emergency_contact_phone'), $staffData['emergency_contact_phone'] ?? null, '+254', 'staff_update', $userId);
 
-            $this->syncStatutoryExemptions($staff, $request->input('statutory_exemptions', []));
+            if (\App\Support\NavAccess::canSeeSalaries()) {
+                $this->syncStatutoryExemptions($staff, $request->input('statutory_exemptions', []));
+            }
 
             // handle custom fields
             if ($request->has('custom_fields')) {
@@ -527,7 +533,7 @@ class StaffController extends Controller
             }
 
             // Update salary structure if basic_salary is provided
-            if ($request->filled('basic_salary')) {
+            if (\App\Support\NavAccess::canSeeSalaries() && $request->filled('basic_salary')) {
                 \App\Models\SalaryStructure::updateOrCreate(
                     [
                         'staff_id' => $staff->id,
@@ -859,6 +865,28 @@ class StaffController extends Controller
             ->with('errors', $errors)
             ->with('error_details', $errorDetails);
     }
+    private function withoutPayFields(array $staffData): array
+    {
+        if (\App\Support\NavAccess::canSeeSalaries()) {
+            return $staffData;
+        }
+
+        foreach ([
+            'basic_salary',
+            'kra_pin',
+            'nssf',
+            'nhif',
+            'bank_name',
+            'bank_branch',
+            'bank_account',
+            'payment_method',
+        ] as $field) {
+            unset($staffData[$field]);
+        }
+
+        return $staffData;
+    }
+
     private function syncStatutoryExemptions(Staff $staff, array $requestedCodes = []): void
     {
         $codes = collect($requestedCodes)

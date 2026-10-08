@@ -830,7 +830,7 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
       <span class="badge bg-danger ms-2">{{ $staffRegPending }}</span>
     @endif
   </a>
-  @if(auth()->user()->hasAnyRole(['Super Admin', 'Admin', 'Director']))
+  @if(\App\Support\NavAccess::hasAnyRoleName(auth()->user(), ['Super Admin', 'Director']))
   <a href="{{ route('hr.access-lookups') }}" class="{{ Request::is('hr/access-lookups*') || Request::is('hr/roles*') || Request::is('lookups*') ? 'active' : '' }}">
     <i class="bi bi-shield-lock"></i> Roles & Lookups
   </a>

@@ -25,10 +25,8 @@ class RolePermissionController extends Controller
 
         $selectedRole = $this->resolveSelectedRole($request, $roles);
 
-        $permissions = Permission::orderBy('name')->get()->groupBy(function ($perm) {
-            return explode('.', $perm->name)[0];
-        })->sortKeys();
-
+        $permissionMatrix = $this->permissionMatrix();
+        $permissions = $permissionMatrix['flat'];
         $moduleLabels = config('nav_access.module_labels', []);
 
         // HR Lookups
@@ -45,8 +43,108 @@ class RolePermissionController extends Controller
             'departments',
             'jobTitles',
             'customFields',
-            'moduleLabels'
+            'moduleLabels',
+            'permissionMatrix'
         ));
+    }
+
+    /**
+     * Catalog rows with view / create / edit / delete, plus any extra actions.
+     *
+     * @return array{groups: array<int, array<string, mixed>>, flat: \Illuminate\Support\Collection}
+     */
+    protected function permissionMatrix(): array
+    {
+        $guard = 'web';
+        $catalog = config('nav_access.permission_catalog', []);
+        $keys = [];
+        foreach ($catalog as $group) {
+            foreach ($group['rows'] as $row) {
+                $keys[] = $row['key'];
+                foreach (['view', 'create', 'edit', 'delete'] as $action) {
+                    Permission::findOrCreate($row['key'].'.'.$action, $guard);
+                }
+            }
+        }
+
+        $all = Permission::orderBy('name')->get()->keyBy('name');
+        $used = [];
+        $groups = [];
+
+        foreach ($catalog as $group) {
+            $rows = [];
+            foreach ($group['rows'] as $row) {
+                $crud = [];
+                foreach (['view', 'create', 'edit', 'delete'] as $action) {
+                    $name = $row['key'].'.'.$action;
+                    $perm = $all->get($name);
+                    if ($perm) {
+                        $crud[$action] = $perm;
+                        $used[$perm->id] = true;
+                    }
+                }
+
+                $extras = $all->filter(function ($perm) use ($row, $keys, $used) {
+                    if (isset($used[$perm->id])) {
+                        return false;
+                    }
+                    $owner = $this->permissionOwnerKey($perm->name, $keys);
+
+                    return $owner === $row['key'];
+                })->values();
+
+                foreach ($extras as $extra) {
+                    $used[$extra->id] = true;
+                }
+
+                $rows[] = [
+                    'key' => $row['key'],
+                    'label' => $row['label'],
+                    'crud' => $crud,
+                    'extras' => $extras,
+                ];
+            }
+
+            $groups[] = [
+                'label' => $group['label'],
+                'rows' => $rows,
+            ];
+        }
+
+        $unassigned = $all->filter(fn ($perm) => ! isset($used[$perm->id]))->values();
+        if ($unassigned->isNotEmpty()) {
+            $groups[] = [
+                'label' => 'Other',
+                'rows' => [[
+                    'key' => 'other',
+                    'label' => 'Other permissions',
+                    'crud' => [],
+                    'extras' => $unassigned,
+                ]],
+            ];
+        }
+
+        return [
+            'groups' => $groups,
+            'flat' => $all->values(),
+        ];
+    }
+
+    /**
+     * @param  list<string>  $keys
+     */
+    protected function permissionOwnerKey(string $permissionName, array $keys): ?string
+    {
+        $owner = null;
+        foreach ($keys as $key) {
+            if ($permissionName === $key || str_starts_with($permissionName, $key.'.')) {
+                if ($owner === null || strlen($key) > strlen($owner)) {
+                    $owner = $key;
+                }
+            }
+        }
+
+        return $owner;
     }
 
     protected function resolveSelectedRole(Request $request, $roles)

@@ -79,11 +79,13 @@
                 <i class="bi bi-telephone"></i> Contact & Emergency
             </button>
         </li>
+        @if(\App\Support\NavAccess::canSeeSalaries())
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="financial-tab" data-bs-toggle="tab" data-bs-target="#financial" type="button" role="tab">
                 <i class="bi bi-bank"></i> Financial & Statutory
             </button>
         </li>
+        @endif
         @if($staff->subordinates->count() > 0)
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="subordinates-tab" data-bs-toggle="tab" data-bs-target="#subordinates" type="button" role="tab">
@@ -260,6 +262,7 @@
         </div>
 
         {{-- Financial & Statutory Tab --}}
+        @if(\App\Support\NavAccess::canSeeSalaries())
         <div class="tab-pane fade" id="financial" role="tabpanel">
             <div class="card">
                 <div class="card-body">
@@ -297,6 +300,7 @@
                 </div>
             </div>
         </div>
+        @endif
 
         {{-- Subordinates Tab --}}
         @if($staff->subordinates->count() > 0)

@@ -227,6 +227,7 @@
             <input type="date" name="contract_end_date" class="form-control" value="{{ old('contract_end_date', isset($staff) && $staff->contract_end_date ? $staff->contract_end_date->format('Y-m-d') : '') }}">
           </div>
 
+          @if(\App\Support\NavAccess::canSeeSalaries())
           {{-- Statutory/Bank --}}
           <div class="col-12 pt-2"><h6 class="text-uppercase text-muted">Statutory & Bank</h6></div>
           <div class="col-md-3">
@@ -318,13 +319,14 @@
             </div>
           </div>
 
-          {{-- Salary & Workload --}}
-          <div class="col-12 pt-2"><h6 class="text-uppercase text-muted">Salary & Workload</h6></div>
+          <div class="col-12 pt-2"><h6 class="text-uppercase text-muted">Salary</h6></div>
           <div class="col-md-6">
             <label class="form-label">Basic Salary</label>
             <input type="number" name="basic_salary" class="form-control" value="{{ old('basic_salary', $staff->basic_salary ?? '') }}" step="0.01" min="0" placeholder="0.00">
             <div class="form-text">Will create/update salary structure automatically if provided</div>
           </div>
+          @endif
+          <div class="col-12 pt-2"><h6 class="text-uppercase text-muted">Workload</h6></div>
           <div class="col-md-6">
             <label class="form-label">Max Lessons Per Week</label>
             <input type="number" name="max_lessons_per_week" class="form-control" value="{{ old('max_lessons_per_week', $staff->max_lessons_per_week ?? '') }}" min="0" placeholder="40">

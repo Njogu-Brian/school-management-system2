@@ -15,6 +15,10 @@ class DirectorRoleMiddleware
             return $next($request);
         }
 
+        if ($user && $this->hasMatchingRole($user, $roles)) {
+            return $next($request);
+        }
+
         $rolesString = implode('|', $roles);
         if ($user && $this->routeAllowsTeachingStaff($rolesString)
             && ($user->hasTeacherLikeRole() || $user->hasTeachingAssignments())) {
@@ -25,9 +29,29 @@ class DirectorRoleMiddleware
     }
 
     /**
-     * When a route lists Teacher/Senior Teacher etc., allow users with teaching assignments
-     * even if Spatie role names from HR do not match exactly.
+     * Role names in the database are not always title case (for example "admin").
      */
+    private function hasMatchingRole($user, array $roles): bool
+    {
+        $wanted = [];
+        foreach ($roles as $role) {
+            foreach (explode('|', (string) $role) as $name) {
+                $name = strtolower(trim($name));
+                if ($name !== '') {
+                    $wanted[] = $name;
+                }
+            }
+        }
+
+        if ($wanted === []) {
+            return false;
+        }
+
+        return $user->roles->contains(
+            fn ($role) => in_array(strtolower($role->name), $wanted, true)
+        );
+    }
+
     private function routeAllowsTeachingStaff(string $rolesString): bool
     {
         return str_contains($rolesString, 'Teacher')

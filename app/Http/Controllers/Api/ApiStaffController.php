@@ -420,13 +420,25 @@ class ApiStaffController extends Controller
                 '+254'
             );
 
-            if ($isAdmin && $request->filled('basic_salary')) {
+            $canSeePay = \App\Support\NavAccess::canSeeSalaries() || $isSelf;
+            if (! $canSeePay) {
+                unset(
+                    $staffData['kra_pin'],
+                    $staffData['nssf'],
+                    $staffData['nhif'],
+                    $staffData['bank_name'],
+                    $staffData['bank_branch'],
+                    $staffData['bank_account']
+                );
+            }
+
+            if ($canSeePay && $isAdmin && $request->filled('basic_salary')) {
                 $staffData['basic_salary'] = $request->basic_salary;
             }
 
             $staff->update($staffData);
 
-            if ($isAdmin && $request->filled('basic_salary')) {
+            if ($canSeePay && $isAdmin && $request->filled('basic_salary')) {
                 SalaryStructure::updateOrCreate(
                     [
                         'staff_id' => $staff->id,
@@ -538,8 +550,11 @@ class ApiStaffController extends Controller
     protected function formatStaffDetail(Staff $s): array
     {
         $base = $this->formatStaff($s);
+        $viewer = auth()->user();
+        $isSelf = $viewer && $viewer->staff && (int) $viewer->staff->id === (int) $s->id;
+        $canSeePay = \App\Support\NavAccess::canSeeSalaries() || $isSelf;
 
-        return array_merge($base, [
+        $detail = array_merge($base, [
             'id_number' => $s->id_number,
             'marital_status' => $s->marital_status,
             'residential_address' => $s->residential_address,
@@ -570,6 +585,23 @@ class ApiStaffController extends Controller
             'supervisor_id' => $s->supervisor_id,
             'supervisor_name' => $s->supervisor ? $s->supervisor->full_name : null,
         ]);
+
+        if (! $canSeePay) {
+            foreach ([
+                'bank_name',
+                'bank_branch',
+                'bank_account',
+                'kra_pin',
+                'nssf',
+                'nhif',
+                'statutory_exemptions',
+                'basic_salary',
+            ] as $field) {
+                unset($detail[$field]);
+            }
+        }
+
+        return $detail;
     }
 
     protected function formatLeaveBalance(StaffLeaveBalance $balance): array

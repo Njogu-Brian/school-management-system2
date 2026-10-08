@@ -110,7 +110,7 @@ return [
         'transport' => ['Super Admin', 'Director', 'Admin', 'Secretary', 'Driver', 'Senior Teacher', 'Deputy Senior Teacher'],
         'communication' => ['Super Admin', 'Director', 'Admin', 'Secretary'],
         'hr' => ['Super Admin', 'Director', 'Admin', 'Secretary', 'Senior Teacher', 'Deputy Senior Teacher'],
-        'payroll' => ['Super Admin', 'Director', 'Admin', 'Secretary'],
+        'payroll' => ['Super Admin', 'Director', 'Secretary'],
         'events' => ['Super Admin', 'Director', 'Admin', 'Secretary', 'Teacher', 'teacher', 'Senior Teacher', 'Deputy Senior Teacher', 'Supervisor'],
         'inventory' => ['Super Admin', 'Director', 'Admin', 'Secretary'],
         'pos' => ['Super Admin', 'Director', 'Admin', 'Secretary'],
@@ -118,5 +118,84 @@ return [
         'settings' => ['Super Admin', 'Director', 'Admin', 'Secretary'],
         'website_cms' => ['Super Admin', 'Director', 'Admin', 'Secretary'],
         'school_operations' => ['Super Admin', 'Director', 'Admin', 'Secretary'],
+    ],
+
+    /**
+     * Every module and submodule shown on Roles & Lookups.
+     * Each row gets view, create, edit, and delete. Extra actions already
+     * stored on that key stay under More.
+     */
+    'permission_catalog' => [
+        ['label' => 'Students', 'rows' => [
+            ['key' => 'students', 'label' => 'Student records'],
+            ['key' => 'admissions', 'label' => 'Admissions'],
+        ]],
+        ['label' => 'Attendance', 'rows' => [
+            ['key' => 'attendance', 'label' => 'Attendance'],
+        ]],
+        ['label' => 'Academics', 'rows' => [
+            ['key' => 'academics', 'label' => 'Academics'],
+            ['key' => 'classrooms', 'label' => 'Classrooms'],
+            ['key' => 'subjects', 'label' => 'Subjects'],
+            ['key' => 'learning_areas', 'label' => 'Learning areas'],
+            ['key' => 'extra_curricular', 'label' => 'Clubs and activities'],
+            ['key' => 'timetable', 'label' => 'Timetable'],
+        ]],
+        ['label' => 'CBC and curriculum', 'rows' => [
+            ['key' => 'cbc', 'label' => 'CBC'],
+            ['key' => 'cbc_strands', 'label' => 'Strands'],
+            ['key' => 'cbc_substrands', 'label' => 'Substrands'],
+            ['key' => 'competencies', 'label' => 'Competencies'],
+            ['key' => 'schemes_of_work', 'label' => 'Schemes of work'],
+            ['key' => 'lesson_plans', 'label' => 'Lesson plans'],
+            ['key' => 'curriculum_designs', 'label' => 'Curriculum designs'],
+            ['key' => 'portfolio_assessments', 'label' => 'Portfolio assessments'],
+        ]],
+        ['label' => 'Homework and diaries', 'rows' => [
+            ['key' => 'homework', 'label' => 'Homework'],
+            ['key' => 'diaries', 'label' => 'Digital diaries'],
+        ]],
+        ['label' => 'Exams and reports', 'rows' => [
+            ['key' => 'exams', 'label' => 'Exams'],
+            ['key' => 'exam_types', 'label' => 'Exam types'],
+            ['key' => 'exam_marks', 'label' => 'Exam marks'],
+            ['key' => 'assessments', 'label' => 'Assessments'],
+            ['key' => 'report_cards', 'label' => 'Report cards'],
+            ['key' => 'student_behaviours', 'label' => 'Behaviour'],
+        ]],
+        ['label' => 'Finance', 'rows' => [
+            ['key' => 'finance', 'label' => 'Finance'],
+            ['key' => 'expense', 'label' => 'Expenses'],
+            ['key' => 'voucher', 'label' => 'Payment vouchers'],
+            ['key' => 'vendor', 'label' => 'Vendors'],
+            ['key' => 'pos', 'label' => 'Point of sale'],
+        ]],
+        ['label' => 'Transport', 'rows' => [
+            ['key' => 'transport', 'label' => 'Transport'],
+        ]],
+        ['label' => 'Communication', 'rows' => [
+            ['key' => 'communication', 'label' => 'Communication'],
+        ]],
+        ['label' => 'Staff', 'rows' => [
+            ['key' => 'staff', 'label' => 'Staff records'],
+            ['key' => 'hr', 'label' => 'Leave, attendance and documents'],
+            ['key' => 'documents', 'label' => 'Documents'],
+        ]],
+        ['label' => 'Payroll', 'rows' => [
+            ['key' => 'payroll', 'label' => 'Payroll and salaries'],
+        ]],
+        ['label' => 'Operations', 'rows' => [
+            ['key' => 'inventory', 'label' => 'Inventory'],
+            ['key' => 'school_operations', 'label' => 'School operations'],
+            ['key' => 'events', 'label' => 'Events'],
+            ['key' => 'gallery', 'label' => 'Gallery'],
+            ['key' => 'campus_reports', 'label' => 'Campus reports'],
+            ['key' => 'website_cms', 'label' => 'Website'],
+        ]],
+        ['label' => 'Settings', 'rows' => [
+            ['key' => 'settings', 'label' => 'Settings and roles'],
+            ['key' => 'audit_logs', 'label' => 'Audit logs'],
+            ['key' => 'dashboard', 'label' => 'Dashboards'],
+        ]],
     ],
 ];

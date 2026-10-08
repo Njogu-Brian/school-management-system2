@@ -910,13 +910,13 @@ Route::middleware('auth')->group(function () {
         ->group(function () {
             Route::get('/', fn() => redirect()->route('staff.index'))->name('index');
             
-            // Combined Roles & HR Lookups page
-            Route::get('/access-lookups', [RolePermissionController::class, 'accessAndLookups'])->name('access-lookups');
-            
-            // Roles & Permissions
-            Route::get('/roles',         [RolePermissionController::class, 'listRoles'])->name('roles.index');
-            Route::get('/roles/{role}',  [RolePermissionController::class, 'index'])->name('roles.edit');
-            Route::post('/roles/{role}/permissions', [RolePermissionController::class, 'update'])->name('roles.permissions.update');
+            // Combined Roles & HR Lookups page — Super Admin and Director only
+            Route::middleware('role:Super Admin|Director')->group(function () {
+                Route::get('/access-lookups', [RolePermissionController::class, 'accessAndLookups'])->name('access-lookups');
+                Route::get('/roles',         [RolePermissionController::class, 'listRoles'])->name('roles.index');
+                Route::get('/roles/{role}',  [RolePermissionController::class, 'index'])->name('roles.edit');
+                Route::post('/roles/{role}/permissions', [RolePermissionController::class, 'update'])->name('roles.permissions.update');
+            });
 
             // HR Reports
             Route::prefix('reports')->name('reports.')->group(function () {
@@ -932,8 +932,8 @@ Route::middleware('auth')->group(function () {
             // HR Analytics Dashboard
             Route::get('/analytics', [\App\Http\Controllers\Hr\HRAnalyticsController::class, 'index'])->name('analytics.index');
 
-            // Payroll Management
-            Route::prefix('payroll')->name('payroll.')->group(function () {
+            // Payroll stays with Super Admin, Director, and Secretary.
+            Route::prefix('payroll')->name('payroll.')->middleware('role:Super Admin|Director|Secretary')->group(function () {
                 // Salary Structures
                 Route::resource('salary-structures', \App\Http\Controllers\Hr\SalaryStructureController::class);
                 
@@ -1055,12 +1055,12 @@ Route::middleware('auth')->group(function () {
 
     // HR Lookups standalone page (optional UI outside settings tab)
     Route::get('/lookups', [LookupController::class, 'index'])
-        ->middleware('role:Super Admin|Admin|Secretary')
+        ->middleware('role:Super Admin|Director')
         ->name('lookups.index');
 
     // Lookups AJAX Endpoints
     Route::prefix('lookups')
-        ->middleware('role:Super Admin|Admin|Secretary')
+        ->middleware('role:Super Admin|Director')
         ->group(function () {
             Route::post('/category',         [LookupController::class, 'storeCategory'])->name('lookups.category.store');
             Route::delete('/category/{id}',  [LookupController::class, 'deleteCategory'])->name('lookups.category.delete');
