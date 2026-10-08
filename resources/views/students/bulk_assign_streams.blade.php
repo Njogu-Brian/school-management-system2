@@ -78,7 +78,7 @@
                                         $stream->classrooms->contains('id', $selectedClassroom->id);
                       @endphp
                       @if($isValidStream)
-                        <option value="{{ $stream->id }}">{{ $stream->name }} @if($stream->classroom) ({{ $stream->classroom->name }}) @endif</option>
+                        <option value="{{ $stream->id }}">{{ $stream->name }}</option>
                       @endif
                     @endforeach
                   </select>
