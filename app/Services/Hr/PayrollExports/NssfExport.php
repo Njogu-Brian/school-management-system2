@@ -69,12 +69,21 @@ final class NssfExport
                     $staff?->id_number,          // ID NO
                     $staff?->kra_pin,            // KRA PIN
                     $staff?->nssf,               // NSSF NO
-                    (float) $r->gross_salary,    // GROSS PAY
+                    $this->wholeShillings($r->gross_salary), // GROSS PAY
                     null,                        // VOLUNTARY
                 ];
             })
             ->values()
             ->all();
+    }
+
+    /**
+     * NSSF's payroll converter reads the raw cell and rejects 33000.0.
+     * PhpSpreadsheet appends ".0" to every float, so gross pay must be an integer.
+     */
+    private function wholeShillings(mixed $amount): int
+    {
+        return (int) round((float) $amount);
     }
 
     private function safeFilename(string $name): string
