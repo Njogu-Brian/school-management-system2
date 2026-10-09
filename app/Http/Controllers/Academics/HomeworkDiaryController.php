@@ -8,6 +8,7 @@ use App\Models\Academics\HomeworkDiary;
 use App\Models\Student;
 use App\Models\Academics\LessonPlan;
 use App\Models\ParentInfo;
+use App\Support\AcademicScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -41,7 +42,7 @@ class HomeworkDiaryController extends Controller
 
         // Teachers can see homework for their classes
         $user = Auth::user();
-        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+        if (($user->hasRole('Teacher') || $user->hasRole('teacher')) && ! AcademicScope::seesEveryClass($user)) {
             $streamAssignments = $user->getStreamAssignments();
             $assignedClassroomIds = $user->getAssignedClassroomIds();
             
@@ -144,7 +145,7 @@ class HomeworkDiaryController extends Controller
 
         // Get students based on user role
         $user = Auth::user();
-        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+        if (($user->hasRole('Teacher') || $user->hasRole('teacher')) && ! AcademicScope::seesEveryClass($user)) {
             $studentsQuery = Student::orderBy('first_name')->orderBy('last_name');
             $streamAssignments = $user->getStreamAssignments();
             $assignedClassroomIds = $user->getAssignedClassroomIds();
@@ -171,7 +172,7 @@ class HomeworkDiaryController extends Controller
         }
 
         // Get homeworks based on user role
-        if (Auth::user()->hasRole('Teacher')) {
+        if (Auth::user()->hasRole('Teacher') && ! AcademicScope::seesEveryClass(Auth::user())) {
             $staff = Auth::user()->staff;
             if ($staff) {
                 $classroomIds = DB::table('classroom_subjects')

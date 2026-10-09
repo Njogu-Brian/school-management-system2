@@ -16,6 +16,7 @@ use App\Models\AcademicYear;
 use App\Models\Term;
 use App\Services\PDFExportService;
 use App\Services\ExcelExportService;
+use App\Support\AcademicScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -43,8 +44,8 @@ class LessonPlanController extends Controller
     {
         $query = LessonPlan::with(['subject', 'classroom', 'academicYear', 'term', 'substrand', 'creator']);
 
-        // Teachers can only see their assigned classes
-        if (Auth::user()->hasTeacherLikeRole() && !is_supervisor()) {
+        // Teachers can only see their assigned classes. Senior teachers see every class.
+        if (Auth::user()->hasTeacherLikeRole() && ! is_supervisor() && ! AcademicScope::seesEveryClass(Auth::user())) {
             $staff = Auth::user()->staff;
             if ($staff) {
                 $assignedClassroomIds = DB::table('classroom_subjects')
@@ -59,7 +60,7 @@ class LessonPlanController extends Controller
         }
         
         // Supervisors can see their subordinates' lesson plans
-        if (is_supervisor() && !Auth::user()->hasAnyRole(['Admin', 'Super Admin'])) {
+        if (is_supervisor() && ! AcademicScope::seesEveryClass(Auth::user()) && !Auth::user()->hasAnyRole(['Admin', 'Super Admin'])) {
             $subordinateClassroomIds = get_subordinate_classroom_ids();
             if (!empty($subordinateClassroomIds)) {
                 $query->whereIn('classroom_id', $subordinateClassroomIds);
@@ -449,7 +450,7 @@ class LessonPlanController extends Controller
 
     private function getAccessibleClassrooms()
     {
-        if (Auth::user()->hasAnyRole(['Admin', 'Super Admin', 'Secretary'])) {
+        if (AcademicScope::seesEveryClass(Auth::user()) || Auth::user()->hasAnyRole(['Admin', 'Super Admin', 'Secretary'])) {
             return Classroom::orderBy('name')->get();
         }
 
@@ -483,7 +484,7 @@ class LessonPlanController extends Controller
 
     private function canAccessClassroom(int $classroomId): bool
     {
-        if (Auth::user()->hasAnyRole(['Admin', 'Super Admin', 'Secretary'])) {
+        if (AcademicScope::seesEveryClass(Auth::user()) || Auth::user()->hasAnyRole(['Admin', 'Super Admin', 'Secretary'])) {
             return true;
         }
 

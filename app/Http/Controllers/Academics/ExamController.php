@@ -11,6 +11,7 @@ use App\Models\Academics\Subject;
 use App\Models\Academics\Stream;
 use App\Rules\TermBelongsToAcademicYear;
 use App\Support\AcademicContext;
+use App\Support\AcademicScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -40,10 +41,12 @@ class ExamController extends Controller
         ])
         ->withCount(['marks', 'schedules']);
 
-        // Teachers can only see exams for their assigned classes (unless they're supervisors)
+        // Teachers can only see exams for their assigned classes (unless they're supervisors).
+        // Senior teachers see every class, not only the ones they teach.
         $user = Auth::user();
+        $schoolWide = AcademicScope::seesEveryClass($user);
         $privileged = $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary']);
-        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher')) && ! $privileged;
+        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher')) && ! $privileged && ! $schoolWide;
         if ($isTeacher && !is_supervisor()) {
             $assignedClassroomIds = $user->getAssignedClassroomIds();
             if (!empty($assignedClassroomIds)) {
@@ -54,7 +57,7 @@ class ExamController extends Controller
         }
         
         // Supervisors can see exams for their subordinates' classes
-        if (is_supervisor() && !Auth::user()->hasAnyRole(['Admin', 'Super Admin'])) {
+        if (is_supervisor() && ! $schoolWide && !Auth::user()->hasAnyRole(['Admin', 'Super Admin'])) {
             $subordinateClassroomIds = get_subordinate_classroom_ids();
             $ownClassroomIds = Auth::user()->staff ? DB::table('classroom_subjects')
                 ->where('staff_id', Auth::user()->staff->id)
@@ -123,7 +126,7 @@ class ExamController extends Controller
 
         // Statistics (filtered by teacher or senior teacher if applicable)
         $statsQuery = Exam::query();
-        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher')) && ! $privileged;
+        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher')) && ! $privileged && ! $schoolWide;
         if ($isTeacher) {
             $assignedClassroomIds = $user->getAssignedClassroomIds();
             if (!empty($assignedClassroomIds)) {
@@ -160,21 +163,10 @@ class ExamController extends Controller
             ->limit(150)
             ->get();
         
-        // Filter classrooms based on user role
-        $user = Auth::user();
-        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
-        if ($isTeacher) {
-            $assignedClassroomIds = $user->getAssignedClassroomIds();
-            if (!empty($assignedClassroomIds)) {
-                $classrooms = Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
-            } else {
-                $classrooms = collect();
-            }
-        } else {
-            $classrooms = Classroom::orderBy('name')->get();
-        }
-
-        $subjects = $this->getMappedActiveSubjects();
+        $classrooms = $this->classroomsForExamForms($user);
+        $subjects = $schoolWide
+            ? Subject::active()->orderBy('name')->get()
+            : $this->getMappedActiveSubjects();
 
         return view('academics.exams.index', array_merge(compact(
             'exams',
@@ -190,25 +182,17 @@ class ExamController extends Controller
 
     public function create()
     {
-        // Filter classrooms based on user role
         $user = Auth::user();
-        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
-        if ($isTeacher) {
-            $assignedClassroomIds = $user->getAssignedClassroomIds();
-            if (!empty($assignedClassroomIds)) {
-                $classrooms = Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
-            } else {
-                $classrooms = collect();
-            }
-        } else {
-            $classrooms = Classroom::orderBy('name')->get();
-        }
+        $schoolWide = AcademicScope::seesEveryClass($user);
+        $classrooms = $this->classroomsForExamForms($user);
 
         return view('academics.exams.create', array_merge(
             AcademicContext::forView(),
             [
                 'classrooms' => $classrooms,
-                'subjects'   => $this->getMappedActiveSubjects($classrooms->pluck('id')->all()),
+                'subjects'   => $schoolWide
+                    ? Subject::active()->orderBy('name')->get()
+                    : $this->getMappedActiveSubjects($classrooms->pluck('id')->all()),
                 'streams'    => Stream::orderBy('name')->get(),
                 'types'      => ExamType::orderBy('name')->get(),
             ]
@@ -241,9 +225,10 @@ class ExamController extends Controller
             'exam_type_id'     => 'required|exists:exam_types,id',
         ]);
 
-        // Check if teacher or senior teacher has access to classroom
+        // Teachers may only create exams for classes they teach. Senior teachers may use any class.
         $user = Auth::user();
-        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher'))
+            && ! AcademicScope::seesEveryClass($user);
         if ($isTeacher && $v['classroom_id']) {
             $assignedClassroomIds = $user->getAssignedClassroomIds();
             if (!in_array($v['classroom_id'], $assignedClassroomIds)) {
@@ -290,9 +275,12 @@ class ExamController extends Controller
 
     public function edit(Exam $exam)
     {
+        $user = Auth::user();
+        $schoolWide = AcademicScope::seesEveryClass($user);
+
         // Check if teacher has access to this exam's classroom
-        if (Auth::user()->hasRole('Teacher')) {
-            $staff = Auth::user()->staff;
+        if ($user->hasRole('Teacher') && ! $schoolWide) {
+            $staff = $user->staff;
             if ($staff && $exam->classroom_id) {
                 $hasAccess = DB::table('classroom_subjects')
                     ->where('staff_id', $staff->id)
@@ -305,19 +293,7 @@ class ExamController extends Controller
             }
         }
 
-        // Filter classrooms based on user role
-        $user = Auth::user();
-        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
-        if ($isTeacher) {
-            $assignedClassroomIds = $user->getAssignedClassroomIds();
-            if (!empty($assignedClassroomIds)) {
-                $classrooms = Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
-            } else {
-                $classrooms = collect();
-            }
-        } else {
-            $classrooms = Classroom::orderBy('name')->get();
-        }
+        $classrooms = $this->classroomsForExamForms($user);
 
         return view('academics.exams.edit', array_merge(
             AcademicContext::forView(
@@ -327,7 +303,9 @@ class ExamController extends Controller
             [
                 'exam'       => $exam->load(['academicYear', 'term', 'classroom', 'subject']),
                 'classrooms' => $classrooms,
-                'subjects'   => $this->getMappedActiveSubjects($classrooms->pluck('id')->all()),
+                'subjects'   => $schoolWide
+                    ? Subject::active()->orderBy('name')->get()
+                    : $this->getMappedActiveSubjects($classrooms->pluck('id')->all()),
                 'streams'    => Stream::orderBy('name')->get(),
                 'types'      => ExamType::orderBy('name')->get(),
             ]
@@ -340,8 +318,10 @@ class ExamController extends Controller
             'exam_type_id' => $request->filled('exam_type_id') ? $request->exam_type_id : null,
         ]);
 
+        $schoolWide = AcademicScope::seesEveryClass(Auth::user());
+
         // Check if teacher has access to this exam's classroom
-        if (Auth::user()->hasRole('Teacher')) {
+        if (Auth::user()->hasRole('Teacher') && ! $schoolWide) {
             $staff = Auth::user()->staff;
             if ($staff && $exam->classroom_id) {
                 $hasAccess = DB::table('classroom_subjects')
@@ -385,7 +365,7 @@ class ExamController extends Controller
             'exam_type_id'     => 'required|exists:exam_types,id',
         ]);
 
-        if (Auth::user()->hasRole('Teacher') && !empty($v['classroom_id'])) {
+        if (Auth::user()->hasRole('Teacher') && ! $schoolWide && !empty($v['classroom_id'])) {
             $assignedClassroomIds = Auth::user()->getAssignedClassroomIds();
             if (!in_array((int) $v['classroom_id'], array_map('intval', $assignedClassroomIds), true)) {
                 return back()
@@ -458,7 +438,8 @@ class ExamController extends Controller
 
         $user = Auth::user();
         $privileged = $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary']);
-        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher')) && ! $privileged;
+        $schoolWide = AcademicScope::seesEveryClass($user);
+        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher')) && ! $privileged && ! $schoolWide;
         $allowedClassroomIds = $isTeacher ? array_map('intval', $user->getAssignedClassroomIds()) : [];
 
         $deleted = 0;
@@ -563,24 +544,16 @@ class ExamController extends Controller
     public function createBulk()
     {
         $user = Auth::user();
-        $privileged = $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary']);
-        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher')) && ! $privileged;
-        if ($isTeacher) {
-            $assignedClassroomIds = $user->getAssignedClassroomIds();
-            if (!empty($assignedClassroomIds)) {
-                $classrooms = Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
-            } else {
-                $classrooms = collect();
-            }
-        } else {
-            $classrooms = Classroom::orderBy('name')->get();
-        }
+        $schoolWide = AcademicScope::seesEveryClass($user);
+        $classrooms = $this->classroomsForExamForms($user);
 
         return view('academics.exams.bulk_create', array_merge(
             AcademicContext::forView(),
             [
                 'classrooms' => $classrooms,
-                'subjects'   => $this->getMappedActiveSubjects($classrooms->pluck('id')->all()),
+                'subjects'   => $schoolWide
+                    ? Subject::active()->orderBy('name')->get()
+                    : $this->getMappedActiveSubjects($classrooms->pluck('id')->all()),
                 'types'      => ExamType::orderBy('name')->get(),
                 'streams'    => Stream::orderBy('name')->get(),
             ]
@@ -627,7 +600,8 @@ class ExamController extends Controller
 
         $user = Auth::user();
         $privileged = $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary']);
-        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher')) && ! $privileged;
+        $schoolWide = AcademicScope::seesEveryClass($user);
+        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher')) && ! $privileged && ! $schoolWide;
         $assignedClassroomIds = $isTeacher ? $user->getAssignedClassroomIds() : null;
 
         foreach ($v['classroom_ids'] as $cid) {
@@ -793,7 +767,8 @@ class ExamController extends Controller
         }
 
         $user = Auth::user();
-        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher'))
+            && ! AcademicScope::seesEveryClass($user);
         $allowedClassroomIds = $isTeacher ? array_map('intval', $user->getAssignedClassroomIds()) : [];
 
         $updated = 0;
@@ -926,6 +901,28 @@ class ExamController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Class dropdown for exam forms. Senior teachers receive every class.
+     */
+    private function classroomsForExamForms($user)
+    {
+        if (AcademicScope::seesEveryClass($user)) {
+            return Classroom::orderBy('name')->get();
+        }
+
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        if (! $isTeacher) {
+            return Classroom::orderBy('name')->get();
+        }
+
+        $assignedClassroomIds = $user->getAssignedClassroomIds();
+        if (empty($assignedClassroomIds)) {
+            return collect();
+        }
+
+        return Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
     }
 
     private function getMappedActiveSubjects(?array $classroomIds = null)

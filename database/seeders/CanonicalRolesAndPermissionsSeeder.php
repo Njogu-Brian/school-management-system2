@@ -258,6 +258,7 @@ class CanonicalRolesAndPermissionsSeeder extends Seeder
                 'finance.fee_balances.view',
             ],
             $this->seniorTeacherExtras(),
+            \App\Support\AcademicScope::seniorTeacherModulePermissions(),
         )));
     }
 

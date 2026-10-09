@@ -18,6 +18,7 @@ use App\Jobs\GeneratePDFJob;
 use App\Jobs\GenerateExcelJob;
 use Illuminate\Http\Request;
 use App\Support\AcademicContext;
+use App\Support\AcademicScope;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 
@@ -51,7 +52,7 @@ class SchemeOfWorkController extends Controller
         $query = SchemeOfWork::with(['subject', 'classroom', 'academicYear', 'term', 'creator']);
 
         // Teachers can only see their assigned classes
-        if (Auth::user()->hasRole('Teacher')) {
+        if (Auth::user()->hasRole('Teacher') && ! AcademicScope::seesEveryClass(Auth::user())) {
             $staff = Auth::user()->staff;
             if ($staff) {
                 $assignedClassroomIds = \DB::table('classroom_subjects')
@@ -277,7 +278,7 @@ class SchemeOfWorkController extends Controller
 
     private function getAccessibleClassrooms()
     {
-        if (Auth::user()->hasAnyRole(['Admin', 'Super Admin', 'Secretary'])) {
+        if (AcademicScope::seesEveryClass(Auth::user()) || Auth::user()->hasAnyRole(['Admin', 'Super Admin', 'Secretary'])) {
             return Classroom::orderBy('name')->get();
         }
 
@@ -297,7 +298,7 @@ class SchemeOfWorkController extends Controller
 
     private function canAccessClassroom(int $classroomId): bool
     {
-        if (Auth::user()->hasAnyRole(['Admin', 'Super Admin', 'Secretary'])) {
+        if (AcademicScope::seesEveryClass(Auth::user()) || Auth::user()->hasAnyRole(['Admin', 'Super Admin', 'Secretary'])) {
             return true;
         }
 

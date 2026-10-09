@@ -21,6 +21,7 @@ use App\Services\ReportCardBatchService;
 use App\Models\Academics\Stream;
 use App\Services\ReportCardPublishService;
 use App\Support\AcademicContext;
+use App\Support\AcademicScope;
 use Illuminate\Validation\Rule;
 
 class ReportCardController extends Controller
@@ -149,7 +150,7 @@ class ReportCardController extends Controller
      */
     protected function assignedClassroomIdsForCurrentUser(): ?array
     {
-        if (! Auth::user()->hasRole('Teacher')) {
+        if (AcademicScope::seesEveryClass(Auth::user()) || ! Auth::user()->hasRole('Teacher')) {
             return null;
         }
 
@@ -169,7 +170,7 @@ class ReportCardController extends Controller
     public function show(ReportCard $report_card)
     {
         // Check if teacher has access to this report card's classroom
-        if (Auth::user()->hasRole('Teacher')) {
+        if (Auth::user()->hasRole('Teacher') && ! AcademicScope::seesEveryClass(Auth::user())) {
             $staff = Auth::user()->staff;
             if ($staff && $report_card->classroom_id) {
                 $hasAccess = \Illuminate\Support\Facades\DB::table('classroom_subjects')
@@ -228,7 +229,7 @@ class ReportCardController extends Controller
         }
         
         // Check if teacher has access to classroom
-        if (Auth::user()->hasRole('Teacher')) {
+        if (Auth::user()->hasRole('Teacher') && ! AcademicScope::seesEveryClass(Auth::user())) {
             $staff = Auth::user()->staff;
             if ($staff) {
                 $hasAccess = \Illuminate\Support\Facades\DB::table('classroom_subjects')
@@ -547,7 +548,7 @@ class ReportCardController extends Controller
             ->all();
 
         // Check if teacher has access to all selected classrooms
-        if (Auth::user()->hasRole('Teacher')) {
+        if (Auth::user()->hasRole('Teacher') && ! AcademicScope::seesEveryClass(Auth::user())) {
             $staff = Auth::user()->staff;
             if ($staff) {
                 $allowedClassroomIds = \Illuminate\Support\Facades\DB::table('classroom_subjects')

@@ -7,6 +7,7 @@ use App\Models\Academics\StudentDiary;
 use App\Models\Academics\DiaryEntry;
 use App\Models\Student;
 use App\Models\Academics\Classroom;
+use App\Support\AcademicScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -48,7 +49,8 @@ class StudentDiaryController extends Controller
         $query = StudentDiary::with(['student.classroom', 'latestEntry.author'])
             ->whereHas('student');
 
-        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher'))
+            && ! AcademicScope::seesEveryClass($user);
         if ($isTeacher) {
             $streamAssignments = $user->getStreamAssignments();
             $assignedClassrooms = array_unique(array_merge(
@@ -155,7 +157,7 @@ class StudentDiaryController extends Controller
         $classrooms = $classroomQuery->get();
 
         $studentsQuery = Student::with('classroom')->orderBy('first_name');
-        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+        if (($user->hasRole('Teacher') || $user->hasRole('teacher')) && ! AcademicScope::seesEveryClass($user)) {
             $assignedClassrooms = $user->getAssignedClassroomIds();
             if (!empty($assignedClassrooms)) {
                 $studentsQuery->whereIn('classroom_id', $assignedClassrooms);
@@ -275,7 +277,8 @@ class StudentDiaryController extends Controller
             'attachments.*' => 'file|max:10240',
         ]);
 
-        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher'))
+            && ! AcademicScope::seesEveryClass($user);
         if ($isTeacher && $data['target_scope'] === 'school') {
             return back()->with('error', 'Teachers cannot broadcast to the entire school.');
         }
@@ -332,7 +335,7 @@ class StudentDiaryController extends Controller
 
         $diary->loadMissing('student');
 
-        if ($user->hasAnyRole(['Super Admin', 'Admin', 'Secretary'])) {
+        if (AcademicScope::seesEveryClass($user) || $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary'])) {
             return;
         }
 
@@ -340,7 +343,8 @@ class StudentDiaryController extends Controller
             abort(404, 'This diary is no longer linked to a student.');
         }
 
-        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher'))
+            && ! AcademicScope::seesEveryClass($user);
         if ($isTeacher) {
             $assigned = array_unique(array_merge(
                 $user->getAssignedClassroomIds(),
@@ -360,11 +364,12 @@ class StudentDiaryController extends Controller
 
         $classroom->loadMissing('students');
 
-        if ($user->hasAnyRole(['Super Admin', 'Admin', 'Secretary'])) {
+        if (AcademicScope::seesEveryClass($user) || $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary'])) {
             return;
         }
 
-        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher'))
+            && ! AcademicScope::seesEveryClass($user);
         if ($isTeacher) {
             $assigned = array_unique(array_merge(
                 $user->getAssignedClassroomIds(),
@@ -392,7 +397,7 @@ class StudentDiaryController extends Controller
             return 'admin';
         }
 
-        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+        if (($user->hasRole('Teacher') || $user->hasRole('teacher')) && ! AcademicScope::seesEveryClass($user)) {
             return 'teacher';
         }
 

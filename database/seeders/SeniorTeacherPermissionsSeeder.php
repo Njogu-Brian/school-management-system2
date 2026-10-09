@@ -85,6 +85,11 @@ class SeniorTeacherPermissionsSeeder extends Seeder
             'senior_teacher.supervised_staff.view',
         ];
 
+        $seniorTeacherPermissions = array_values(array_unique(array_merge(
+            $seniorTeacherPermissions,
+            \App\Support\AcademicScope::seniorTeacherModulePermissions()
+        )));
+
         // Ensure each permission exists
         foreach ($seniorTeacherPermissions as $perm) {
             Permission::firstOrCreate(['name' => $perm, 'guard_name' => $guard]);

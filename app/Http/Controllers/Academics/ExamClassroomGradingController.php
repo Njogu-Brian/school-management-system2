@@ -7,6 +7,7 @@ use App\Models\Academics\Classroom;
 use App\Models\Academics\GradingBand;
 use App\Models\Academics\GradingScheme;
 use App\Models\Academics\GradingSchemeMapping;
+use App\Support\AcademicScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -22,20 +23,9 @@ class ExamClassroomGradingController extends Controller
     public function index()
     {
         $user = Auth::user();
-        $privileged = $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary']);
-        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher')) && ! $privileged;
-
-        $classroomsQuery = Classroom::query()->orderBy('name');
-        if ($isTeacher) {
-            $ids = $user->getAssignedClassroomIds();
-            if ($ids === []) {
-                $classrooms = collect();
-            } else {
-                $classrooms = $classroomsQuery->whereIn('id', $ids)->get();
-            }
-        } else {
-            $classrooms = $classroomsQuery->get();
-        }
+        $classrooms = AcademicScope::seesEveryClass($user)
+            ? Classroom::query()->orderBy('name')->get()
+            : $this->assignedClassrooms($user);
 
         $mappings = GradingSchemeMapping::query()
             ->whereIn('classroom_id', $classrooms->pluck('id'))
@@ -85,16 +75,9 @@ class ExamClassroomGradingController extends Controller
     public function bulkForm()
     {
         $user = Auth::user();
-        $privileged = $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary']);
-        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher')) && ! $privileged;
-
-        $classroomsQuery = Classroom::query()->orderBy('name');
-        if ($isTeacher) {
-            $ids = $user->getAssignedClassroomIds();
-            $classrooms = $ids === [] ? collect() : $classroomsQuery->whereIn('id', $ids)->get();
-        } else {
-            $classrooms = $classroomsQuery->get();
-        }
+        $classrooms = AcademicScope::seesEveryClass($user)
+            ? Classroom::query()->orderBy('name')->get()
+            : $this->assignedClassrooms($user);
 
         $schemes = GradingScheme::orderBy('name')->get();
 
@@ -128,16 +111,9 @@ class ExamClassroomGradingController extends Controller
         $schemes = GradingScheme::with('bands')->orderBy('name')->get();
 
         $user = Auth::user();
-        $privileged = $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary']);
-        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher')) && ! $privileged;
-
-        $classroomsQuery = Classroom::query()->orderBy('name');
-        if ($isTeacher) {
-            $ids = $user->getAssignedClassroomIds();
-            $classrooms = $ids === [] ? collect() : $classroomsQuery->whereIn('id', $ids)->get();
-        } else {
-            $classrooms = $classroomsQuery->get();
-        }
+        $classrooms = AcademicScope::seesEveryClass($user)
+            ? Classroom::query()->orderBy('name')->get()
+            : $this->assignedClassrooms($user);
 
         return view('academics.exams.grading.duplicate', compact('schemes', 'classrooms'));
     }
@@ -197,10 +173,10 @@ class ExamClassroomGradingController extends Controller
     private function authorizeClassroom(Classroom $classroom): void
     {
         $user = Auth::user();
-        $privileged = $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary']);
-        if ($privileged) {
+        if (AcademicScope::seesEveryClass($user)) {
             return;
         }
+
         $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
         if ($isTeacher) {
             $ids = array_map('intval', $user->getAssignedClassroomIds());
@@ -208,5 +184,20 @@ class ExamClassroomGradingController extends Controller
                 abort(403);
             }
         }
+    }
+
+    private function assignedClassrooms($user)
+    {
+        $privileged = $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary']);
+        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher')) && ! $privileged;
+        if (! $isTeacher) {
+            return Classroom::query()->orderBy('name')->get();
+        }
+
+        $ids = $user->getAssignedClassroomIds();
+
+        return $ids === []
+            ? collect()
+            : Classroom::query()->whereIn('id', $ids)->orderBy('name')->get();
     }
 }

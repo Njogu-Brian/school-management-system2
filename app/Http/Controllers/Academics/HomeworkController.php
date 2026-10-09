@@ -7,6 +7,7 @@ use App\Models\Academics\Homework;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Subject;
 use App\Models\Student;
+use App\Support\AcademicScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -50,7 +51,8 @@ class HomeworkController extends Controller
 
         // Teachers and senior teachers can only see homework for their assigned classes
         $user = Auth::user();
-        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher'))
+            && ! AcademicScope::seesEveryClass($user);
         if ($isTeacher) {
             $assignedClassroomIds = $user->getAssignedClassroomIds();
             if (!empty($assignedClassroomIds)) {
@@ -108,10 +110,11 @@ class HomeworkController extends Controller
     public function create()
     {
         $user = Auth::user();
-        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher'))
+            && ! AcademicScope::seesEveryClass($user);
 
         // Filter classrooms and subjects based on user role
-        if ($user->hasAnyRole(['Super Admin', 'Admin'])) {
+        if ($user->hasAnyRole(['Super Admin', 'Admin']) || AcademicScope::seesEveryClass($user)) {
             $classrooms = Classroom::orderBy('name')->get();
             $subjects = Subject::active()->orderBy('name')->get();
         } elseif ($isTeacher) {
@@ -169,7 +172,8 @@ class HomeworkController extends Controller
         $user = Auth::user();
 
         // Check if teacher or senior teacher has access to classroom
-        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher'))
+            && ! AcademicScope::seesEveryClass($user);
         if ($isTeacher && $request->classroom_id) {
             $assignedClassroomIds = $user->getAssignedClassroomIds();
             if (!in_array($request->classroom_id, $assignedClassroomIds)) {
@@ -221,7 +225,8 @@ class HomeworkController extends Controller
     {
         // Check if teacher/senior teacher has access
         $user = Auth::user();
-        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher'))
+            && ! AcademicScope::seesEveryClass($user);
         if ($isTeacher && !$user->hasAnyRole(['Super Admin', 'Admin'])) {
             $assignedClassroomIds = array_unique(array_merge(
                 $user->getAssignedClassroomIds(),
@@ -250,7 +255,8 @@ class HomeworkController extends Controller
     {
         // Check if teacher/senior teacher has access
         $user = Auth::user();
-        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher'))
+            && ! AcademicScope::seesEveryClass($user);
         if ($isTeacher && !$user->hasAnyRole(['Super Admin', 'Admin'])) {
             $assignedClassroomIds = array_unique(array_merge(
                 $user->getAssignedClassroomIds(),
@@ -263,7 +269,7 @@ class HomeworkController extends Controller
         }
 
         // Filter classrooms and subjects based on user role
-        if ($user->hasAnyRole(['Super Admin', 'Admin'])) {
+        if ($user->hasAnyRole(['Super Admin', 'Admin']) || AcademicScope::seesEveryClass($user)) {
             $classrooms = Classroom::orderBy('name')->get();
             $subjects = Subject::active()->orderBy('name')->get();
         } else {
@@ -286,7 +292,7 @@ class HomeworkController extends Controller
 
         // Filter students based on assigned classrooms/streams for teachers
         $studentsQuery = Student::orderBy('last_name')->orderBy('first_name');
-        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+        if (($user->hasRole('Teacher') || $user->hasRole('teacher')) && ! AcademicScope::seesEveryClass($user)) {
             $streamAssignments = $user->getStreamAssignments();
             $assignedClassroomIds = $user->getAssignedClassroomIds();
             $user->applyTeacherStudentFilter($studentsQuery, $streamAssignments, $assignedClassroomIds);
@@ -300,7 +306,7 @@ class HomeworkController extends Controller
     {
         // Check if teacher has access
         $user = Auth::user();
-        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+        if (($user->hasRole('Teacher') || $user->hasRole('teacher')) && ! AcademicScope::seesEveryClass($user)) {
             $staff = $user->staff;
             if ($staff && $homework->classroom_id) {
                 $hasAccess = DB::table('classroom_subjects')
@@ -330,7 +336,7 @@ class HomeworkController extends Controller
         ]);
 
         // Check if teacher has access to new classroom if changed
-        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+        if (($user->hasRole('Teacher') || $user->hasRole('teacher')) && ! AcademicScope::seesEveryClass($user)) {
             if ($request->classroom_id && $request->classroom_id != $homework->classroom_id) {
                 $staff = $user->staff;
                 if ($staff) {

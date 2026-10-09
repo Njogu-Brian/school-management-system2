@@ -19,6 +19,7 @@ use App\Models\Academics\TimetableGeneratedSlot;
 use App\Models\Academics\TimetableLayoutPeriod;
 use App\Models\Academics\TimetableSlotLock;
 use App\Models\Academics\TimetableSlotOverride;
+use App\Support\AcademicScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -537,7 +538,7 @@ class TimetableController extends Controller
         $user = Auth::user();
         
         // Filter classrooms based on user role
-        if (($user->hasRole('Teacher') || $user->hasRole('teacher')) && !is_supervisor() && !$user->hasRole('Senior Teacher')) {
+        if (($user->hasRole('Teacher') || $user->hasRole('teacher')) && !is_supervisor() && ! AcademicScope::seesEveryClass($user)) {
             $assignedClassroomIds = $user->getAssignedClassroomIds();
             if (!empty($assignedClassroomIds)) {
                 $classrooms = Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
@@ -545,17 +546,9 @@ class TimetableController extends Controller
                 $classrooms = collect();
             }
             $teachers = collect();
-        } elseif ($user->hasRole('Senior Teacher')) {
-            $allClassroomIds = array_unique(array_merge(
-                $user->getAssignedClassroomIds(),
-                $user->getSupervisedClassroomIds()
-            ));
-            if (!empty($allClassroomIds)) {
-                $classrooms = Classroom::whereIn('id', $allClassroomIds)->orderBy('name')->get();
-            } else {
-                $classrooms = collect();
-            }
-            $teachers = collect();
+        } elseif ($user->isSeniorTeacherUser() || AcademicScope::seesEveryClass($user)) {
+            $classrooms = Classroom::orderBy('name')->get();
+            $teachers = Staff::where('status', 'active')->whereHas('user.roles', fn ($q) => $q->whereIn('name', ['Teacher', 'teacher', 'Senior Teacher', 'Deputy Senior Teacher']))->get();
         } elseif (is_supervisor() && !$user->hasAnyRole(['Admin', 'Super Admin'])) {
             // Supervisors can see their subordinates' classrooms
             $subordinateClassroomIds = get_subordinate_classroom_ids();
