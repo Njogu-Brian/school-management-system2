@@ -29,9 +29,15 @@ class AccountantDashboardController extends Controller
             'days_ahead' => $request->get('days_ahead', $daysAheadDefault),
         ];
 
+        // Include archived and alumni students. The Student model hides them
+        // with a global scope, which left payment plans pointing at null.
+        $withStudent = function ($query) {
+            $query->withoutGlobalScope('active')->with('classroom');
+        };
+
         // Overdue payment plans
         $overduePlans = FeePaymentPlan::whereIn('status', ['overdue', 'broken'])
-            ->with(['student.classroom', 'term', 'academicYear', 'installments'])
+            ->with(['student' => $withStudent, 'term', 'academicYear', 'installments'])
             ->orderBy('final_clearance_deadline', 'asc')
             ->get()
             ->map(function ($plan) {
@@ -49,7 +55,11 @@ class AccountantDashboardController extends Controller
         $upcomingInstallments = FeePaymentPlanInstallment::where('due_date', '<=', $upcomingDate)
             ->where('due_date', '>=', now()->format('Y-m-d'))
             ->whereIn('status', ['pending', 'partial'])
-            ->with(['paymentPlan.student.classroom', 'paymentPlan.term', 'paymentPlan.academicYear'])
+            ->with([
+                'paymentPlan.student' => $withStudent,
+                'paymentPlan.term',
+                'paymentPlan.academicYear',
+            ])
             ->orderBy('due_date', 'asc')
             ->get()
             ->map(function ($installment) {
@@ -69,7 +79,7 @@ class AccountantDashboardController extends Controller
             if ($daysUntilTermEnd <= $highRiskDaysUntilTermEnd) {
                 $highRiskPlans = FeePaymentPlan::where('term_id', $currentTerm->id)
                     ->whereIn('status', ['active', 'compliant', 'overdue'])
-                    ->with(['student.classroom', 'installments'])
+                    ->with(['student' => $withStudent, 'installments'])
                     ->get()
                     ->map(function ($plan) use ($currentTerm) {
                         $totalPaid = $plan->installments->sum('paid_amount');

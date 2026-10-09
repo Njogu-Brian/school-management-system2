@@ -126,10 +126,10 @@
                     @forelse($overduePlans as $plan)
                         <tr>
                             <td>
-                                <strong>{{ $plan->student->full_name }}</strong><br>
-                                <small class="text-muted">{{ $plan->student->admission_number }}</small>
+                                <strong>{{ $plan->student?->full_name ?? 'Unknown student' }}</strong><br>
+                                <small class="text-muted">{{ $plan->student?->admission_number ?? '—' }}</small>
                             </td>
-                            <td>{{ $plan->student->classroom->name ?? 'N/A' }}</td>
+                            <td>{{ $plan->student?->classroom?->name ?? 'N/A' }}</td>
                             <td>KES {{ number_format($plan->total_amount, 2) }}</td>
                             <td>KES {{ number_format($plan->total_paid, 2) }}</td>
                             <td><strong class="text-danger">KES {{ number_format($plan->remaining_balance, 2) }}</strong></td>
@@ -147,9 +147,11 @@
                                 <a href="{{ route('finance.fee-payment-plans.show', $plan) }}" class="btn btn-sm btn-primary">
                                     <i class="bi bi-eye"></i> View
                                 </a>
-                                <a href="{{ route('finance.accountant-dashboard.student-history', $plan->student) }}" class="btn btn-sm btn-outline-primary">
-                                    <i class="bi bi-clock-history"></i> History
-                                </a>
+                                @if($plan->student)
+                                    <a href="{{ route('finance.accountant-dashboard.student-history', $plan->student) }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-clock-history"></i> History
+                                    </a>
+                                @endif
                             </td>
                         </tr>
                     @empty
@@ -192,10 +194,10 @@
                     @forelse($upcomingInstallments as $installment)
                         <tr>
                             <td>
-                                <strong>{{ $installment->paymentPlan->student->full_name }}</strong><br>
-                                <small class="text-muted">{{ $installment->paymentPlan->student->admission_number }}</small>
+                                <strong>{{ $installment->paymentPlan?->student?->full_name ?? 'Unknown student' }}</strong><br>
+                                <small class="text-muted">{{ $installment->paymentPlan?->student?->admission_number ?? '—' }}</small>
                             </td>
-                            <td>{{ $installment->paymentPlan->student->classroom->name ?? 'N/A' }}</td>
+                            <td>{{ $installment->paymentPlan?->student?->classroom?->name ?? 'N/A' }}</td>
                             <td>{{ \Carbon\Carbon::parse($installment->due_date)->format('M d, Y') }}</td>
                             <td>KES {{ number_format($installment->amount, 2) }}</td>
                             <td><strong class="text-warning">KES {{ number_format($installment->outstanding, 2) }}</strong></td>
@@ -210,9 +212,11 @@
                                 </span>
                             </td>
                             <td>
-                                <a href="{{ route('finance.fee-payment-plans.show', $installment->paymentPlan) }}" class="btn btn-sm btn-primary">
-                                    <i class="bi bi-eye"></i> View Plan
-                                </a>
+                                @if($installment->paymentPlan)
+                                    <a href="{{ route('finance.fee-payment-plans.show', $installment->paymentPlan) }}" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-eye"></i> View Plan
+                                    </a>
+                                @endif
                             </td>
                         </tr>
                     @empty
@@ -256,10 +260,10 @@
                     @foreach($highRiskPlans as $plan)
                         <tr>
                             <td>
-                                <strong>{{ $plan->student->full_name }}</strong><br>
-                                <small class="text-muted">{{ $plan->student->admission_number }}</small>
+                                <strong>{{ $plan->student?->full_name ?? 'Unknown student' }}</strong><br>
+                                <small class="text-muted">{{ $plan->student?->admission_number ?? '—' }}</small>
                             </td>
-                            <td>{{ $plan->student->classroom->name ?? 'N/A' }}</td>
+                            <td>{{ $plan->student?->classroom?->name ?? 'N/A' }}</td>
                             <td>KES {{ number_format($plan->total_amount, 2) }}</td>
                             <td>KES {{ number_format($plan->total_paid, 2) }}</td>
                             <td><strong class="text-danger">KES {{ number_format($plan->remaining_balance, 2) }}</strong></td>
@@ -279,9 +283,11 @@
                                 <a href="{{ route('finance.fee-payment-plans.show', $plan) }}" class="btn btn-sm btn-primary">
                                     <i class="bi bi-eye"></i> View
                                 </a>
-                                <a href="{{ route('finance.accountant-dashboard.student-history', $plan->student) }}" class="btn btn-sm btn-outline-primary">
-                                    <i class="bi bi-clock-history"></i> History
-                                </a>
+                                @if($plan->student)
+                                    <a href="{{ route('finance.accountant-dashboard.student-history', $plan->student) }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-clock-history"></i> History
+                                    </a>
+                                @endif
                             </td>
                         </tr>
                     @endforeach
