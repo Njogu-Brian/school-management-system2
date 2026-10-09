@@ -231,6 +231,27 @@ class Staff extends Model
             ->toArray();
     }
 
+    public function hasNssfNumber(): bool
+    {
+        return filled(trim((string) $this->nssf));
+    }
+
+    /**
+     * Stored exemptions, plus NSSF when the member has no NSSF number.
+     * Payroll must not deduct NSSF for a member who cannot be remitted.
+     *
+     * @return array<int, string>
+     */
+    public function payrollExemptionCodes(): array
+    {
+        $codes = $this->statutoryExemptionCodes();
+        if (! $this->hasNssfNumber()) {
+            $codes[] = 'nssf';
+        }
+
+        return array_values(array_unique($codes));
+    }
+
     public function scopeActive($query)
     {
         return $query->where('status', 'active');

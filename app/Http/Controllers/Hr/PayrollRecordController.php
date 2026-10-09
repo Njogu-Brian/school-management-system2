@@ -142,7 +142,7 @@ class PayrollRecordController extends Controller
         if ($useSuggestedStatutory && $record->gross_salary_override !== null) {
             $suggested = $payrollCalc->calculateAllDeductions(
                 (float) $record->gross_salary_override,
-                $record->staff?->statutoryExemptionCodes() ?? [],
+                $record->staff?->payrollExemptionCodes() ?? [],
                 $record->payrollPeriod->statutoryRuleset,
             );
             $record->nssf_deduction = $suggested['nssf'];

@@ -224,7 +224,7 @@ class RecalculatePayrollPeriodCommand extends Command
 
         $deductions = $calc->calculateAllDeductions(
             (float) $record->gross_salary,
-            $member->statutoryExemptionCodes(),
+            $member->payrollExemptionCodes(),
             $ruleset,
         );
         $record->nssf_deduction = $deductions['nssf'];
