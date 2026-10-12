@@ -25,11 +25,8 @@ class ExamPublishingController extends Controller
     public function publish(Exam $exam, Request $r)
     {
         // Guard: Check if exam is publishable
-        if (!$exam->publish_result) {
-            return back()->with('error','This exam is not marked as publishable.');
-        }
-        if (!in_array($exam->status, ['approved','published','locked'])) {
-            return back()->with('error','Exam must be approved/locked before publishing to report cards.');
+        if ($exam->status !== 'locked') {
+            return back()->with('error', 'Lock the exam before it can be included on report cards.');
         }
 
         // Update report cards for all students who took this exam
@@ -49,11 +46,13 @@ class ExamPublishingController extends Controller
             return back()->with('error','Failed to update report cards: ' . $e->getMessage());
         }
 
-        $exam->update([
-            'status' => 'published',
-            'published_at' => now(),
-        ]);
+        if (! $exam->published_at) {
+            $exam->update([
+                'published_at' => now(),
+                'publish_result' => true,
+            ]);
+        }
 
-        return back()->with('success','Results published to report cards.');
+        return back()->with('success', 'Locked results are now on the report cards.');
     }
 }

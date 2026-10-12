@@ -32,7 +32,8 @@ class ReportCardBatchService
             ->whereHas('exam', function ($q) use ($academicYearId, $termId, $classroomId, $streamId) {
                 $q->where('academic_year_id', $academicYearId)
                     ->where('term_id', $termId)
-                    ->where('classroom_id', $classroomId);
+                    ->where('classroom_id', $classroomId)
+                    ->where('status', 'locked');
 
                 if ($streamId) {
                     $q->where('stream_id', $streamId);
@@ -55,6 +56,7 @@ class ReportCardBatchService
                     ->where('academic_year_id', $academicYearId)
                     ->where('term_id', $termId)
                     ->where('classroom_id', $classroomId)
+                    ->where('status', 'locked')
                     ->when($streamId, fn ($sq) => $sq->where('stream_id', $streamId)))
                 ->get();
 
@@ -163,6 +165,7 @@ class ReportCardBatchService
                 ->where('academic_year_id', $yearId)
                 ->where('term_id', $termId)
                 ->where('classroom_id', $report->classroom_id)
+                ->where('status', 'locked')
                 ->when($report->stream_id, fn ($sq) => $sq->where('stream_id', $report->stream_id)))
             ->get();
 
@@ -174,6 +177,7 @@ class ReportCardBatchService
                     ->where('academic_year_id', $yearId)
                     ->where('term_id', $previousTerm->id)
                     ->where('classroom_id', $report->classroom_id)
+                    ->where('status', 'locked')
                     ->when($report->stream_id, fn ($sq) => $sq->where('stream_id', $report->stream_id)))
                 ->get();
         }
@@ -568,6 +572,7 @@ class ReportCardBatchService
             ->whereHas('exam', fn ($q) => $q
                 ->where('academic_year_id', $yearId)
                 ->where('classroom_id', $classroomId)
+                ->where('status', 'locked')
                 ->when($streamId, fn ($sq) => $sq->where('stream_id', $streamId)))
             ->get();
 

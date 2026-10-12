@@ -65,8 +65,10 @@ class ExamControllerTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertViewHas('exams', function ($exams) use ($assignedExam, $unassignedExam) {
-            return $exams->contains('id', $assignedExam->id) 
-                && !$exams->contains('id', $unassignedExam->id);
+            $ids = collect($exams->items())->flatMap(fn ($group) => $group['ids']);
+
+            return $ids->contains($assignedExam->id)
+                && ! $ids->contains($unassignedExam->id);
         });
     }
 

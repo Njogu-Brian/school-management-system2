@@ -10,16 +10,16 @@ use Illuminate\Support\Facades\DB;
 
 class ExamMarkEntryService
 {
-    /** Exam statuses where regular teachers may enter or revise marks. */
+    /** Exam statuses where regular teachers may enter or revise marks. Draft is hidden. */
     public function teacherEditableStatuses(): array
     {
-        return ['marking'];
+        return ['marking', 'open'];
     }
 
     /**
      * Exam statuses shown in mark-entry pickers.
-     * Published closes teacher entry; seniors/admins may still correct published exams.
-     * Locked is closed for everyone except Super Admin / Admin.
+     * Draft never appears. Published and locked stay hidden from teachers;
+     * senior teachers and admins may still correct them.
      */
     public function entryVisibleStatuses(?User $user = null): array
     {
@@ -27,6 +27,8 @@ class ExamMarkEntryService
 
         if ($user && $this->userCanOverridePublishedEntry($user)) {
             $statuses[] = 'published';
+            $statuses[] = 'approved';
+            $statuses[] = 'moderation';
         }
 
         if ($user && $this->userCanOverrideLockedEntry($user)) {
@@ -42,11 +44,11 @@ class ExamMarkEntryService
             return true;
         }
 
-        if ($user && $exam->status === 'published' && $this->userCanOverridePublishedEntry($user)) {
+        if ($user && $exam->canonicalStatus() === 'published' && $this->userCanOverridePublishedEntry($user)) {
             return true;
         }
 
-        if ($user && $exam->status === 'locked' && $this->userCanOverrideLockedEntry($user)) {
+        if ($user && $exam->canonicalStatus() === 'locked' && $this->userCanOverrideLockedEntry($user)) {
             return true;
         }
 
@@ -68,6 +70,8 @@ class ExamMarkEntryService
         return $user->hasAnyRole([
             'Super Admin', 'super admin', 'Super admin',
             'Admin', 'System Admin',
+            'Senior Teacher', 'senior teacher', 'Senior teacher',
+            'Deputy Senior Teacher', 'deputy senior teacher', 'Deputy senior teacher',
         ]);
     }
 

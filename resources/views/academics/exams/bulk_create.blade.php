@@ -2,6 +2,14 @@
 
 @push('styles')
     @include('settings.partials.styles')
+    <style>
+      .paper-grid { display: flex; flex-wrap: wrap; gap: .4rem; }
+      .paper-chip {
+        display: inline-flex; align-items: center; gap: .35rem;
+        padding: .28rem .65rem; border-radius: 999px;
+        background: #f4f7fb; border: 1px solid #e4ebf3; font-size: .85rem;
+      }
+    </style>
 @endpush
 
 @section('content')
@@ -81,12 +89,14 @@
           </div>
           <div class="col-md-12">
             <label class="form-label">Classes <span class="text-danger">*</span></label>
-            <select name="classroom_ids[]" class="form-select" multiple required size="8">
+            <div class="paper-grid">
               @foreach($classrooms as $c)
-                <option value="{{ $c->id }}" @selected(collect(old('classroom_ids', []))->contains($c->id))>{{ $c->name }}</option>
+                <label class="paper-chip">
+                  <input type="checkbox" name="classroom_ids[]" value="{{ $c->id }}" @checked(collect(old('classroom_ids', []))->contains($c->id))>
+                  {{ $c->name }}
+                </label>
               @endforeach
-            </select>
-            <div class="form-text">Hold Ctrl (Windows) or Cmd (Mac) to select multiple.</div>
+            </div>
           </div>
           <div class="col-md-12">
             <div class="form-check mb-2">
@@ -97,12 +107,15 @@
           </div>
           <div class="col-md-12" id="subjectPickWrap">
             <label class="form-label">Subjects</label>
-            <select name="subject_ids[]" class="form-select" multiple size="8" id="subjectSelect">
+            <div class="paper-grid" id="subjectSelect">
               @foreach($subjects as $s)
-                <option value="{{ $s->id }}" @selected(collect(old('subject_ids', []))->contains($s->id))>{{ $s->name }}</option>
+                <label class="paper-chip">
+                  <input type="checkbox" name="subject_ids[]" value="{{ $s->id }}" @checked(collect(old('subject_ids', []))->contains($s->id))>
+                  {{ $s->name }}
+                </label>
               @endforeach
-            </select>
-            <div class="form-text">Only active subjects with mapped teachers are used. Unmapped/inactive selections are skipped.</div>
+            </div>
+            <div class="form-text">Only active subjects with mapped teachers are used. Unmapped or inactive selections are skipped.</div>
           </div>
           <div class="col-md-12">
             <div class="form-check form-switch mb-2">
@@ -110,8 +123,8 @@
               <label class="form-check-label" for="publishExamBulk">Publish exam (visible on schedule)</label>
             </div>
             <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" name="publish_result" value="1" id="publishResultBulk" @checked(old('publish_result', true))>
-              <label class="form-check-label" for="publishResultBulk">Publish result (eligible for report cards)</label>
+              <input class="form-check-input" type="checkbox" name="publish_result" value="1" id="publishResultBulk" @checked(old('publish_result'))>
+              <label class="form-check-label" for="publishResultBulk">Allow this result on report cards once the class is locked</label>
             </div>
           </div>
         </div>
@@ -133,7 +146,7 @@
   function sync() {
     const on = box.checked;
     wrap.classList.toggle('opacity-50', on);
-    sel.disabled = on;
+    sel.querySelectorAll('input').forEach(function (input) { input.disabled = on; });
   }
   box.addEventListener('change', sync);
   sync();

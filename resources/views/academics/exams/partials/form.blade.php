@@ -119,18 +119,16 @@
           <div class="mb-3">
             <label class="form-label">Status</label>
             <select name="status" class="form-select">
-              @foreach(['draft','open','marking','moderation','approved','published','locked'] as $st)
-                <option value="{{ $st }}" @selected($v['status']==$st)>{{ ucfirst($st) }}</option>
+              @foreach(['draft','marking','published','locked'] as $st)
+                <option value="{{ $st }}" @selected(($exam->canonicalStatus() ?? $v['status'])==$st)>{{ ucfirst($st) }}</option>
               @endforeach
             </select>
-            @if(in_array($exam->status ?? '', ['locked', 'published'], true))
-              <div class="form-text text-warning">To let teachers correct marks, change status to <strong>Marking</strong> or use Reopen for Editing on the exams list.</div>
-            @endif
+            <div class="form-text">Draft hides marks. Marking opens teacher entry. Published lets senior teachers and admins correct marks. Locked sends results to report cards and the parent portal.</div>
           </div>
         @else
           <input type="hidden" name="status" value="draft">
         @endif
-        <div class="small text-muted"><i class="bi bi-info-circle me-1"></i>Results push to report cards when exam is Approved/Locked and Publish Result is on.</div>
+        <div class="small text-muted"><i class="bi bi-info-circle me-1"></i>New exams start as draft. Parents and report cards only see locked exams.</div>
       </div>
     </div>
   </div>

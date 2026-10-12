@@ -13,6 +13,7 @@ use App\Rules\TermBelongsToAcademicYear;
 use App\Support\AcademicContext;
 use App\Support\AcademicScope;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -29,14 +30,16 @@ class ExamController extends Controller
 
     public function index(Request $request)
     {
-        $perPage = (int) $request->input('per_page', 20);
-        $perPage = in_array($perPage, [20, 50, 100, 200], true) ? $perPage : 20;
+        $perPage = (int) $request->input('per_page', 12);
+        $perPage = in_array($perPage, [12, 24, 48], true) ? $perPage : 12;
 
         $query = Exam::with([
             'academicYear',
             'term',
             'classroom',
+            'stream',
             'subject',
+            'examType',
             'creator'
         ])
         ->withCount(['marks', 'schedules']);
@@ -105,7 +108,7 @@ class ExamController extends Controller
         }
 
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $query->whereIn('status', Exam::statusesMatching((string) $request->status));
         }
 
         if ($request->filled('classroom_id')) {
@@ -138,15 +141,57 @@ class ExamController extends Controller
 
         $stats = [
             'total' => $statsQuery->count(),
-            'draft' => (clone $statsQuery)->where('status', 'draft')->count(),
-            'open' => (clone $statsQuery)->where('status', 'open')->count(),
-            'marking' => (clone $statsQuery)->where('status', 'marking')->count(),
-            'approved' => (clone $statsQuery)->where('status', 'approved')->count(),
-            'published' => (clone $statsQuery)->where('status', 'published')->count(),
-            'locked' => (clone $statsQuery)->where('status', 'locked')->count(),
+            'draft' => (clone $statsQuery)->whereIn('status', Exam::statusesMatching('draft'))->count(),
+            'marking' => (clone $statsQuery)->whereIn('status', Exam::statusesMatching('marking'))->count(),
+            'published' => (clone $statsQuery)->whereIn('status', Exam::statusesMatching('published'))->count(),
+            'locked' => (clone $statsQuery)->whereIn('status', Exam::statusesMatching('locked'))->count(),
         ];
 
-        $exams = $query->latest('created_at')->paginate($perPage)->withQueryString();
+        $papers = $query->orderBy('name')->get();
+        $groups = $papers
+            ->groupBy(function (Exam $exam) {
+                return implode(':', [
+                    $exam->exam_type_id ?? 0,
+                    $exam->classroom_id ?? 0,
+                    $exam->academic_year_id ?? 0,
+                    $exam->term_id ?? 0,
+                    $exam->stream_id ?? 0,
+                ]);
+            })
+            ->map(function ($items) {
+                $first = $items->first();
+                $counts = ['draft' => 0, 'marking' => 0, 'published' => 0, 'locked' => 0];
+                foreach ($items as $exam) {
+                    $step = $exam->canonicalStatus();
+                    $counts[$step] = ($counts[$step] ?? 0) + 1;
+                }
+                $present = collect($counts)->filter(fn ($count) => $count > 0);
+                $papers = $items->sortBy(fn (Exam $exam) => strtolower($exam->subject->name ?? $exam->name))->values();
+
+                return [
+                    'title' => trim(($first->examType->name ?? 'Exam').' · '.($first->classroom->name ?? 'No class')),
+                    'year' => $first->academicYear->name ?? null,
+                    'term' => $first->term->name ?? null,
+                    'stream' => $first->stream->name ?? null,
+                    'papers' => $papers,
+                    'counts' => $counts,
+                    'uniform' => $present->count() === 1 ? (string) $present->keys()->first() : null,
+                    'ids' => $papers->pluck('id')->all(),
+                    'marks' => (int) $papers->sum('marks_count'),
+                ];
+            })
+            ->sortBy(fn ($group) => strtolower($group['title']))
+            ->values();
+
+        $page = max(1, (int) $request->input('page', 1));
+        $exams = new LengthAwarePaginator(
+            $groups->forPage($page, $perPage)->values(),
+            $groups->count(),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+        $canManageStatus = $this->managesExamLifecycle($user);
 
         $types = ExamType::orderBy('name')->get();
         $academic = AcademicContext::forView(
@@ -175,7 +220,8 @@ class ExamController extends Controller
             'examSessions',
             'classrooms',
             'subjects',
-            'perPage'
+            'perPage',
+            'canManageStatus'
         ), $academic));
     }
 
@@ -334,9 +380,8 @@ class ExamController extends Controller
                 }
             }
 
-            // Teachers can't change status to published or locked
-            if ($request->has('status') && in_array($request->status, ['published', 'locked'])) {
-                if (!Auth::user()->hasPermissionTo('exams.publish')) {
+            if ($request->has('status') && in_array($request->status, ['published', 'locked'], true) && ! $this->managesExamLifecycle(Auth::user())) {
+                if (! Auth::user()->hasPermissionTo('exams.publish')) {
                     return back()
                         ->withInput()
                         ->with('error', 'You do not have permission to publish or lock exams.');
@@ -359,7 +404,7 @@ class ExamController extends Controller
             'starts_on'        => 'nullable|date',
             'ends_on'          => 'nullable|date|after_or_equal:starts_on',
             'weight'           => 'required|numeric|min:0|max:100',
-            'status'           => 'required|in:draft,open,marking,moderation,approved,published,locked',
+            'status'           => 'required|in:draft,marking,published,locked',
             'publish_exam'     => 'boolean',
             'publish_result'   => 'boolean',
             'exam_type_id'     => 'required|exists:exam_types,id',
@@ -743,7 +788,7 @@ class ExamController extends Controller
         $v = $request->validate([
             'exam_ids' => 'required|array|min:1',
             'exam_ids.*' => 'integer|exists:exams,id',
-            'bulk_status' => 'nullable|in:draft,open,marking,moderation,approved,published,locked',
+            'bulk_status' => 'nullable|in:draft,marking,published,locked',
             'bulk_publish_exam' => 'nullable|in:0,1',
             'bulk_publish_result' => 'nullable|in:0,1',
             'bulk_starts_on' => 'nullable|date',
@@ -773,28 +818,29 @@ class ExamController extends Controller
 
         $updated = 0;
         $skipped = 0;
+        $unchanged = 0;
+        $reasons = [];
 
         $exams = Exam::whereIn('id', $v['exam_ids'])->get();
         foreach ($exams as $exam) {
             if ($isTeacher && $exam->classroom_id && !in_array((int) $exam->classroom_id, $allowedClassroomIds, true)) {
                 $skipped++;
+                $reasons['That class is outside your assigned exams.'] = true;
                 continue;
             }
 
             $payload = [];
+            $statusUnchanged = false;
 
             if ($hasStatus) {
                 $newStatus = $v['bulk_status'];
+                $statusUnchanged = $newStatus === $exam->status;
 
-                if (in_array($newStatus, ['published', 'locked'], true) && !$user->hasPermissionTo('exams.publish')) {
-                    $skipped++;
-                    continue;
-                }
-
-                if ($newStatus !== $exam->status) {
+                if (! $statusUnchanged) {
                     $transitionError = $this->applyStatusTransition($exam, $newStatus, $payload);
                     if ($transitionError) {
                         $skipped++;
+                        $reasons[$transitionError] = true;
                         continue;
                     }
                 }
@@ -821,7 +867,11 @@ class ExamController extends Controller
             }
 
             if ($payload === []) {
-                $skipped++;
+                if ($statusUnchanged) {
+                    $unchanged++;
+                } else {
+                    $skipped++;
+                }
                 continue;
             }
 
@@ -829,12 +879,25 @@ class ExamController extends Controller
             $updated++;
         }
 
-        $message = $updated.' exam(s) updated.';
-        if ($skipped > 0) {
-            $message .= ' '.$skipped.' skipped (permission or invalid transition).';
+        if ($updated > 0) {
+            $message = $updated.' exam(s) updated.';
+            if ($skipped > 0) {
+                $message .= ' '.$skipped.' could not be changed. '.implode(' ', array_keys($reasons));
+            }
+
+            return back()->with('success', $message);
         }
 
-        return back()->with($updated > 0 ? 'success' : 'error', $message);
+        if ($unchanged > 0 && $skipped === 0) {
+            return back()->with('success', 'Those exams are already in that status.');
+        }
+
+        $message = $skipped.' exam(s) could not be changed.';
+        if ($reasons !== []) {
+            $message .= ' '.implode(' ', array_keys($reasons));
+        }
+
+        return back()->with('error', $message);
     }
 
     /**
@@ -866,15 +929,21 @@ class ExamController extends Controller
             return null;
         }
 
-        if (! $exam->canTransitionTo($newStatus)) {
+        if (! in_array($newStatus, Exam::lifecycleStatuses(), true)) {
             return "Cannot transition from {$exam->status} to {$newStatus}.";
         }
 
-        if ($exam->isReopeningTo($newStatus) && ! Auth::user()->hasPermissionTo('exams.publish')) {
+        $manager = $this->managesExamLifecycle(Auth::user());
+
+        if (! $manager && ! $exam->canTransitionTo($newStatus)) {
+            return "Cannot transition from {$exam->status} to {$newStatus}.";
+        }
+
+        if (! $manager && $exam->isReopeningTo($newStatus) && ! Auth::user()->hasPermissionTo('exams.publish')) {
             return 'You do not have permission to reopen locked or published exams.';
         }
 
-        if (in_array($newStatus, ['published', 'locked'], true) && ! Auth::user()->hasPermissionTo('exams.publish')) {
+        if (! $manager && in_array($newStatus, ['published', 'locked'], true) && ! Auth::user()->hasPermissionTo('exams.publish')) {
             return 'You do not have permission to publish or lock exams.';
         }
 
@@ -898,9 +967,29 @@ class ExamController extends Controller
         if ($newStatus === 'locked' && ! $exam->locked_at) {
             $payload['locked_at'] = now();
             $payload['locked_by'] = Auth::id();
+            $payload['publish_result'] = true;
         }
 
         return null;
+    }
+
+    /**
+     * Super Admin, Admin, and Senior Teacher manage the exam lifecycle without a permission gate.
+     */
+    private function managesExamLifecycle($user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        return $user->hasAnyRole([
+            'Super Admin', 'super admin', 'Super admin', 'System Admin',
+            'Admin', 'admin',
+            'Senior Teacher', 'senior teacher', 'Senior teacher',
+            'Deputy Senior Teacher', 'deputy senior teacher', 'Deputy senior teacher',
+            'Director', 'director',
+            'Academic Administrator',
+        ]) || $user->isSeniorTeacherUser();
     }
 
     /**

@@ -23,10 +23,10 @@
     </div>
 
     <div class="row g-3 mb-3">
-      <div class="col-md-3"><div class="settings-card stat-card border-start border-4 border-primary"><div class="card-body"><div class="text-muted text-uppercase small">Total Students</div><h3 class="mb-0">{{ $stats['total_students'] ?? 0 }}</h3></div></div></div>
-      <div class="col-md-3"><div class="settings-card stat-card border-start border-4 border-success"><div class="card-body"><div class="text-muted text-uppercase small">Marks Entered</div><h3 class="mb-0">{{ $stats['marks_entered'] ?? 0 }}</h3></div></div></div>
-      <div class="col-md-3"><div class="settings-card stat-card border-start border-4 border-warning"><div class="card-body"><div class="text-muted text-uppercase small">Marks Pending</div><h3 class="mb-0">{{ $stats['marks_pending'] ?? 0 }}</h3></div></div></div>
-      <div class="col-md-3"><div class="settings-card stat-card border-start border-4 border-info"><div class="card-body"><div class="text-muted text-uppercase small">Completion Rate</div><h3 class="mb-0">{{ $stats['completion_rate'] ?? 0 }}%</h3></div></div></div>
+      <div class="col-6 col-lg-3"><div class="settings-card stat-card border-start border-4 border-primary"><div class="card-body"><div class="text-muted text-uppercase small">Total Students</div><h3 class="mb-0">{{ $stats['total_students'] ?? 0 }}</h3></div></div></div>
+      <div class="col-6 col-lg-3"><div class="settings-card stat-card border-start border-4 border-success"><div class="card-body"><div class="text-muted text-uppercase small">Marks Entered</div><h3 class="mb-0">{{ $stats['marks_entered'] ?? 0 }}</h3></div></div></div>
+      <div class="col-6 col-lg-3"><div class="settings-card stat-card border-start border-4 border-warning"><div class="card-body"><div class="text-muted text-uppercase small">Marks Pending</div><h3 class="mb-0">{{ $stats['marks_pending'] ?? 0 }}</h3></div></div></div>
+      <div class="col-6 col-lg-3"><div class="settings-card stat-card border-start border-4 border-info"><div class="card-body"><div class="text-muted text-uppercase small">Completion Rate</div><h3 class="mb-0">{{ $stats['completion_rate'] ?? 0 }}%</h3></div></div></div>
     </div>
 
     <div class="row g-3">
@@ -36,7 +36,7 @@
           <div class="card-body">
             <div class="row mb-3">
               <div class="col-md-6"><span class="text-muted small">Exam Name</span><div class="fw-semibold">{{ $exam->name }}</div></div>
-              <div class="col-md-6"><span class="text-muted small">Status</span><div><span class="pill-badge pill-{{ $exam->status_badge }} fs-6">{{ ucfirst($exam->status) }}</span></div></div>
+              <div class="col-md-6"><span class="text-muted small">Status</span><div><span class="pill-badge pill-{{ $exam->status_badge }} fs-6">{{ ucfirst($exam->canonicalStatus()) }}</span></div></div>
             </div>
             <div class="row mb-3">
               <div class="col-md-6"><span class="text-muted small">Modality</span><div><span class="pill-badge pill-secondary">{{ ucfirst($exam->modality) }}</span></div></div>

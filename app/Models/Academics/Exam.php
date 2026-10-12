@@ -181,6 +181,31 @@ class Exam extends Model
         return ['draft', 'marking', 'published', 'locked'];
     }
 
+    /**
+     * Older rows used open / moderation / approved. Treat them as the current lifecycle.
+     */
+    public function canonicalStatus(): string
+    {
+        return match ($this->status) {
+            'open' => 'marking',
+            'moderation', 'approved' => 'published',
+            'draft', 'marking', 'published', 'locked' => $this->status,
+            default => 'draft',
+        };
+    }
+
+    /** Database statuses that belong to one lifecycle step, including older labels. */
+    public static function statusesMatching(string $status): array
+    {
+        return match ($status) {
+            'marking' => ['marking', 'open'],
+            'published' => ['published', 'approved', 'moderation'],
+            'draft' => ['draft'],
+            'locked' => ['locked'],
+            default => [$status],
+        };
+    }
+
     // Accessors
     public function getStatusBadgeAttribute()
     {
@@ -191,17 +216,17 @@ class Exam extends Model
             'locked' => 'danger',
         ];
 
-        return $badges[$this->status] ?? 'secondary';
+        return $badges[$this->canonicalStatus()] ?? 'secondary';
     }
 
     public function getIsOpenAttribute()
     {
-        return $this->status === 'marking';
+        return in_array($this->status, ['marking', 'open'], true);
     }
 
     public function getCanEnterMarksAttribute()
     {
-        return $this->status === 'marking';
+        return in_array($this->status, ['marking', 'open'], true);
     }
 
     public function getCanPublishAttribute()
@@ -234,6 +259,15 @@ class Exam extends Model
     // Methods
     public function canTransitionTo($newStatus)
     {
+        if (! in_array($newStatus, self::lifecycleStatuses(), true)) {
+            return false;
+        }
+
+        $current = $this->canonicalStatus();
+        if ($newStatus === $current && $newStatus !== $this->status) {
+            return true;
+        }
+
         $transitions = [
             'draft' => ['marking'],
             'marking' => ['published', 'draft'],
@@ -241,7 +275,7 @@ class Exam extends Model
             'locked' => ['published', 'marking'],
         ];
 
-        return in_array($newStatus, $transitions[$this->status] ?? []);
+        return in_array($newStatus, $transitions[$current] ?? [], true);
     }
 
     /** Statuses that reopen mark entry for teachers after publish/lock. */
