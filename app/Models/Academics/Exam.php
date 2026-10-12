@@ -94,7 +94,7 @@ class Exam extends Model
 
     public function stream()
     {
-        return $this->belongsTo(\App\Models\Stream::class);
+        return $this->belongsTo(Stream::class);
     }
 
     public function subject()
