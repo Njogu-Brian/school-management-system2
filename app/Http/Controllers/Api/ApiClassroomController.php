@@ -39,15 +39,19 @@ class ApiClassroomController extends Controller
     public function streams(Request $request, $classId)
     {
         $user = $request->user();
-        $query = Stream::where('classroom_id', $classId)->orderBy('name');
+        $query = Stream::query()->forClassroom((int) $classId)->orderBy('name');
 
-        // Teachers: verify access to this class and filter streams if needed
+        // Teachers: verify access to this class and filter streams if needed.
+        // Senior teachers and class teachers see every stream linked to the class.
         if ($user && $user->hasTeacherLikeRole()) {
             if (! $user->canTeacherAccessClassroom((int) $classId)) {
                 return response()->json(['success' => true, 'data' => []]);
             }
+            $seesEveryStream = $user->isSeniorTeacherUser()
+                || $user->isDeputySeniorTeacherUser()
+                || in_array((int) $classId, array_map('intval', $user->getClassTeacherClassroomIds()), true);
             $streamIds = $user->getEffectiveStreamIds();
-            if (!empty($streamIds)) {
+            if (! $seesEveryStream && ! empty($streamIds)) {
                 $query->whereIn('id', $streamIds);
             }
         }
@@ -55,7 +59,7 @@ class ApiClassroomController extends Controller
         $streams = $query->get()->map(fn($s) => [
             'id' => $s->id,
             'name' => $s->name,
-            'class_id' => $s->classroom_id,
+            'class_id' => (int) $classId,
         ]);
 
         return response()->json(['success' => true, 'data' => $streams]);

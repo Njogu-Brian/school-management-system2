@@ -44,12 +44,18 @@ export const MarkAbsentScreen: React.FC<Props> = ({ navigation }) => {
   const reasonCodes = reasonCodesQuery.data ?? [];
 
   const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const [endDate, setEndDate] = useState<Date | null>(null);
   const dateStr = formatDateYmd(selectedDate);
+  const endStr = endDate ? formatDateYmd(endDate) : null;
+  const maxDate = useMemo(() => {
+    const next = new Date();
+    next.setDate(next.getDate() + 60);
+    return next;
+  }, []);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Record<number, true>>({});
-  const [reasonCodeId, setReasonCodeId] = useState<number | null>(null);
-  const [notes, setNotes] = useState('');
+  const [reasons, setReasons] = useState<Record<number, AttendanceReasonFields>>({});
   const [schoolDayOk, setSchoolDayOk] = useState<boolean | null>(null);
   const [schoolDayMessage, setSchoolDayMessage] = useState<string | null>(null);
 
@@ -61,22 +67,19 @@ export const MarkAbsentScreen: React.FC<Props> = ({ navigation }) => {
   useEffect(() => {
     void attendanceApi.getSchoolDay(dateStr).then((res) => {
       if (res.success && res.data) {
-        if (res.data.is_future) {
-          setSchoolDayOk(false);
-          setSchoolDayMessage('Cannot mark attendance for a future date.');
-        } else if (!res.data.is_school_day) {
+        if (!res.data.is_school_day && !endStr) {
           setSchoolDayOk(false);
           setSchoolDayMessage('This date is not a school day (weekend, holiday, or break).');
         } else {
           setSchoolDayOk(true);
-          setSchoolDayMessage(null);
+          setSchoolDayMessage(endStr ? 'Non-school days between the dates are skipped.' : null);
         }
       } else {
         setSchoolDayOk(null);
         setSchoolDayMessage(null);
       }
     });
-  }, [dateStr]);
+  }, [dateStr, endStr]);
 
   const listQuery = useInfiniteStudentList({ search: search || undefined, perPage: 40 });
   const students = useMemo(
@@ -98,37 +101,43 @@ export const MarkAbsentScreen: React.FC<Props> = ({ navigation }) => {
     });
   };
 
-  const reason: AttendanceReasonFields = {
-    reason_code_id: reasonCodeId,
-    reason: notes.trim() || null,
-    excuse_notes: notes.trim() || null,
-  };
-  const reasonText = attendanceReasonLabel(reason, reasonCodes);
-
   const submit = () => {
     if (selectedCount === 0) {
       showError('Select students', 'Tick at least one student to mark absent.');
+      return;
+    }
+    if (endStr && endStr < dateStr) {
+      showError('Invalid dates', 'End date must be on or after the start date.');
       return;
     }
     if (schoolDayOk === false) {
       showError('Not a school day', schoolDayMessage ?? 'Pick a valid school day.');
       return;
     }
-    const names = students
+    const lines = students
       .filter((s) => selected[s.id])
-      .map((s) => s.fullName)
-      .slice(0, 8);
-    const extra = selectedCount > names.length ? ` and ${selectedCount - names.length} more` : '';
+      .slice(0, 8)
+      .map((s) => {
+        const label = attendanceReasonLabel(reasons[s.id], reasonCodes);
+        return label ? `${s.fullName} — ${label}` : s.fullName;
+      });
+    const extra = selectedCount > lines.length ? `\nand ${selectedCount - lines.length} more` : '';
+    const range = endStr && endStr !== dateStr ? `${dateStr} to ${endStr}` : dateStr;
     confirmAction(
       'Mark as absent?',
-      `Mark ${selectedCount} student${selectedCount === 1 ? '' : 's'} absent for ${dateStr}?\n\n${names.join('\n')}${extra}${reasonText ? `\n\nReason: ${reasonText}` : ''}`,
+      `Mark ${selectedCount} student${selectedCount === 1 ? '' : 's'} absent for ${range}?\n\n${lines.join('\n')}${extra}`,
       'Yes, mark absent',
       async () => {
         try {
           const data = await markAbsent.mutateAsync({
             date: dateStr,
-            student_ids: selectedIds,
-            ...reason,
+            end_date: endStr,
+            records: selectedIds.map((id) => ({
+              student_id: id,
+              reason_code_id: reasons[id]?.reason_code_id ?? null,
+              reason: reasons[id]?.reason ?? null,
+              excuse_notes: reasons[id]?.excuse_notes ?? null,
+            })),
           });
           setSelected({});
           showSuccess('Marked absent', data?.message ?? `${selectedCount} students marked absent.`);
@@ -148,10 +157,44 @@ export const MarkAbsentScreen: React.FC<Props> = ({ navigation }) => {
           <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md }}>
             <AcademicScreenHeader
               title="Mark as absent"
-              subtitle="Search, tick students, then confirm"
+              subtitle="Each student gets their own reason"
               onBack={() => navigation.goBack()}
             />
-            <DatePickerField value={selectedDate} onChange={setSelectedDate} maximumDate={new Date()} />
+            <DatePickerField
+              label="Start date"
+              value={selectedDate}
+              onChange={(next) => {
+                setSelectedDate(next);
+                if (endDate && formatDateYmd(next) > formatDateYmd(endDate)) {
+                  setEndDate(next);
+                }
+              }}
+              maximumDate={maxDate}
+            />
+            {endDate ? (
+              <View style={{ marginTop: spacing.sm }}>
+                <DatePickerField
+                  label="End date"
+                  value={endDate}
+                  onChange={setEndDate}
+                  minimumDate={selectedDate}
+                  maximumDate={maxDate}
+                />
+                <Button
+                  label="Clear end date"
+                  variant="ghost"
+                  onPress={() => setEndDate(null)}
+                  style={{ marginTop: spacing.xs }}
+                />
+              </View>
+            ) : (
+              <Button
+                label="Add end date"
+                variant="secondary"
+                onPress={() => setEndDate(selectedDate)}
+                style={{ marginTop: spacing.sm, marginBottom: spacing.sm }}
+              />
+            )}
             {schoolDayMessage ? (
               <View style={[styles.warnBanner, { backgroundColor: `${colors.warning}18`, borderColor: colors.warning }]}>
                 <Text style={{ color: colors.warning, fontSize: typography.body.fontSize }}>{schoolDayMessage}</Text>
@@ -161,25 +204,6 @@ export const MarkAbsentScreen: React.FC<Props> = ({ navigation }) => {
               value={searchInput}
               onChangeText={setSearchInput}
               placeholder="Search name or admission no."
-            />
-            {reasonCodes.length > 0 ? (
-              <FilterChipRow label="Reason">
-                {reasonCodes.map((code) => (
-                  <FilterChip
-                    key={code.id}
-                    label={code.name}
-                    active={reasonCodeId === code.id}
-                    onPress={() => setReasonCodeId(reasonCodeId === code.id ? null : code.id)}
-                  />
-                ))}
-              </FilterChipRow>
-            ) : null}
-            <TextField
-              label="Notes"
-              value={notes}
-              onChangeText={setNotes}
-              placeholder="Optional reason for parents"
-              containerStyle={{ marginBottom: spacing.sm }}
             />
             <Text
               style={{
@@ -225,33 +249,75 @@ export const MarkAbsentScreen: React.FC<Props> = ({ navigation }) => {
             }}
             renderItem={({ item }) => {
               const checked = !!selected[item.id];
+              const reason = reasons[item.id];
               return (
-                <Pressable
-                  onPress={() => toggle(item.id)}
+                <View
                   style={[
                     styles.row,
                     {
                       borderColor: checked ? colors.primary : palette.border,
                       backgroundColor: palette.surfaceRaised,
+                      alignItems: 'flex-start',
                     },
                   ]}
                 >
-                  <Ionicons
-                    name={checked ? 'checkbox' : 'square-outline'}
-                    size={24}
-                    color={checked ? colors.primary : palette.textMuted}
-                  />
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={{ color: palette.textPrimary, fontWeight: '600' }} numberOfLines={1}>
-                      {item.fullName}
-                    </Text>
-                    <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
-                      {item.admissionNumber}
-                      {item.className ? ` · ${item.className}` : ''}
-                      {item.streamName ? ` ${item.streamName}` : ''}
-                    </Text>
-                  </View>
-                </Pressable>
+                  <Pressable onPress={() => toggle(item.id)} style={styles.pickRow}>
+                    <Ionicons
+                      name={checked ? 'checkbox' : 'square-outline'}
+                      size={24}
+                      color={checked ? colors.primary : palette.textMuted}
+                    />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={{ color: palette.textPrimary, fontWeight: '600' }} numberOfLines={1}>
+                        {item.fullName}
+                      </Text>
+                      <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+                        {item.admissionNumber}
+                        {item.className ? ` · ${item.className}` : ''}
+                        {item.streamName ? ` ${item.streamName}` : ''}
+                      </Text>
+                    </View>
+                  </Pressable>
+                  {checked ? (
+                    <View style={{ marginTop: spacing.sm }}>
+                      {reasonCodes.length > 0 ? (
+                        <FilterChipRow label="Reason">
+                          {reasonCodes.map((code) => (
+                            <FilterChip
+                              key={code.id}
+                              label={code.name}
+                              active={reason?.reason_code_id === code.id}
+                              onPress={() =>
+                                setReasons((prev) => ({
+                                  ...prev,
+                                  [item.id]: {
+                                    ...prev[item.id],
+                                    reason_code_id: prev[item.id]?.reason_code_id === code.id ? null : code.id,
+                                  },
+                                }))
+                              }
+                            />
+                          ))}
+                        </FilterChipRow>
+                      ) : null}
+                      <TextField
+                        label="Notes"
+                        value={reason?.excuse_notes ?? ''}
+                        onChangeText={(text) =>
+                          setReasons((prev) => ({
+                            ...prev,
+                            [item.id]: {
+                              ...prev[item.id],
+                              reason: text,
+                              excuse_notes: text,
+                            },
+                          }))
+                        }
+                        placeholder="This student's reason"
+                      />
+                    </View>
+                  ) : null}
+                </View>
               );
             }}
             ListEmptyComponent={
@@ -280,12 +346,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 10,
     padding: 12,
     marginBottom: 8,
+  },
+  pickRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
 });

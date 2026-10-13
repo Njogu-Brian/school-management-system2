@@ -59,8 +59,10 @@ export const attendanceApi = {
 
   markAbsent(payload: {
     date: string;
-    student_ids: number[];
-  } & AttendanceReasonFields): Promise<ApiResponse<{ message: string; count: number }>> {
+    end_date?: string | null;
+    student_ids?: number[];
+    records?: Array<{ student_id: number } & AttendanceReasonFields>;
+  } & AttendanceReasonFields): Promise<ApiResponse<{ message: string; count: number; school_days?: number }>> {
     return apiClient.post<{ message: string; count: number }>('/attendance/mark-absent', payload);
   },
 

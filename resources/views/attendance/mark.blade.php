@@ -30,7 +30,31 @@
 
     @if(session('success'))
       <div class="alert alert-success alert-dismissible fade show">
-        {{ session('success') }}
+        <div class="fw-semibold">{{ session('success') }}</div>
+        @php
+          $summary = collect(session('attendance_summary', []));
+          $summaryGroups = [
+            'absent' => 'Absent',
+            'late' => 'Late',
+            'present' => 'Present',
+            'cleared' => 'Cleared',
+          ];
+        @endphp
+        @if($summary->isNotEmpty())
+          <div class="mt-2">
+            @foreach($summaryGroups as $statusKey => $statusLabel)
+              @php $rows = $summary->where('status', $statusKey); @endphp
+              @if($rows->isNotEmpty())
+                <div class="small mt-2 mb-1">{{ $statusLabel }} ({{ $rows->count() }})</div>
+                <ul class="mb-0 small">
+                  @foreach($rows as $row)
+                    <li>{{ $row['name'] }}@if(!empty($row['class'])) — {{ $row['class'] }}@if(!empty($row['stream'])) {{ $row['stream'] }}@endif @endif</li>
+                  @endforeach
+                </ul>
+              @endif
+            @endforeach
+          </div>
+        @endif
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
       </div>
     @endif
@@ -172,10 +196,13 @@
                 </tr>
               </thead>
               <tbody>
-                @php $row = 0; @endphp
+                @php
+                  $row = 0;
+                  $groupKey = null;
+                @endphp
                 @foreach ($students as $student)
                   @php
-                    $row++;
+                    $currentGroup = ($student->classroom_id ?? 0).'-'.($student->stream_id ?? 0);
                     $att = $attendanceRecords->get($student->id);
                     $status = $att ? $att->status : null;
                     $reasonCodeId = $att ? $att->reason_code_id : null;
@@ -183,8 +210,21 @@
                     $consecutive = $att ? $att->consecutive_absence_count : 0;
                     $eligible = $studentAttendanceEligibility[$student->id] ?? false;
                     $rowDisabled = !($dateAllowsMarking ?? true) || !$eligible;
+                    $classLabel = trim(($student->classroom->name ?? 'No class').($student->stream ? ' '.$student->stream->name : ''));
                   @endphp
-                  <tr data-student-id="{{ $student->id }}" data-attendance-eligible="{{ $eligible && ($dateAllowsMarking ?? true) ? '1' : '0' }}" data-search="{{ strtolower($student->admission_number.' '.$student->first_name.' '.$student->middle_name.' '.$student->last_name) }}" class="{{ $rowDisabled ? 'table-secondary text-muted' : '' }}">
+                  @if($currentGroup !== $groupKey)
+                    @php $groupKey = $currentGroup; $row = 0; @endphp
+                    <tr class="attendance-group">
+                      <td colspan="7">
+                        <span>{{ $student->classroom->name ?? 'No class' }}</span>
+                        @if($student->stream)
+                          <span class="text-muted fw-normal">· {{ $student->stream->name }}</span>
+                        @endif
+                      </td>
+                    </tr>
+                  @endif
+                  @php $row++; @endphp
+                  <tr data-student-id="{{ $student->id }}" data-initial-status="{{ $status ?? '' }}" data-student-name="{{ $student->full_name }}" data-class-label="{{ $classLabel }}" data-attendance-eligible="{{ $eligible && ($dateAllowsMarking ?? true) ? '1' : '0' }}" data-search="{{ strtolower($student->admission_number.' '.$student->first_name.' '.$student->middle_name.' '.$student->last_name) }}" class="{{ $rowDisabled ? 'table-secondary text-muted' : '' }}">
                     <td>{{ $row }}</td>
                     <td class="fw-semibold">{{ $student->admission_number }}</td>
                     <td>
@@ -245,7 +285,7 @@
             </table>
           </div>
         </div>
-        <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="card-footer attendance-submit-bar d-flex justify-content-between align-items-center flex-wrap gap-2">
           <div class="small text-muted">
             Total Students: <strong>{{ $students->count() }}</strong>
           </div>
@@ -274,13 +314,13 @@
   <div class="modal-dialog modal-lg modal-dialog-scrollable summary-modal-dialog">
     <div class="modal-content settings-card mb-0">
       <div class="modal-header">
-        <h5 class="modal-title">Confirm Attendance Submission</h5>
+        <h5 class="modal-title">New marks</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <p class="mb-3"><strong>Date:</strong> {{ $selectedDate }}</p>
-        <div class="row g-3 mb-3 stat-grid">
-          <div class="col-md-3">
+        <p class="mb-3">Date <strong>{{ \Carbon\Carbon::parse($selectedDate)->format('d M Y') }}</strong>. This list is only the students you just marked or changed.</p>
+        <div class="row g-2 mb-3 stat-grid">
+          <div class="col-6 col-md-3">
             <div class="settings-card stat-card border-start border-4 border-success h-100">
               <div class="card-body text-center">
                 <h4 class="mb-0 text-success" id="sumPresent">0</h4>
@@ -288,7 +328,7 @@
               </div>
             </div>
           </div>
-          <div class="col-md-3">
+          <div class="col-6 col-md-3">
             <div class="settings-card stat-card border-start border-4 border-danger h-100">
               <div class="card-body text-center">
                 <h4 class="mb-0 text-danger" id="sumAbsent">0</h4>
@@ -296,7 +336,7 @@
               </div>
             </div>
           </div>
-          <div class="col-md-3">
+          <div class="col-6 col-md-3">
             <div class="settings-card stat-card border-start border-4 border-warning h-100">
               <div class="card-body text-center">
                 <h4 class="mb-0 text-warning" id="sumLate">0</h4>
@@ -304,19 +344,17 @@
               </div>
             </div>
           </div>
-          <div class="col-md-3">
+          <div class="col-6 col-md-3">
             <div class="settings-card stat-card border-start border-4 border-secondary h-100">
               <div class="card-body text-center">
                 <h4 class="mb-0" id="sumTotal">0</h4>
-                <small class="text-muted">Total</small>
+                <small class="text-muted">New marks</small>
               </div>
             </div>
           </div>
         </div>
-        <div id="absentListWrap" style="display:none;">
-          <strong>Absent Students:</strong>
-          <ul id="absentList" class="mb-0"></ul>
-        </div>
+        <p id="noNewMarks" class="text-muted mb-0" style="display:none;">No new marks. Choose Present, Absent, or Late for the students you want to save.</p>
+        <div id="newMarkList"></div>
       </div>
       <div class="card-footer d-flex justify-content-end gap-2">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -349,10 +387,28 @@
     box-shadow: none;
   }
 
-  .summary-modal #absentList {
-    max-height: 200px;
+  .attendance-group td {
+    background: #f4f7fb;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  .attendance-submit-bar {
+    position: sticky;
+    bottom: 0;
+    background: var(--bs-body-bg);
+    z-index: 2;
+  }
+  .new-mark-list {
+    max-height: 280px;
     overflow-y: auto;
-    padding-left: 1rem;
+  }
+  .new-mark-list li + li { margin-top: .2rem; }
+  @media (max-width: 768px) {
+    #attendanceTable th:nth-child(1),
+    #attendanceTable td:nth-child(1) { display: none; }
+    .status-btn-group { display: flex; flex-wrap: wrap; }
   }
 
   .summary-modal .summary-modal-dialog {
@@ -461,47 +517,63 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
-  // Summary modal
+  // Summary modal: only students whose mark is new or changed
   document.getElementById('btnOpenSummary')?.addEventListener('click', function() {
-    const rows = Array.from(document.querySelectorAll('#attendanceTable tbody tr[data-attendance-eligible="1"]'));
-    let total = 0, present = 0, absent = 0, late = 0;
-    const absentNames = [];
+    const rows = Array.from(document.querySelectorAll('#attendanceTable tbody tr[data-student-id]'));
+    const groups = { absent: [], late: [], present: [], cleared: [] };
 
     rows.forEach(tr => {
-      const checked = tr.querySelector('.mark-radio:checked');
-      if (!checked) return;
-      total++;
-      if (checked.value === 'present') present++;
-      else if (checked.value === 'absent') {
-        absent++;
-        absentNames.push(tr.children[2].innerText.trim().split('\n')[0]);
+      if (tr.getAttribute('data-attendance-eligible') !== '1' && !(tr.querySelector('.unmark-input') && tr.querySelector('.unmark-input').value === '1')) {
+        return;
       }
-      else if (checked.value === 'late') late++;
+      const initial = tr.getAttribute('data-initial-status') || '';
+      const unmark = tr.querySelector('.unmark-input');
+      const checked = tr.querySelector('.mark-radio:checked');
+      const current = unmark && unmark.value === '1' ? 'cleared' : (checked ? checked.value : '');
+      if (!current || current === initial) return;
+      groups[current] = groups[current] || [];
+      groups[current].push({
+        name: tr.getAttribute('data-student-name') || 'Student',
+        classLabel: tr.getAttribute('data-class-label') || ''
+      });
     });
+
+    const present = groups.present.length;
+    const absent = groups.absent.length;
+    const late = groups.late.length;
+    const cleared = groups.cleared.length;
+    const total = present + absent + late + cleared;
 
     document.getElementById('sumTotal').innerText = total;
     document.getElementById('sumPresent').innerText = present;
     document.getElementById('sumAbsent').innerText = absent;
     document.getElementById('sumLate').innerText = late;
 
-    const wrap = document.getElementById('absentListWrap');
-    const list = document.getElementById('absentList');
+    const list = document.getElementById('newMarkList');
+    const empty = document.getElementById('noNewMarks');
     list.innerHTML = '';
-    if (absent > 0) {
-      wrap.style.display = 'block';
-      absentNames.slice(0, 20).forEach(n => {
+    empty.style.display = total === 0 ? 'block' : 'none';
+    document.getElementById('btnConfirmSubmit').disabled = total === 0;
+
+    [['absent', 'Absent'], ['late', 'Late'], ['present', 'Present'], ['cleared', 'Cleared']].forEach(function(pair) {
+      const items = groups[pair[0]];
+      if (!items.length) return;
+      const block = document.createElement('div');
+      block.className = 'mb-3';
+      const title = document.createElement('div');
+      title.className = 'fw-semibold mb-1';
+      title.textContent = pair[1] + ' (' + items.length + ')';
+      const ul = document.createElement('ul');
+      ul.className = 'new-mark-list mb-0';
+      items.forEach(function(item) {
         const li = document.createElement('li');
-        li.textContent = n;
-        list.appendChild(li);
+        li.textContent = item.classLabel ? item.name + ' — ' + item.classLabel : item.name;
+        ul.appendChild(li);
       });
-      if (absentNames.length > 20) {
-        const li = document.createElement('li');
-        li.textContent = `... and ${absentNames.length - 20} more`;
-        list.appendChild(li);
-      }
-    } else {
-      wrap.style.display = 'none';
-    }
+      block.appendChild(title);
+      block.appendChild(ul);
+      list.appendChild(block);
+    });
 
     new bootstrap.Modal(document.getElementById('summaryModal')).show();
   });

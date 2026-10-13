@@ -153,18 +153,6 @@ class ParentAbsenceService
         });
 
         $this->notifyStaffOfParentAbsence($student, $parent, $start->toDateString(), $end->toDateString(), $reason, $records->count());
-        $this->parentNotify->notifyParentsOfStudent(
-            $student,
-            'Absence reported',
-            $this->parentConfirmationBody($student, $start->toDateString(), $end->toDateString(), $records->count()),
-            [
-                'type' => 'parent_absence_reported',
-                'student_id' => $student->id,
-                'start_date' => $start->toDateString(),
-                'end_date' => $end->toDateString(),
-            ],
-            $parent->id,
-        );
 
         return [
             'records' => $records,
@@ -276,7 +264,9 @@ class ParentAbsenceService
         string $reason,
         int $dayCount,
     ): void {
-        $recipients = $this->resolveStaffRecipients($student);
+        $recipients = $this->resolveStaffRecipients($student)
+            ->reject(fn (User $user) => (int) $user->id === (int) $parent->id)
+            ->values();
         if ($recipients->isEmpty()) {
             return;
         }

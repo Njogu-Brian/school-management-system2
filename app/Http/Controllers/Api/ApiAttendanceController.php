@@ -13,6 +13,7 @@ use App\Services\SMSService;
 use App\Services\StudentAttendanceCalendarService;
 use App\Services\StudentSearchService;
 use Carbon\Carbon;
+use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -406,14 +407,7 @@ class ApiAttendanceController extends Controller
                 $attendance->save();
                 $count++;
 
-                if ($status === 'absent' && $isToday && $student->parent) {
-                    $this->notifyParentAbsent($student, $attendance->reason);
-                    try {
-                        app(\App\Services\ParentAppNotifyService::class)->notifyChildAbsent($student);
-                    } catch (\Throwable $e) {
-                        report($e);
-                    }
-                }
+                $this->notifyAbsenceIfNeeded($user, $student, $attendance->reason, $status === 'absent' && $isToday);
             }
         });
 
@@ -529,14 +523,7 @@ class ApiAttendanceController extends Controller
 
                 $count++;
 
-                if ($status === 'absent' && $isToday && $student->parent) {
-                    $this->notifyParentAbsent($student, $attendance->reason);
-                    try {
-                        app(\App\Services\ParentAppNotifyService::class)->notifyChildAbsent($student);
-                    } catch (\Throwable $e) {
-                        report($e);
-                    }
-                }
+                $this->notifyAbsenceIfNeeded($user, $student, $attendance->reason, $status === 'absent' && $isToday);
             }
         });
 
@@ -551,40 +538,85 @@ class ApiAttendanceController extends Controller
 
     /**
      * Mark selected students absent without going class by class.
-     * Request: { date, student_ids: [1, 2, ...] }
+     * Start date defaults to the chosen day. End date is optional: blank means that day only.
+     * Each record carries its own reason.
      */
     public function markAbsent(Request $request)
     {
         $request->validate([
             'date' => 'required|date',
-            'student_ids' => 'required|array|min:1|max:200',
-            'student_ids.*' => 'required|integer|exists:students,id',
+            'end_date' => 'nullable|date|after_or_equal:date',
+            'student_ids' => 'required_without:records|array|min:1|max:200',
+            'student_ids.*' => 'integer|exists:students,id',
+            'records' => 'required_without:student_ids|array|min:1|max:200',
+            'records.*.student_id' => 'required|integer|exists:students,id',
+            'records.*.reason_code_id' => 'nullable|integer|exists:attendance_reason_codes,id',
+            'records.*.reason' => 'nullable|string|max:500',
+            'records.*.excuse_notes' => 'nullable|string|max:1000',
             'reason_code_id' => 'nullable|integer|exists:attendance_reason_codes,id',
             'reason' => 'nullable|string|max:500',
             'excuse_notes' => 'nullable|string|max:1000',
         ]);
 
-        $date = Carbon::parse($request->date)->toDateString();
+        $start = Carbon::parse($request->date)->startOfDay();
+        $end = $request->filled('end_date')
+            ? Carbon::parse($request->end_date)->startOfDay()
+            : $start->copy();
         $user = $request->user();
-        $isToday = Carbon::parse($date)->isToday();
 
         if ($user && $user->isAcademicAdministratorUser()) {
             return response()->json(['success' => false, 'message' => 'Academic administrators cannot mark attendance.'], 403);
         }
 
-        if (Carbon::parse($date)->isFuture()) {
-            return response()->json(['success' => false, 'message' => 'Cannot mark attendance for a future date.'], 422);
+        if ($end->diffInDays($start) > 60) {
+            return response()->json(['success' => false, 'message' => 'Absence range cannot be longer than 60 days.'], 422);
         }
 
-        if (! $this->attendanceCalendar->isValidSchoolDay($date)) {
+        $dates = [];
+        foreach (CarbonPeriod::create($start, $end) as $day) {
+            $dateStr = $day->toDateString();
+            if ($this->attendanceCalendar->isValidSchoolDay($dateStr)) {
+                $dates[] = $dateStr;
+            }
+        }
+        if ($dates === []) {
             return response()->json([
                 'success' => false,
-                'message' => 'Attendance cannot be recorded on this date (weekend, holiday, or other non-school day).',
+                'message' => 'No school days in that range. Weekends, holidays, and closed days are skipped.',
             ], 422);
         }
 
-        $ids = array_values(array_unique(array_map('intval', $request->input('student_ids', []))));
-        $query = Student::whereIn('id', $ids)
+        $sharedReason = [
+            'reason_code_id' => $request->input('reason_code_id'),
+            'reason' => $request->input('reason'),
+            'excuse_notes' => $request->input('excuse_notes'),
+        ];
+        $records = collect($request->input('records', []))
+            ->map(function ($row) use ($sharedReason) {
+                $row = is_array($row) ? $row : [];
+
+                return [
+                    'student_id' => (int) ($row['student_id'] ?? 0),
+                    'reason_code_id' => $row['reason_code_id'] ?? $sharedReason['reason_code_id'],
+                    'reason' => $row['reason'] ?? $sharedReason['reason'],
+                    'excuse_notes' => $row['excuse_notes'] ?? $sharedReason['excuse_notes'],
+                ];
+            })
+            ->filter(fn ($row) => $row['student_id'] > 0)
+            ->keyBy('student_id');
+
+        if ($records->isEmpty()) {
+            foreach ((array) $request->input('student_ids', []) as $id) {
+                $records->put((int) $id, [
+                    'student_id' => (int) $id,
+                    'reason_code_id' => $sharedReason['reason_code_id'],
+                    'reason' => $sharedReason['reason'],
+                    'excuse_notes' => $sharedReason['excuse_notes'],
+                ]);
+            }
+        }
+
+        $query = Student::whereIn('id', $records->keys()->all())
             ->where('archive', 0)
             ->where('is_alumni', false)
             ->with('parent');
@@ -600,50 +632,63 @@ class ApiAttendanceController extends Controller
             return response()->json(['success' => false, 'message' => 'No matching students were found.'], 422);
         }
 
-        $reasonPayload = [
-            'reason_code_id' => $request->input('reason_code_id'),
-            'reason' => $request->input('reason'),
-            'excuse_notes' => $request->input('excuse_notes'),
-        ];
-
         $count = 0;
-        DB::transaction(function () use ($students, $date, $user, $isToday, $reasonPayload, &$count) {
-            foreach ($students as $student) {
-                if (! $this->attendanceCalendar->canMarkAttendanceForDate($student, $date)) {
-                    continue;
-                }
+        $notified = [];
+        DB::transaction(function () use ($students, $dates, $records, $user, &$count, &$notified) {
+            foreach ($dates as $date) {
+                foreach ($students as $student) {
+                    if (! $this->attendanceCalendar->canMarkAttendanceForDate($student, $date)) {
+                        continue;
+                    }
 
-                $attendance = Attendance::firstOrNew([
-                    'student_id' => $student->id,
-                    'date' => $date,
-                ]);
-                $attendance->status = 'absent';
-                $this->applyReasonToAttendance($attendance, 'absent', $reasonPayload);
-                $attendance->marked_by = $user->id;
-                $attendance->marked_at = now();
-                $attendance->save();
-                $count++;
+                    $attendance = Attendance::firstOrNew([
+                        'student_id' => $student->id,
+                        'date' => $date,
+                    ]);
+                    $attendance->status = 'absent';
+                    $this->applyReasonToAttendance($attendance, 'absent', $records->get($student->id, []));
+                    $attendance->marked_by = $user->id;
+                    $attendance->marked_at = now();
+                    $attendance->save();
+                    $count++;
 
-                if ($isToday && $student->parent) {
-                    $this->notifyParentAbsent($student, $attendance->reason);
-                    try {
-                        app(\App\Services\ParentAppNotifyService::class)->notifyChildAbsent($student);
-                    } catch (\Throwable $e) {
-                        report($e);
+                    if ($date === Carbon::today()->toDateString() && ! isset($notified[$student->id])) {
+                        $this->notifyAbsenceIfNeeded($user, $student, $attendance->reason, true);
+                        $notified[$student->id] = true;
                     }
                 }
             }
         });
 
+        $dayCount = count($dates);
+        $studentCount = $students->count();
+        $message = $studentCount === 1
+            ? '1 student marked absent'
+            : "{$studentCount} students marked absent";
+        $message .= $dayCount === 1 ? ' for 1 school day.' : " for {$dayCount} school days.";
+
         return response()->json([
             'success' => true,
             'data' => [
-                'message' => $count === 1
-                    ? '1 student marked absent.'
-                    : "{$count} students marked absent.",
+                'message' => $message,
                 'count' => $count,
+                'school_days' => $dayCount,
             ],
         ]);
+    }
+
+    protected function notifyAbsenceIfNeeded($user, Student $student, ?string $reason, bool $shouldNotify): void
+    {
+        if (! $shouldNotify || ! $student->parent || ($user && $user->suppressesAbsenceNotice($student))) {
+            return;
+        }
+
+        $this->notifyParentAbsent($student, $reason);
+        try {
+            app(\App\Services\ParentAppNotifyService::class)->notifyChildAbsent($student);
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     /**

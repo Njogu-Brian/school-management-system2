@@ -666,9 +666,18 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
         if (empty($classroomIds)) {
             return [];
         }
-        return \App\Models\Academics\Stream::whereIn('classroom_id', $classroomIds)
+        return \App\Models\Academics\Stream::query()
+            ->where(function ($query) use ($classroomIds) {
+                $query->whereIn('classroom_id', $classroomIds)
+                    ->orWhereIn('id', function ($sub) use ($classroomIds) {
+                        $sub->from('classroom_stream')
+                            ->select('stream_id')
+                            ->whereIn('classroom_id', $classroomIds);
+                    });
+            })
             ->pluck('id')
-            ->toArray();
+            ->map(fn ($id) => (int) $id)
+            ->all();
     }
 
     /**
@@ -910,5 +919,20 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
     public function canAccessStudent(int $studentId): bool
     {
         return in_array($studentId, $this->accessibleStudentIds(), true);
+    }
+
+    /**
+     * Parents and office admins already know about an absence they recorded.
+     */
+    public function suppressesAbsenceNotice(\App\Models\Student $student): bool
+    {
+        if ($this->hasAnyRole([
+            'Super Admin', 'super admin', 'Super admin', 'System Admin',
+            'Admin', 'admin',
+        ])) {
+            return true;
+        }
+
+        return $this->canAccessStudent((int) $student->id);
     }
 }

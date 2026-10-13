@@ -46,7 +46,7 @@ export const ReportAbsenceScreen: React.FC = () => {
 
   const today = useMemo(() => toYmd(new Date()), []);
   const [startDate, setStartDate] = useState(today);
-  const [endDate, setEndDate] = useState(today);
+  const [endDate, setEndDate] = useState<string | null>(null);
   const [reason, setReason] = useState('');
   const [reasonCodeId, setReasonCodeId] = useState<number | null>(null);
   const [step, setStep] = useState<Step>('form');
@@ -129,7 +129,7 @@ export const ReportAbsenceScreen: React.FC = () => {
             Child: {detail.data?.fullName ?? `#${studentId}`}
           </Text>
           <Text style={{ color: palette.textSecondary }}>
-            Dates: {startDate === endDate ? startDate : `${startDate} → ${endDate}`}
+            Dates: {!endDate || startDate === endDate ? startDate : `${startDate} → ${endDate}`}
           </Text>
           <Text style={{ color: palette.textSecondary }}>Reason: {reason.trim()}</Text>
           <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
@@ -179,13 +179,18 @@ export const ReportAbsenceScreen: React.FC = () => {
               backgroundColor: palette.surface,
             }}
           >
-            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>End date</Text>
-            <Text style={{ color: palette.textPrimary, fontWeight: '700', marginTop: 4 }}>{endDate}</Text>
+            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>End date (optional)</Text>
+            <Text style={{ color: palette.textPrimary, fontWeight: '700', marginTop: 4 }}>
+              {endDate ?? 'One day only'}
+            </Text>
           </Pressable>
+          {endDate ? (
+            <Button label="Clear end date" variant="ghost" onPress={() => setEndDate(null)} />
+          ) : null}
 
           {picker ? (
             <DateTimePicker
-              value={parseYmd(picker === 'start' ? startDate : endDate)}
+              value={parseYmd(picker === 'start' ? startDate : endDate ?? startDate)}
               mode="date"
               display={Platform.OS === 'ios' ? 'spinner' : 'default'}
               onChange={(_, date) => {
@@ -194,7 +199,7 @@ export const ReportAbsenceScreen: React.FC = () => {
                 const ymd = toYmd(date);
                 if (picker === 'start') {
                   setStartDate(ymd);
-                  if (ymd > endDate) setEndDate(ymd);
+                  if (endDate && ymd > endDate) setEndDate(ymd);
                 } else {
                   setEndDate(ymd < startDate ? startDate : ymd);
                 }
@@ -231,7 +236,7 @@ export const ReportAbsenceScreen: React.FC = () => {
           <Button
             label="Review"
             onPress={() => {
-              if (endDate < startDate) {
+              if (endDate && endDate < startDate) {
                 showError('Invalid dates', 'End date must be on or after the start date.');
                 return;
               }

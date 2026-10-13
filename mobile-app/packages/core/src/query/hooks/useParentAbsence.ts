@@ -31,7 +31,7 @@ export function useReportParentAbsence(studentId: number) {
   return useMutation({
     mutationFn: async (payload: {
       start_date: string;
-      end_date: string;
+      end_date?: string | null;
       reason: string;
       reason_code_id?: number | null;
     }) => {

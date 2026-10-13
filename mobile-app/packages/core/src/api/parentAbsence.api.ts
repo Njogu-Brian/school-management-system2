@@ -47,7 +47,7 @@ export const parentAbsenceApi = {
     studentId: number,
     payload: {
       start_date: string;
-      end_date: string;
+      end_date?: string | null;
       reason: string;
       reason_code_id?: number | null;
     },

@@ -45,7 +45,7 @@ class ApiParentAttendanceController extends Controller
 
         $validated = $request->validate([
             'start_date' => 'required|date',
-            'end_date' => 'required|date|after_or_equal:start_date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
             'reason' => 'required|string|min:3|max:1000',
             'reason_code_id' => 'nullable|integer|exists:attendance_reason_codes,id',
         ]);
@@ -55,7 +55,7 @@ class ApiParentAttendanceController extends Controller
                 $student,
                 $request->user(),
                 $validated['start_date'],
-                $validated['end_date'],
+                $validated['end_date'] ?? $validated['start_date'],
                 $validated['reason'],
                 isset($validated['reason_code_id']) ? (int) $validated['reason_code_id'] : null,
             );

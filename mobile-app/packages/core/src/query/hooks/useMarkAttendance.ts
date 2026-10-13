@@ -46,7 +46,12 @@ export function useMarkAttendance() {
 export function useMarkStudentsAbsent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { date: string; student_ids: number[] } & AttendanceReasonFields) => {
+    mutationFn: async (payload: {
+      date: string;
+      end_date?: string | null;
+      student_ids?: number[];
+      records?: Array<{ student_id: number } & AttendanceReasonFields>;
+    } & AttendanceReasonFields) => {
       const res = await attendanceApi.markAbsent(payload);
       if (!res.success) {
         throw new Error(res.message || 'Failed to mark students absent.');

@@ -124,13 +124,13 @@ class ApiSettingsHubController extends Controller
         $this->assertSettingsAccess($request);
 
         $streams = Stream::query()
-            ->where('classroom_id', $classId)
+            ->forClassroom($classId)
             ->orderBy('name')
             ->get()
             ->map(fn ($s) => [
                 'id' => $s->id,
                 'name' => $s->name,
-                'classroom_id' => (int) $s->classroom_id,
+                'classroom_id' => $classId,
             ]);
 
         return response()->json(['success' => true, 'data' => $streams]);

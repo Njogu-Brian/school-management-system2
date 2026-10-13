@@ -2,9 +2,11 @@
 
 namespace App\Models\Academics;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 class Stream extends Model
 {
@@ -18,6 +20,34 @@ class Stream extends Model
     public function classroom()
     {
         return $this->belongsTo(Classroom::class);
+    }
+
+    /**
+     * Streams that belong to a class as the primary class, via classroom_stream,
+     * or because students in that class are already placed in the stream.
+     */
+    public function scopeForClassroom(Builder $query, int $classroomId): Builder
+    {
+        $linkedIds = DB::table('classroom_stream')
+            ->where('classroom_id', $classroomId)
+            ->pluck('stream_id')
+            ->merge(
+                DB::table('students')
+                    ->where('classroom_id', $classroomId)
+                    ->whereNotNull('stream_id')
+                    ->distinct()
+                    ->pluck('stream_id')
+            )
+            ->filter()
+            ->unique()
+            ->values();
+
+        return $query->where(function (Builder $inner) use ($classroomId, $linkedIds) {
+            $inner->where('classroom_id', $classroomId);
+            if ($linkedIds->isNotEmpty()) {
+                $inner->orWhereIn('id', $linkedIds->all());
+            }
+        });
     }
 
     /**

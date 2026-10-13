@@ -179,6 +179,10 @@ class AttendanceController extends Controller
             $students = $students->filter(fn ($s) => ! $attendanceRecords->has($s->id));
         }
 
+        $students = $students
+            ->sortBy(fn ($student) => $this->attendanceListSortKey($student))
+            ->values();
+
         $eligibleStudents = $students->filter(fn ($s) => $studentAttendanceEligibility[$s->id] ?? false);
         $unmarkedCount = max(
             0,
@@ -257,6 +261,8 @@ public function mark(Request $request)
         }
     }
 
+    $changes = [];
+
     // Admin-only: process unmark requests (click same status again to remove record)
     $canUnmark = $user->hasAnyRole(['Super Admin', 'Admin']);
     if ($canUnmark) {
@@ -273,6 +279,10 @@ public function mark(Request $request)
                 ->first();
             if ($attendance) {
                 $student = $attendance->student;
+                if ($student) {
+                    $student->loadMissing(['classroom', 'stream']);
+                    $changes[] = $this->attendanceChangeRow($student, 'cleared');
+                }
                 $attendance->forceDelete(); // Remove from DB completely (no soft delete)
                 if ($student) {
                     $consecutive = $this->analyticsService->getConsecutiveAbsences($student, $date);
@@ -303,6 +313,7 @@ public function mark(Request $request)
             'date'       => $date,
         ]);
 
+        $isNewMark = ! $attendance->exists;
         $oldStatus = $attendance->status;
         
         // Get preset reason name from reason code
@@ -330,6 +341,11 @@ public function mark(Request $request)
         $attendance->marked_at = now();
         
         $attendance->save();
+
+        if ($isNewMark || $oldStatus !== $status) {
+            $studentRow->loadMissing(['classroom', 'stream']);
+            $changes[] = $this->attendanceChangeRow($studentRow, $status);
+        }
         
         // Update consecutive absence count
         $consecutive = $this->analyticsService->getConsecutiveAbsences($attendance->student, $date);
@@ -339,7 +355,7 @@ public function mark(Request $request)
         // Same day: send when status CHANGES; never send duplicate for same status.
         // Previous days: never send (mark/unmark/status change).
         try {
-            if ($oldStatus !== $status) {
+            if ($oldStatus !== $status && ! ($status === 'absent' && $user->suppressesAbsenceNotice($studentRow))) {
                 if (!Carbon::parse($date)->isToday()) {
                     continue; // Never send for historical dates
                 }
@@ -369,6 +385,15 @@ public function mark(Request $request)
         }
     }
 
+    usort($changes, function (array $a, array $b) {
+        return [$a['sort'], $a['name']] <=> [$b['sort'], $b['name']];
+    });
+
+    $markedCount = count(array_filter($changes, fn ($row) => $row['status'] !== 'cleared'));
+    $message = $markedCount === 0
+        ? 'No new marks were saved. Those students were already marked the same way.'
+        : 'Marked '.$markedCount.' '.($markedCount === 1 ? 'student' : 'students').'.';
+
     return redirect()->route('attendance.mark.form', array_filter([
         'date' => $date,
         'class' => $request->input('class'),
@@ -377,8 +402,43 @@ public function mark(Request $request)
         'marked_filter' => $request->input('marked_filter'),
         'q' => $request->input('q'),
     ], fn ($value) => $value !== null && $value !== ''))
-        ->with('success', 'Attendance updated successfully.');
+        ->with('success', $message)
+        ->with('attendance_summary', $changes);
 }
+
+    /**
+     * Class, then stream, then student name. PP1 Peace stays together, then PP1 Love.
+     */
+    private function attendanceListSortKey($student): string
+    {
+        $level = $student->classroom->level ?? null;
+        $levelKey = is_numeric($level) ? sprintf('%04d', (int) $level) : '9999';
+
+        return implode('|', [
+            $levelKey,
+            strtolower($student->classroom->name ?? 'zzz'),
+            strtolower($student->stream->name ?? ''),
+            strtolower($student->first_name ?? ''),
+            strtolower($student->middle_name ?? ''),
+            strtolower($student->last_name ?? ''),
+            strtolower($student->admission_number ?? ''),
+        ]);
+    }
+
+    /**
+     * @return array{name:string,admission:string,class:string,stream:string,status:string,sort:string}
+     */
+    private function attendanceChangeRow(Student $student, string $status): array
+    {
+        return [
+            'name' => $student->full_name,
+            'admission' => (string) ($student->admission_number ?? ''),
+            'class' => (string) ($student->classroom->name ?? ''),
+            'stream' => (string) ($student->stream->name ?? ''),
+            'status' => $status,
+            'sort' => $this->attendanceListSortKey($student),
+        ];
+    }
 
 // -------------------- TEMPLATE NOTIFY --------------------
 private function notifyWithTemplate(string $code, Student $student, string $humanDate, ?string $status = null, ?string $reason = null)
