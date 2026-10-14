@@ -111,6 +111,21 @@ return [
             'throw' => false,
         ],
 
+        // Optional backup identity. It is unused until BACKUP_RECOVERY_DISK is set.
+        // Until AWS_BACKUP_* is set, the disk falls back to the application credentials.
+        // Do not point it at ERP-S3-Access for deletes. Uploader and bucket-admin
+        // permissions are separate policies under deploy/dr/.
+        's3_backup' => [
+            'driver' => 's3',
+            'key' => env('AWS_BACKUP_ACCESS_KEY_ID', env('AWS_ACCESS_KEY_ID')),
+            'secret' => env('AWS_BACKUP_SECRET_ACCESS_KEY', env('AWS_SECRET_ACCESS_KEY')),
+            'region' => env('AWS_BACKUP_REGION', env('AWS_DEFAULT_REGION')),
+            'bucket' => env('AWS_BACKUP_BUCKET', env('AWS_PRIVATE_BUCKET', env('AWS_BUCKET'))),
+            'root' => trim((string) env('AWS_BACKUP_PREFIX', env('AWS_PRIVATE_PREFIX', '')), '/'),
+            'visibility' => 'private',
+            'throw' => false,
+        ],
+
     ],
 
     /*

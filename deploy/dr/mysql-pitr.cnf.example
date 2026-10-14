@@ -1,0 +1,20 @@
+# Example only. Do not copy this over a live server until scripts/dr/mysql-inspect.sh
+# has been run and the current server-id, log path, and durability settings are known.
+#
+# Apply during a maintenance window. Changing these settings requires a MySQL restart.
+# Confirm the server starts, then take a new daily dump so its binary log position
+# falls inside logs that the archive job is uploading.
+#
+# Do not shorten binlog_expire_logs_seconds until closed logs are reaching S3.
+# The archive job does not purge binary logs. MySQL's own expiry is the local cleanup.
+
+[mysqld]
+server-id = 101
+log_bin = /var/log/mysql/mysql-bin
+binlog_format = ROW
+sync_binlog = 1
+innodb_flush_log_at_trx_commit = 1
+
+# Leave this commented until the archive has been tested.
+# 14 days is the point-in-time window. Older dumps restore only to their own snapshot.
+# binlog_expire_logs_seconds = 1209600

@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Database Backup Script
-# Safely backs up database before migrations or schema changes
+# Safely backs up database before migrations or schema changes.
+# Scheduled disaster-recovery dumps live in scripts/dr/ (see docs/operations/DISASTER_RECOVERY.md).
 # Usage: ./scripts/backup-db.sh [environment]
 
 set -e  # Exit on error

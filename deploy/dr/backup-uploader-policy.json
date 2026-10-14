@@ -1,0 +1,22 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ListMysqlBackupPrefix",
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket", "s3:GetBucketLocation"],
+      "Resource": "arn:aws:s3:::YOUR_BACKUP_BUCKET",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": ["private/backups/mysql", "private/backups/mysql/*"]
+        }
+      }
+    },
+    {
+      "Sid": "ReadAndWriteMysqlBackups",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:AbortMultipartUpload"],
+      "Resource": "arn:aws:s3:::YOUR_BACKUP_BUCKET/private/backups/mysql/*"
+    }
+  ]
+}

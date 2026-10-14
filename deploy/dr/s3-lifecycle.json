@@ -1,0 +1,39 @@
+{
+  "Rules": [
+    {
+      "ID": "expire-frequent-dumps",
+      "Filter": { "Prefix": "private/backups/mysql/frequent/" },
+      "Status": "Enabled",
+      "Expiration": { "Days": 2 },
+      "NoncurrentVersionExpiration": { "NoncurrentDays": 1 }
+    },
+    {
+      "ID": "expire-daily-dumps",
+      "Filter": { "Prefix": "private/backups/mysql/daily/" },
+      "Status": "Enabled",
+      "Expiration": { "Days": 30 },
+      "NoncurrentVersionExpiration": { "NoncurrentDays": 7 }
+    },
+    {
+      "ID": "expire-weekly-dumps",
+      "Filter": { "Prefix": "private/backups/mysql/weekly/" },
+      "Status": "Enabled",
+      "Expiration": { "Days": 84 },
+      "NoncurrentVersionExpiration": { "NoncurrentDays": 7 }
+    },
+    {
+      "ID": "expire-monthly-dumps",
+      "Filter": { "Prefix": "private/backups/mysql/monthly/" },
+      "Status": "Enabled",
+      "Expiration": { "Days": 365 },
+      "NoncurrentVersionExpiration": { "NoncurrentDays": 30 }
+    },
+    {
+      "ID": "expire-binlogs",
+      "Filter": { "Prefix": "private/backups/mysql/binlogs/" },
+      "Status": "Enabled",
+      "Expiration": { "Days": 14 },
+      "NoncurrentVersionExpiration": { "NoncurrentDays": 7 }
+    }
+  ]
+}
