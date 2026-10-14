@@ -30,11 +30,11 @@ class DisasterRecoverySafetyTest extends TestCase
 
         $path = MysqlBackupInspector::writeClientDefaultsFile('backup_user', $parsed, '127.0.0.1', '3306');
         $body = (string) file_get_contents($path);
-        $this->assertStringContainsString('password="sec\#ret\"q\\\\z"', $body);
+        $this->assertStringContainsString('password="sec#ret\"q\\\\z"', $body);
         $this->assertSame($this->password, MysqlBackupInspector::passwordFromOptionFile($body));
 
-        $truncated = MysqlBackupInspector::passwordFromOptionFile("[client]\npassword=\"{$this->password}\"\n");
-        $this->assertNotSame($this->password, $truncated);
+        $unquoted = MysqlBackupInspector::passwordFromOptionFile("[client]\npassword={$this->password}\n");
+        $this->assertNotSame($this->password, $unquoted);
 
         [$code, $stdout, $stderr] = $this->dr(['env-value', '--env', $env, '--key', 'DB_PASSWORD']);
         $this->assertSame(1, $code);

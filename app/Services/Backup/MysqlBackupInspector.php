@@ -163,8 +163,9 @@ class MysqlBackupInspector
     }
 
     /**
-     * MySQL option files treat an unescaped # as a comment, including inside quotes.
-     * Escape every character that would truncate or reinterpret the value.
+     * Option values are wrapped in double quotes. MySQL 8.0 keeps a # inside
+     * those quotes, and a backslash in front of # changes the password.
+     * Escape only the characters that quotes do not already protect.
      */
     public static function escapeOptionValue(string $value): string
     {
@@ -172,7 +173,7 @@ class MysqlBackupInspector
         $length = strlen($value);
         for ($i = 0; $i < $length; $i++) {
             $character = $value[$i];
-            if ($character === '\\' || $character === '"' || $character === "'" || $character === '#' || $character === '!') {
+            if ($character === '\\' || $character === '"') {
                 $escaped .= '\\'.$character;
             } else {
                 $escaped .= $character;
@@ -183,7 +184,8 @@ class MysqlBackupInspector
     }
 
     /**
-     * Read a password back the way the MySQL client does: an unescaped # ends the line.
+     * Read a password back the way the MySQL 8 client does.
+     * A # outside quotes ends the line. A # inside double quotes is part of the value.
      */
     public static function passwordFromOptionFile(string $body): string
     {
@@ -205,12 +207,22 @@ class MysqlBackupInspector
     private static function stripUnescapedHashComment(string $line): string
     {
         $visible = '';
+        $inQuotes = false;
         $length = strlen($line);
         for ($i = 0; $i < $length; $i++) {
-            if ($line[$i] === '#' && ($i === 0 || $line[$i - 1] !== '\\')) {
+            $character = $line[$i];
+            if ($character === '\\' && $i + 1 < $length) {
+                $visible .= $character.$line[$i + 1];
+                $i++;
+                continue;
+            }
+            if ($character === '"') {
+                $inQuotes = ! $inQuotes;
+            }
+            if ($character === '#' && ! $inQuotes) {
                 break;
             }
-            $visible .= $line[$i];
+            $visible .= $character;
         }
 
         return $visible;
