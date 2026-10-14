@@ -56,6 +56,7 @@ class DisasterRecoverySafetyTest extends TestCase
         $this->assertNotContains('--databases', $args);
         $this->assertNotContains('-B', $args);
         $this->assertContains('--single-transaction', $args);
+        $this->assertContains('--no-tablespaces', $args);
         $this->assertContains('--routines', $args);
         $this->assertContains('--events', $args);
         $this->assertContains('--triggers', $args);

@@ -26,6 +26,7 @@ class DrDumpArguments
             '--defaults-extra-file='.$defaultsFile,
             '--single-transaction',
             '--quick',
+            '--no-tablespaces',
             '--routines',
             '--events',
             '--triggers',
