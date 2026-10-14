@@ -55,11 +55,17 @@ class ExamAnalyticsController extends Controller
             return null;
         }
 
-        // Use score_raw or score_moderated, fallback to score_raw
-        $marks = $marks->map(function($mark) {
-            $mark->marks_obtained = $mark->score_moderated ?? $mark->score_raw ?? 0;
+        // A blank mark is not a zero. Only an entered score, including 0, is averaged.
+        $marks = $marks->map(function ($mark) {
+            $mark->marks_obtained = $mark->is_absent
+                ? null
+                : ($mark->score_moderated ?? $mark->score_raw);
             return $mark;
-        });
+        })->filter(fn ($mark) => $mark->marks_obtained !== null)->values();
+
+        if ($marks->isEmpty()) {
+            return null;
+        }
 
         $totalMarks = $marks->sum('marks_obtained');
         $count = $marks->count();

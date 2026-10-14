@@ -272,7 +272,7 @@
   <tr>
     <td style="text-align:right; vertical-align:bottom; padding-right:{{ !empty($isPdf) ? '4px' : '8px' }};">
       @include('academics.report_cards.partials.school_stamp', [
-        'stampDate' => now(),
+        'stampDate' => !empty($D['published_at']) ? \Illuminate\Support\Carbon::parse($D['published_at']) : null,
         'isPdf' => !empty($isPdf),
       ])
     </td>

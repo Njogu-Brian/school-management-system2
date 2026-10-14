@@ -16,6 +16,7 @@ import {
   FooterDock,
   MarksEntryProgress,
   MarksStudentCard,
+  confirmPendingZeros,
   ScreenContainer,
   TextField,
   useTheme,
@@ -52,6 +53,7 @@ export const MarksEntryScreen: React.FC = () => {
   const [hasLocalDraft, setHasLocalDraft] = useState(false);
 
   const serverSnapshotRef = useRef<Record<number, { marks: string; remarks: string }>>({});
+  const marksRef = useRef<Record<number, { marks: string; remarks: string }>>({});
   const hydratedRef = useRef(false);
   const draftKey = marksDraftKey(examId, subjectId, classroomId);
   const { draft, setDraft, loaded: draftLoaded, clearDraft } = useOfflineDraft<MarksDraft>(draftKey);
@@ -94,10 +96,13 @@ export const MarksEntryScreen: React.FC = () => {
 
     const savedDraft = draftLoaded ? draftRef.current : null;
     if (savedDraft?.marks) {
-      setMarks({ ...map, ...savedDraft.marks });
+      const merged = { ...map, ...savedDraft.marks };
+      marksRef.current = merged;
+      setMarks(merged);
       serverSnapshotRef.current = savedDraft.serverSnapshot ?? snapshot;
       setHasLocalDraft(true);
     } else {
+      marksRef.current = map;
       setMarks(map);
     }
     hydratedRef.current = true;
@@ -109,13 +114,17 @@ export const MarksEntryScreen: React.FC = () => {
   }, [marks, students.length, setDraft]);
 
   const applyMark = (studentId: number, field: 'marks' | 'remarks', value: string) => {
-    setMarks((prev) => ({
-      ...prev,
-      [studentId]: {
-        marks: field === 'marks' ? value : (prev[studentId]?.marks ?? ''),
-        remarks: field === 'remarks' ? value : (prev[studentId]?.remarks ?? ''),
-      },
-    }));
+    setMarks((prev) => {
+      const next = {
+        ...prev,
+        [studentId]: {
+          marks: field === 'marks' ? value : (prev[studentId]?.marks ?? ''),
+          remarks: field === 'remarks' ? value : (prev[studentId]?.remarks ?? ''),
+        },
+      };
+      marksRef.current = next;
+      return next;
+    });
     setHasLocalDraft(true);
   };
 
@@ -151,9 +160,11 @@ export const MarksEntryScreen: React.FC = () => {
   );
 
   const onSave = async () => {
+    await confirmPendingZeros();
+    const currentMarks = marksRef.current;
     const payload = students
       .map((s) => {
-        const entry = marks[s.id];
+        const entry = currentMarks[s.id];
         const value = Number(entry?.marks);
         if (!entry?.marks || Number.isNaN(value)) {
           if (entry?.remarks?.trim()) {

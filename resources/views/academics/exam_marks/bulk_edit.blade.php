@@ -240,6 +240,10 @@
       const row = inp.closest('.exam-entry-row');
       const absent = row?.querySelector('.absent-toggle');
       if (absent) absent.checked = false;
+      if (!confirmZeroScore(inp)) {
+        refreshGrades();
+        return;
+      }
       refreshGrades();
     });
     inp.addEventListener('input', refreshGrades);
@@ -304,8 +308,48 @@
     }
   }
 
+  function isExactZero(value) {
+    const t = String(value ?? '').trim();
+    if (t === '' || t === '.' || t.endsWith('.')) return false;
+    const n = Number(t);
+    return !Number.isNaN(n) && n === 0;
+  }
+
+  function confirmZeroScore(input) {
+    if (!isExactZero(input.value)) {
+      input.dataset.zeroConfirmed = '';
+      return true;
+    }
+    if (input.dataset.zeroConfirmed === '1') return true;
+    const row = input.closest('.exam-entry-row');
+    const name = row?.querySelector('.fw-semibold')?.textContent?.trim() || 'This learner';
+    const ok = window.confirm(name + ': save a score of 0? Zero counts in the average. Leave the box empty if this learner has no mark.');
+    if (!ok) {
+      input.value = '';
+      input.dataset.zeroConfirmed = '';
+      return false;
+    }
+    input.dataset.zeroConfirmed = '1';
+    return true;
+  }
+
+  function hasUnconfirmedZero() {
+    return [...document.querySelectorAll('.score-input')].some((inp) => isExactZero(inp.value) && inp.dataset.zeroConfirmed !== '1');
+  }
+
+  document.querySelectorAll('.score-input').forEach((inp) => {
+    if (isExactZero(inp.value)) inp.dataset.zeroConfirmed = '1';
+    inp.addEventListener('input', () => {
+      if (!isExactZero(inp.value)) inp.dataset.zeroConfirmed = '';
+    });
+  });
+
+  document.getElementById('marks-form')?.addEventListener('submit', () => {
+    document.querySelectorAll('.score-input').forEach((inp) => confirmZeroScore(inp));
+  });
+
   function scheduleAutosave() {
-    if (!canEdit) return;
+    if (!canEdit || hasUnconfirmedZero()) return;
     clearTimeout(timer);
     timer = setTimeout(autosave, 1200);
   }

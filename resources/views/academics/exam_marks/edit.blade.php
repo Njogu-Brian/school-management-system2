@@ -62,6 +62,37 @@
             <button class="btn btn-settings-primary"><i class="bi bi-save2 me-1"></i>Save</button>
           </div>
         </form>
+        @push('scripts')
+        <script>
+          (function () {
+            const form = document.querySelector('form[action*="exam-marks"]');
+            if (!form) return;
+            function isExactZero(value) {
+              const t = String(value ?? '').trim();
+              if (t === '' || t === '.' || t.endsWith('.')) return false;
+              const n = Number(t);
+              return !Number.isNaN(n) && n === 0;
+            }
+            form.querySelectorAll('input[name$="_score"]').forEach((inp) => {
+              if (isExactZero(inp.value)) inp.dataset.zeroConfirmed = '1';
+              inp.addEventListener('input', () => {
+                if (!isExactZero(inp.value)) inp.dataset.zeroConfirmed = '';
+              });
+              inp.addEventListener('change', () => {
+                if (!isExactZero(inp.value) || inp.dataset.zeroConfirmed === '1') return;
+                const label = inp.closest('.col-md-3')?.querySelector('.form-label')?.textContent?.trim() || 'Score';
+                const ok = window.confirm(label + ': save a score of 0? Zero counts in the average. Leave the box empty if there is no mark.');
+                if (!ok) {
+                  inp.value = '';
+                  inp.dataset.zeroConfirmed = '';
+                  return;
+                }
+                inp.dataset.zeroConfirmed = '1';
+              });
+            });
+          })();
+        </script>
+        @endpush
       </div>
     </div>
   </div>

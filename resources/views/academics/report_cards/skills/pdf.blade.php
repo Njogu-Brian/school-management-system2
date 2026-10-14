@@ -107,7 +107,7 @@
 
     <div style="text-align:right; margin-top: 12px;">
         @include('academics.report_cards.partials.school_stamp', [
-            'stampDate' => now(),
+            'stampDate' => !empty($dto['published_at']) ? \Illuminate\Support\Carbon::parse($dto['published_at']) : null,
             'isPdf' => true,
         ])
     </div>

@@ -48,7 +48,7 @@ export const MarksStudentCard: React.FC<MarksStudentCardProps> = ({
       </View>
       {slots.map((slot) => {
         const { keyId, ...rest } = slot;
-        return <MarksScoreSlot key={keyId} {...rest} compact={multi} />;
+        return <MarksScoreSlot key={keyId} {...rest} studentName={fullName} compact={multi} />;
       })}
     </View>
   );

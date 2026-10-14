@@ -71,8 +71,10 @@ class ReportCardPublishService
             $reportCard->public_token = Str::random(40);
         }
 
-        $reportCard->published_at = now();
-        $reportCard->published_by = optional(Auth::user()?->staff)->id;
+        if (! $reportCard->published_at) {
+            $reportCard->published_at = now();
+            $reportCard->published_by = optional(Auth::user()?->staff)->id;
+        }
         $reportCard->save();
 
         try {

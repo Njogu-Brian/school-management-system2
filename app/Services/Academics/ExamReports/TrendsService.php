@@ -64,6 +64,7 @@ class TrendsService
         $series = $exams->map(function (Exam $exam) use ($marks, $passPct) {
             $vals = collect($marks->get($exam->id, collect()))
                 ->pluck('marks_obtained')
+                ->filter(fn ($v) => $v !== null && $v !== '')
                 ->map(fn ($v) => (float) $v)
                 ->values();
 

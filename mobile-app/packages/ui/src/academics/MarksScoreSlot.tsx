@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useMemo, useRef } from 'react';
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 
 export interface MarksScoreSlotProps {
@@ -13,8 +13,24 @@ export interface MarksScoreSlotProps {
   remarks: string;
   onChangeMarks: (value: string) => void;
   onChangeRemarks: (value: string) => void;
+  /** Learner name, used in the zero-score confirmation. */
+  studentName?: string;
   /** Compact single-line score when stacking many subjects. */
   compact?: boolean;
+}
+
+function isExactZero(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === '.' || trimmed.endsWith('.')) return false;
+  const n = Number(trimmed);
+  return !Number.isNaN(n) && n === 0;
+}
+
+let pendingZeroConfirm: Promise<void> = Promise.resolve();
+
+/** Resolves after any open "enter 0?" dialogs have been answered. */
+export function confirmPendingZeros(): Promise<void> {
+  return pendingZeroConfirm;
 }
 
 function statusOf(marks: string, min: number, max: number): {
@@ -39,9 +55,17 @@ export const MarksScoreSlot: React.FC<MarksScoreSlotProps> = ({
   remarks,
   onChangeMarks,
   onChangeRemarks,
+  studentName,
   compact = false,
 }) => {
   const { colors, palette, spacing, typography, radius } = useTheme();
+  const zeroConfirmed = useRef(isExactZero(marks));
+  const latestMarks = useRef(marks);
+  const seenMarks = useRef(marks);
+  if (marks !== seenMarks.current) {
+    seenMarks.current = marks;
+    latestMarks.current = marks;
+  }
   const status = useMemo(() => statusOf(marks, minMarks, maxMarks), [marks, maxMarks, minMarks]);
   const pct = useMemo(() => {
     const n = Number(marks);
@@ -104,7 +128,46 @@ export const MarksScoreSlot: React.FC<MarksScoreSlotProps> = ({
           </Text>
           <TextInput
             value={marks}
-            onChangeText={(t) => onChangeMarks(t.replace(/[^\d.]/g, ''))}
+            onChangeText={(t) => {
+              const next = t.replace(/[^\d.]/g, '');
+              latestMarks.current = next;
+              if (!isExactZero(next)) zeroConfirmed.current = false;
+              onChangeMarks(next);
+            }}
+            onBlur={() => {
+              const current = latestMarks.current;
+              if (!isExactZero(current) || zeroConfirmed.current) return;
+              const who = studentName?.trim() ? `${studentName.trim()}: ` : '';
+              pendingZeroConfirm = pendingZeroConfirm.then(
+                () =>
+                  new Promise<void>((resolve) => {
+                    Alert.alert(
+                      'Save a score of 0?',
+                      `${who}0 is a real mark and will count in the average. Leave the box empty if this learner has no mark.`,
+                      [
+                        {
+                          text: 'Clear score',
+                          style: 'cancel',
+                          onPress: () => {
+                            latestMarks.current = '';
+                            zeroConfirmed.current = false;
+                            onChangeMarks('');
+                            resolve();
+                          },
+                        },
+                        {
+                          text: 'Yes, enter 0',
+                          onPress: () => {
+                            zeroConfirmed.current = true;
+                            resolve();
+                          },
+                        },
+                      ],
+                      { cancelable: false },
+                    );
+                  }),
+              );
+            }}
             keyboardType="decimal-pad"
             placeholder="—"
             placeholderTextColor={palette.textMuted}

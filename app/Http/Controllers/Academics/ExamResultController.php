@@ -113,7 +113,10 @@ class ExamResultController extends Controller
                 continue; // Skip alumni/archived students
             }
             
-            $score = ($row['score'] === '' ? null : $row['score']);
+            $score = ($row['score'] === '' || $row['score'] === null) ? null : $row['score'];
+            if ($score === null) {
+                continue;
+            }
 
             $g = ['label' => null, 'points' => null];
             if ($score !== null && is_numeric($score)) {

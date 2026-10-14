@@ -246,13 +246,55 @@
     });
   });
 
+  function isExactZero(value) {
+    const t = String(value ?? '').trim();
+    if (t === '' || t === '.' || t.endsWith('.')) return false;
+    const n = Number(t);
+    return !Number.isNaN(n) && n === 0;
+  }
+
+  function learnerName(input) {
+    const row = input.closest('tr');
+    return row?.querySelector('.fw-semibold')?.textContent?.trim() || 'This learner';
+  }
+
+  function confirmZeroScore(input) {
+    if (!isExactZero(input.value)) {
+      input.dataset.zeroConfirmed = '';
+      return true;
+    }
+    if (input.dataset.zeroConfirmed === '1') return true;
+    const ok = window.confirm(learnerName(input) + ': save a score of 0? Zero counts in the average. Leave the box empty if this learner has no mark.');
+    if (!ok) {
+      input.value = '';
+      input.dataset.zeroConfirmed = '';
+      return false;
+    }
+    input.dataset.zeroConfirmed = '1';
+    return true;
+  }
+
+  function hasUnconfirmedZero() {
+    return [...document.querySelectorAll('.matrix-score')].some((inp) => isExactZero(inp.value) && inp.dataset.zeroConfirmed !== '1');
+  }
+
   document.querySelectorAll('.matrix-score').forEach(inp => {
+    if (isExactZero(inp.value)) inp.dataset.zeroConfirmed = '1';
     inp.addEventListener('input', () => {
       const sid = inp.dataset.studentId;
       const eid = inp.dataset.examId;
       const absent = document.querySelector(`.matrix-absent[data-student-id="${sid}"][data-exam-id="${eid}"]`);
       if (inp.value.trim() !== '' && absent) absent.checked = false;
+      if (!isExactZero(inp.value)) inp.dataset.zeroConfirmed = '';
     });
+    inp.addEventListener('blur', () => {
+      confirmZeroScore(inp);
+      scheduleAutosave();
+    });
+  });
+
+  document.getElementById('matrix-form')?.addEventListener('submit', () => {
+    document.querySelectorAll('.matrix-score').forEach((inp) => confirmZeroScore(inp));
   });
 
   async function autosave() {
@@ -268,7 +310,7 @@
     Object.entries(rows).forEach(([sid, exams]) => {
       Object.entries(exams).forEach(([eid, payload]) => {
         if (payload.is_absent === '1') body.append(`rows[${sid}][${eid}][is_absent]`, '1');
-        if (payload.score) body.append(`rows[${sid}][${eid}][score]`, payload.score);
+        if (payload.score !== undefined && payload.score !== '') body.append(`rows[${sid}][${eid}][score]`, payload.score);
         if (payload.subject_remark) body.append(`rows[${sid}][${eid}][subject_remark]`, payload.subject_remark);
       });
     });
@@ -293,6 +335,7 @@
   }
 
   function scheduleAutosave() {
+    if (hasUnconfirmedZero()) return;
     clearTimeout(timer);
     timer = setTimeout(autosave, 1500);
   }

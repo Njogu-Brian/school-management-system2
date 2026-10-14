@@ -66,8 +66,9 @@ class ReportCardBatchService
 
             // Prefer moderated scores when available; fallback to raw scores.
             $scores = $marks
+                ->reject(fn ($m) => (bool) $m->is_absent)
                 ->map(fn ($m) => $m->score_moderated ?? $m->score_raw)
-                ->filter(fn ($v) => $v !== null);
+                ->filter(fn ($v) => $v !== null && $v !== '');
 
             $total = (float) $scores->sum();
             $average = $scores->count() ? (float) $scores->avg() : null;
@@ -210,7 +211,7 @@ class ReportCardBatchService
             $bySitting = [];
             foreach ($sittingHeaders as $sitting) {
                 $m = $rows->first(fn ($r) => self::sittingLabel($r->exam?->name) === $sitting);
-                $score = $m ? ($m->score_moderated ?? $m->score_raw) : null;
+                $score = ($m && ! $m->is_absent) ? ($m->score_moderated ?? $m->score_raw) : null;
                 $grade = $m?->grade_label;
                 if ($m && ($grade === null || $grade === '') && $score !== null && $classroomId > 0) {
                     $max = (float) ($m->exam?->examType?->default_max_mark ?? $m->exam?->max_marks ?? 100);
@@ -238,8 +239,9 @@ class ReportCardBatchService
                 ?? $rows->first()?->subject_remark;
 
             $referenceScores = $referenceRows
+                ->reject(fn ($m) => (bool) $m->is_absent)
                 ->map(fn ($m) => $m->score_moderated ?? $m->score_raw)
-                ->filter(fn ($v) => $v !== null)
+                ->filter(fn ($v) => $v !== null && $v !== '')
                 ->values();
             $referenceAverage = $referenceScores->count() ? round((float) $referenceScores->avg(), 2) : null;
             $referenceGrade = $referenceRows
@@ -268,14 +270,14 @@ class ReportCardBatchService
             (int) ($report->classroom_id ?? 0),
             $report->stream_id ? (int) $report->stream_id : null
         );
-        $currentOverviewAverage = data_get($report->summary, 'average');
-        if ($currentOverviewAverage === null) {
-            $currentOverviewAverage = collect($subjectsRows)->pluck('term_avg')->filter(fn ($v) => $v !== null)->avg();
-        }
-        $referenceOverviewAverage = data_get($previousReport?->summary ?? [], 'average');
-        if ($referenceOverviewAverage === null) {
-            $referenceOverviewAverage = collect($subjectsRows)->pluck('reference_term_avg')->filter(fn ($v) => $v !== null)->avg();
-        }
+        $scoredSubjectAverages = collect($subjectsRows)->pluck('term_avg')->filter(fn ($v) => $v !== null && $v !== '');
+        $currentOverviewAverage = $scoredSubjectAverages->count()
+            ? (float) $scoredSubjectAverages->avg()
+            : null;
+        $scoredReferenceAverages = collect($subjectsRows)->pluck('reference_term_avg')->filter(fn ($v) => $v !== null && $v !== '');
+        $referenceOverviewAverage = $scoredReferenceAverages->count()
+            ? (float) $scoredReferenceAverages->avg()
+            : null;
 
         // Skills (per-report skills)
         $skills = $report->skills->map(fn ($s) => [
@@ -472,6 +474,7 @@ class ReportCardBatchService
             'cbc'        => $cbcData,
             'year_trend' => $termTrend,
             'branding'   => $branding,
+            'published_at' => $report->published_at?->toIso8601String(),
             'generated'  => [
                 'by'   => auth()->user()?->name ?? 'System',
                 'at'   => now()->format('d M Y, H:i'),
@@ -609,8 +612,9 @@ class ReportCardBatchService
                 $first = $group->first();
                 $term = $first?->exam?->term;
                 $scores = $group
+                    ->reject(fn ($m) => (bool) $m->is_absent)
                     ->map(fn ($m) => $m->score_moderated ?? $m->score_raw)
-                    ->filter(fn ($v) => $v !== null)
+                    ->filter(fn ($v) => $v !== null && $v !== '')
                     ->values();
 
                 return [

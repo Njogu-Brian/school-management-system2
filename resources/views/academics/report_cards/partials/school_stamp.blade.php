@@ -1,6 +1,8 @@
 @php
-  $stampAt = $stampDate ?? now();
-  $stampDateText = strtoupper($stampAt->format('d M Y'));
+  $stampAt = $stampDate instanceof \DateTimeInterface
+    ? \Illuminate\Support\Carbon::parse($stampDate)
+    : (is_string($stampDate) && trim($stampDate) !== '' ? \Illuminate\Support\Carbon::parse($stampDate) : null);
+  $stampDateText = $stampAt ? strtoupper($stampAt->timezone(config('app.timezone'))->format('d M Y')) : '';
   $stampBlue = '#1a4f9c';
   $stampRed = '#c62828';
   $fullName = strtoupper(trim(setting('school_name', 'ROYAL KINGS PREMIER SCHOOL LTD')));

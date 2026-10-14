@@ -16,6 +16,7 @@ import {
   FooterDock,
   MarksEntryProgress,
   MarksStudentCard,
+  confirmPendingZeros,
   ScreenContainer,
   TextField,
   useTheme,
@@ -70,6 +71,7 @@ export const MarksMatrixEntryScreen: React.FC = () => {
   const didInitFocus = useRef(false);
 
   const serverSnapshotRef = useRef<Record<string, EntryValue>>({});
+  const valuesRef = useRef<Record<string, EntryValue>>({});
   const hydratedRef = useRef(false);
   const draftKey = marksMatrixDraftKey(examTypeId, classroomId, streamId);
   const { draft, setDraft, loaded: draftLoaded, clearDraft } = useOfflineDraft<MatrixDraft>(draftKey);
@@ -113,10 +115,13 @@ export const MarksMatrixEntryScreen: React.FC = () => {
 
     const savedDraft = draftLoaded ? draftRef.current : null;
     if (savedDraft?.values) {
-      setValues({ ...next, ...savedDraft.values });
+      const merged = { ...next, ...savedDraft.values };
+      valuesRef.current = merged;
+      setValues(merged);
       serverSnapshotRef.current = savedDraft.serverSnapshot ?? snapshot;
       setHasLocalDraft(true);
     } else {
+      valuesRef.current = next;
       setValues(next);
     }
     hydratedRef.current = true;
@@ -175,10 +180,14 @@ export const MarksMatrixEntryScreen: React.FC = () => {
         }
       }
     }
-    setValues((prev) => ({
-      ...prev,
-      [k]: { marks: prev[k]?.marks ?? '', remarks: prev[k]?.remarks ?? '', [field]: value },
-    }));
+    setValues((prev) => {
+      const nextValues = {
+        ...prev,
+        [k]: { marks: prev[k]?.marks ?? '', remarks: prev[k]?.remarks ?? '', [field]: value },
+      };
+      valuesRef.current = nextValues;
+      return nextValues;
+    });
     setHasLocalDraft(true);
   };
 
@@ -265,7 +274,8 @@ export const MarksMatrixEntryScreen: React.FC = () => {
     .filter(Boolean)
     .join(' · ');
 
-  const goReview = () => {
+  const goReview = async () => {
+    await confirmPendingZeros();
     if (nonEmptyEntries.length === 0) {
       showError('Nothing to save', 'Enter at least one score or remark.');
       return;
@@ -295,7 +305,27 @@ export const MarksMatrixEntryScreen: React.FC = () => {
   };
 
   const save = async () => {
-    if (nonEmptyEntries.length === 0) {
+    await confirmPendingZeros();
+    const entries: { student_id: number; exam_id: number; marks?: number; remarks?: string }[] = [];
+    for (const s of students) {
+      for (const e of exams) {
+        const v = valuesRef.current[keyOf(s.id, e.id)];
+        if (!v) continue;
+        const hasScore = v.marks.trim() !== '';
+        const hasRemark = v.remarks.trim() !== '';
+        if (!hasScore && !hasRemark) continue;
+        const markNum = hasScore ? Number(v.marks) : undefined;
+        if (hasScore && Number.isNaN(markNum)) continue;
+        if (hasScore && (markNum! < e.min_marks || markNum! > e.max_marks)) continue;
+        entries.push({
+          student_id: s.id,
+          exam_id: e.id,
+          marks: markNum,
+          remarks: hasRemark ? v.remarks.trim() : undefined,
+        });
+      }
+    }
+    if (entries.length === 0) {
       showError('Nothing to save', 'Enter at least one score or remark.');
       return;
     }
@@ -309,7 +339,7 @@ export const MarksMatrixEntryScreen: React.FC = () => {
       classroom_id: classroomId,
       stream_id: streamId,
       label: `Marks matrix · ${contextLabel}`,
-      entries: nonEmptyEntries,
+      entries,
       baseSnapshot: serverSnapshotRef.current,
     };
 
@@ -322,14 +352,14 @@ export const MarksMatrixEntryScreen: React.FC = () => {
             exam_type_id: examTypeId,
             classroom_id: classroomId,
             stream_id: streamId,
-            entries: nonEmptyEntries,
+            entries,
           });
         },
         networkStatus,
         { label: syncPayload.label },
       );
 
-      setSavedCount(nonEmptyEntries.length);
+      setSavedCount(entries.length);
       if (result === 'queued') {
         showSuccess('Queued offline', 'Matrix marks will sync when you reconnect.');
       } else {

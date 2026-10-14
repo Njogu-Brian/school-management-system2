@@ -178,19 +178,33 @@ class CBCAssessmentService
         $results = [];
 
         foreach ($grouped as $learningArea => $areaMarks) {
-            $totalScore = $areaMarks->sum('score_raw');
-            $totalMaxMarks = $areaMarks->sum(function($mark) {
+            $scored = $areaMarks->filter(function ($mark) {
+                if ($mark->is_absent) {
+                    return false;
+                }
+
+                return ($mark->score_moderated ?? $mark->score_raw) !== null;
+            });
+            if ($scored->isEmpty()) {
+                continue;
+            }
+
+            $totalScore = $scored->sum(fn ($mark) => (float) ($mark->score_moderated ?? $mark->score_raw));
+            $totalMaxMarks = $scored->sum(function ($mark) {
                 return $mark->exam->max_marks ?? 100;
             });
 
-            $average = $totalMaxMarks > 0 ? ($totalScore / $totalMaxMarks) * 100 : 0;
+            $average = $totalMaxMarks > 0 ? ($totalScore / $totalMaxMarks) * 100 : null;
+            if ($average === null) {
+                continue;
+            }
             $performanceLevel = self::calculatePerformanceLevel($average);
 
             $results[$learningArea] = [
                 'average' => round($average, 2),
                 'performance_level' => $performanceLevel?->code,
                 'performance_level_name' => $performanceLevel?->name,
-                'subjects_count' => $areaMarks->unique('subject_id')->count(),
+                'subjects_count' => $scored->unique('subject_id')->count(),
             ];
         }
 
