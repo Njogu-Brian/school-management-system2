@@ -30,13 +30,20 @@ class FinanceTermKpiService
             $q->where('name', 'like', '%swim%')->orWhere('code', 'like', '%SWIM%');
         })->pluck('id')->toArray();
 
+        // Archived and alumni students stay out of every total, even when an
+        // old invoice is still unpaid. Student global scope enforces that.
         $termInvoiceIds = Invoice::where('term_id', $term->id)
             ->whereNull('reversed_at')
             ->whereNull('deleted_at')
+            ->whereHas('student')
             ->pluck('id');
 
+        $term->loadMissing('academicYear');
+        $year = (int) ($term->academicYear->year ?? now()->year);
+        $schoolOutstanding = app(StudentFeeStatementService::class)->schoolOutstandingSummary($year);
+
         if ($termInvoiceIds->isEmpty()) {
-            return $this->emptyResult($term);
+            return $this->emptyResult($term, $schoolOutstanding);
         }
 
         $totalInvoiced = (float) InvoiceItem::whereIn('invoice_id', $termInvoiceIds)
@@ -60,7 +67,6 @@ class FinanceTermKpiService
 
         $openInvoices = Invoice::whereIn('id', $termInvoiceIds)
             ->whereIn('status', ['unpaid', 'partial']);
-        $feesOutstanding = (float) (clone $openInvoices)->sum('balance');
         $feesOverdue = (float) (clone $openInvoices)
             ->whereNotNull('due_date')
             ->whereDate('due_date', '<', now()->toDateString())
@@ -70,24 +76,26 @@ class FinanceTermKpiService
             'term_id' => $term->id,
             'term_name' => $term->name,
             'academic_year_id' => $term->academic_year_id,
-            'finance_scope' => 'term',
+            'finance_scope' => 'year_statement',
             'total_invoiced' => round($totalInvoiced, 2),
             'fees_collected' => round($feesCollected, 2),
-            'fees_outstanding' => round($feesOutstanding, 2),
+            'fees_outstanding' => round((float) $schoolOutstanding['total_outstanding'], 2),
+            'students_owing' => (int) $schoolOutstanding['students_owing'],
             'fees_overdue' => round($feesOverdue, 2),
         ];
     }
 
-    protected function emptyResult(?Term $term): array
+    protected function emptyResult(?Term $term, ?array $schoolOutstanding = null): array
     {
         return [
             'term_id' => $term?->id,
             'term_name' => $term?->name,
             'academic_year_id' => $term?->academic_year_id,
-            'finance_scope' => 'term',
+            'finance_scope' => 'year_statement',
             'total_invoiced' => 0.0,
             'fees_collected' => 0.0,
-            'fees_outstanding' => 0.0,
+            'fees_outstanding' => round((float) ($schoolOutstanding['total_outstanding'] ?? 0), 2),
+            'students_owing' => (int) ($schoolOutstanding['students_owing'] ?? 0),
             'fees_overdue' => 0.0,
         ];
     }

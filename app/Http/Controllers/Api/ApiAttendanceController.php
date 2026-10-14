@@ -400,6 +400,7 @@ class ApiAttendanceController extends Controller
                     'student_id' => $student->id,
                     'date' => $date,
                 ]);
+                $oldStatus = $attendance->exists ? $attendance->status : null;
                 $attendance->status = $status;
                 $this->applyReasonToAttendance($attendance, $status, is_array($rec) ? $rec : []);
                 $attendance->marked_by = $user->id;
@@ -407,7 +408,7 @@ class ApiAttendanceController extends Controller
                 $attendance->save();
                 $count++;
 
-                $this->notifyAbsenceIfNeeded($user, $student, $attendance->reason, $status === 'absent' && $isToday);
+                $this->notifyAttendanceChange($student, $oldStatus, $status, $attendance->reason, $isToday);
             }
         });
 
@@ -523,7 +524,7 @@ class ApiAttendanceController extends Controller
 
                 $count++;
 
-                $this->notifyAbsenceIfNeeded($user, $student, $attendance->reason, $status === 'absent' && $isToday);
+                $this->notifyAttendanceChange($student, $oldStatus, $status, $attendance->reason, $isToday);
             }
         });
 
@@ -645,6 +646,7 @@ class ApiAttendanceController extends Controller
                         'student_id' => $student->id,
                         'date' => $date,
                     ]);
+                    $oldStatus = $attendance->exists ? $attendance->status : null;
                     $attendance->status = 'absent';
                     $this->applyReasonToAttendance($attendance, 'absent', $records->get($student->id, []));
                     $attendance->marked_by = $user->id;
@@ -653,7 +655,7 @@ class ApiAttendanceController extends Controller
                     $count++;
 
                     if ($date === Carbon::today()->toDateString() && ! isset($notified[$student->id])) {
-                        $this->notifyAbsenceIfNeeded($user, $student, $attendance->reason, true);
+                        $this->notifyAttendanceChange($student, $oldStatus, 'absent', $attendance->reason, true);
                         $notified[$student->id] = true;
                     }
                 }
@@ -677,17 +679,25 @@ class ApiAttendanceController extends Controller
         ]);
     }
 
-    protected function notifyAbsenceIfNeeded($user, Student $student, ?string $reason, bool $shouldNotify): void
+    protected function notifyAttendanceChange(Student $student, ?string $oldStatus, string $newStatus, ?string $reason, bool $isToday): void
     {
-        if (! $shouldNotify || ! $student->parent || ($user && $user->suppressesAbsenceNotice($student))) {
+        if (! $isToday || $oldStatus === $newStatus || ! $student->parent) {
             return;
         }
 
-        $this->notifyParentAbsent($student, $reason);
-        try {
-            app(\App\Services\ParentAppNotifyService::class)->notifyChildAbsent($student);
-        } catch (\Throwable $e) {
-            report($e);
+        if ($newStatus === 'absent') {
+            $this->notifyParentAbsent($student, $reason);
+            try {
+                app(\App\Services\ParentAppNotifyService::class)->notifyChildAbsent($student);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+
+            return;
+        }
+
+        if ($oldStatus === 'absent' && in_array($newStatus, ['present', 'late'], true)) {
+            $this->notifyParentAbsent($student, $reason, $newStatus, 'attendance_status_email');
         }
     }
 
@@ -733,14 +743,17 @@ class ApiAttendanceController extends Controller
         $attendance->excuse_notes = $notes !== '' ? $notes : null;
     }
 
-    protected function notifyParentAbsent(Student $student, ?string $reason = null): void
+    protected function notifyParentAbsent(Student $student, ?string $reason = null, string $statusLabel = 'absent', string $templateCode = 'attendance_absent_sms'): void
     {
         try {
             if (! $student->parent) {
                 return;
             }
 
-            $tpl = CommunicationTemplate::where('code', 'attendance_absent_sms')->first();
+            $tpl = CommunicationTemplate::where('code', $templateCode)->first();
+            if (! $tpl && $templateCode !== 'attendance_absent_sms') {
+                $tpl = CommunicationTemplate::where('code', 'attendance_absent_sms')->first();
+            }
             if (!$tpl) {
                 $tpl = CommunicationTemplate::firstOrCreate(
                     ['code' => 'attendance_absent_sms'],
@@ -764,7 +777,7 @@ class ApiAttendanceController extends Controller
             $schoolName = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
             $messageTemplate = str_replace(
                 ['{{student_name}}', '{{attendance_status}}', '{{attendance_date}}', '{{attendance_reason}}', '{{school_name}}'],
-                [$student->full_name, 'absent', 'today', $reason ?: '', $schoolName],
+                [$student->full_name, $statusLabel, 'today', $reason ?: '', $schoolName],
                 $tpl->content ?? ''
             );
             if (filled($reason) && ! str_contains((string) ($tpl->content ?? ''), '{{attendance_reason}}')) {
@@ -778,7 +791,7 @@ class ApiAttendanceController extends Controller
                 $parentNotify->sendWhatsAppTemplateToStudentParents(
                     $student,
                     $messageTemplate,
-                    'attendance_absent_sms'
+                    $tpl->title ?? $templateCode
                 );
             } catch (\Throwable $e) {
                 report($e);
@@ -852,7 +865,7 @@ class ApiAttendanceController extends Controller
                     'channel' => 'sms',
                     'message' => $message,
                     'status' => 'sent',
-                    'title' => 'attendance_absent_sms',
+                    'title' => $tpl->title ?? $templateCode,
                     'target' => 'attendance',
                     'type' => 'sms',
                     'sent_at' => now(),

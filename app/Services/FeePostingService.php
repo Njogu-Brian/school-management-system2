@@ -60,6 +60,7 @@ class FeePostingService
                             'id' => $transportItem->id,
                             'votehead_id' => $transportItem->votehead_id,
                             'amount' => $this->getOriginalAmountBeforeNotes($transportItem),
+                            'current_amount' => (float) $transportItem->amount,
                             'source' => $transportItem->source ?? 'transport',
                         ];
                     }
@@ -75,7 +76,21 @@ class FeePostingService
                     continue;
                 }
                 if (($proposed['origin'] ?? '') === 'transport') {
-                    // Only show transport when it actually changes (added/increased/decreased)
+                    // The invoice line may already equal the transport fee while original_amount
+                    // still holds the first posted figure. That is not a new change.
+                    // A credit or debit note can also move the line without a fee change;
+                    // leave those alone when the fee still matches the pre-note amount.
+                    if ($existingTransport) {
+                        $currentAmount = (float) ($existingTransport['current_amount'] ?? $existingTransport['amount']);
+                        $originalAmount = (float) $existingTransport['amount'];
+                        $proposedAmount = (float) ($proposed['amount'] ?? 0);
+                        $alreadyBilled = abs($currentAmount - $proposedAmount) < 0.01;
+                        $notesOnly = abs($originalAmount - $proposedAmount) < 0.01;
+                        if ($alreadyBilled || $notesOnly) {
+                            continue;
+                        }
+                        $existingTransport['amount'] = $currentAmount;
+                    }
                     $diff = $this->calculateDiff($student, $voteheadId, $existingTransport, $proposed);
                     if ($diff) {
                         $diffs->push($diff);

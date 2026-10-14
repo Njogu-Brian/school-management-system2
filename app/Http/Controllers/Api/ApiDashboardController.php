@@ -479,7 +479,7 @@ class ApiDashboardController extends Controller
         $feesCollected = (float) ($termFinance['fees_collected'] ?? 0);
         $totalInvoiced = (float) ($termFinance['total_invoiced'] ?? 0);
         $totalBalance = (float) ($termFinance['fees_outstanding'] ?? 0);
-        $outstandingAll = (float) Invoice::query()->whereNull('reversed_at')->sum('balance');
+        $outstandingAll = (float) Invoice::query()->whereNull('reversed_at')->whereHas('student')->sum('balance');
 
         $paymentBase = Payment::query()->where(function ($q) {
             $q->whereNull('reversed')->orWhere('reversed', false);

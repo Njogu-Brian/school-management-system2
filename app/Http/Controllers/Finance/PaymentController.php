@@ -1128,6 +1128,34 @@ class PaymentController extends Controller
     }
     
     /**
+     * Sibling receipts for one deposit only.
+     * A shared receipt number is the tightest key. Otherwise the same transaction
+     * code is limited to this family and this payment date, so a surname code
+     * such as KINUTHIA cannot pull in another day's deposit.
+     */
+    protected function sharedPaymentQuery(Payment $payment)
+    {
+        $query = Payment::query();
+        if ($payment->shared_receipt_number) {
+            return $query->where('shared_receipt_number', $payment->shared_receipt_number);
+        }
+
+        $query->where('transaction_code', $payment->transaction_code);
+        if ($payment->family_id) {
+            $query->where('family_id', $payment->family_id);
+        }
+        if ($payment->payment_date) {
+            $day = \Carbon\Carbon::parse($payment->payment_date);
+            $query->whereBetween('payment_date', [
+                $day->copy()->subDay()->startOfDay(),
+                $day->copy()->addDay()->endOfDay(),
+            ]);
+        }
+
+        return $query;
+    }
+
+    /**
      * Get shared transaction information for a payment
      */
     protected function getSharedTransactionInfo(Payment $payment): ?array
@@ -1136,13 +1164,7 @@ class PaymentController extends Controller
             return null;
         }
         $sharedReceiptNumber = $payment->shared_receipt_number;
-        $allPaymentsQuery = Payment::with('student');
-        if ($sharedReceiptNumber) {
-            $allPaymentsQuery->where('shared_receipt_number', $sharedReceiptNumber);
-        } else {
-            $allPaymentsQuery->where('transaction_code', $payment->transaction_code);
-        }
-        $allPayments = $allPaymentsQuery->get();
+        $allPayments = $this->sharedPaymentQuery($payment)->with('student')->get();
         $siblingPayments = $allPayments->where('id', '!=', $payment->id)->values();
         
         // Find the source bank statement transaction
@@ -1205,14 +1227,7 @@ class PaymentController extends Controller
         }
         
         // Check if any group payments are reversed
-        $sharedReceiptNumber = $payment->shared_receipt_number;
-        $reversedGroupPayments = Payment::where(function ($q) use ($payment, $sharedReceiptNumber) {
-                if ($sharedReceiptNumber) {
-                    $q->where('shared_receipt_number', $sharedReceiptNumber);
-                } else {
-                    $q->where('transaction_code', $payment->transaction_code);
-                }
-            })
+        $reversedGroupPayments = $this->sharedPaymentQuery($payment)
             ->where('reversed', true)
             ->exists();
         

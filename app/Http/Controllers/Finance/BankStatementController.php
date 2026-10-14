@@ -3630,10 +3630,62 @@ class BankStatementController extends Controller
     }
 
     /**
-     * Reject transaction - unified for both types
-     * Reverses any associated payments, clears matching/confirmation/allocations (including
-     * sibling sharing and swimming). Transaction moves to unassigned; user must manually
-     * match, allocate, confirm, then create payment.
+     * Receipts that belong to the deposit being rejected.
+     * Linked payment ids win. A reference with no digits (a payer surname) is
+     * not used, because several deposits from the same person share it.
+     */
+    protected function paymentsTiedToRejectedTransaction($transaction, object $txnView)
+    {
+        $linkedIds = collect();
+        if (! empty($txnView->payment_id)) {
+            $linkedIds->push((int) $txnView->payment_id);
+        }
+        $raw = $transaction->linked_payment_ids ?? ($txnView->linked_payment_ids ?? null);
+        if (is_string($raw)) {
+            $decoded = json_decode($raw, true);
+            $raw = is_array($decoded) ? $decoded : [];
+        }
+        if (is_array($raw)) {
+            foreach ($raw as $id) {
+                if (is_numeric($id)) {
+                    $linkedIds->push((int) $id);
+                }
+            }
+        }
+        $linkedIds = $linkedIds->filter()->unique()->values();
+        if ($linkedIds->isNotEmpty()) {
+            return Payment::where('reversed', false)->whereIn('id', $linkedIds)->get();
+        }
+
+        $ref = $txnView->reference_number ?? null;
+        if (! $ref || ! preg_match('/\d/', (string) $ref)) {
+            Log::warning('Skipped payment reversal on reject: reference is not unique to this deposit', [
+                'transaction_id' => $txnView->id ?? null,
+                'reference_number' => $ref,
+            ]);
+
+            return collect();
+        }
+
+        $query = Payment::where('reversed', false)->where(function ($q) use ($ref) {
+            $q->where('transaction_code', $ref)
+                ->orWhere('transaction_code', 'LIKE', $ref.'-%');
+        });
+        $txnDate = $transaction->transaction_date ?? ($txnView->transaction_date ?? null);
+        if ($txnDate) {
+            $day = \Carbon\Carbon::parse($txnDate);
+            $query->whereBetween('payment_date', [
+                $day->copy()->subDay()->startOfDay(),
+                $day->copy()->endOfDay(),
+            ]);
+        }
+
+        return $query->get();
+    }
+
+    /**
+     * Reject transaction - unified for both types.
+     * Reverses receipts that belong to this deposit only.
      */
     public function reject(Request $request, $bankStatement)
     {
@@ -3654,17 +3706,10 @@ class BankStatementController extends Controller
         $reversedForNotify = collect();
 
         DB::transaction(function () use ($transaction, $txnView, $isC2B, $reversalReason, &$reversedForNotify) {
-            // 1. Find and reverse ALL related payments (exact ref + ref-*; all sibling receipts share same source)
-            $relatedPayments = collect();
-            $ref = $txnView->reference_number;
-            if ($ref) {
-                $relatedPayments = Payment::where('reversed', false)
-                    ->where(function ($q) use ($ref) {
-                        $q->where('transaction_code', $ref)
-                          ->orWhere('transaction_code', 'LIKE', $ref . '-%');
-                    })
-                    ->get();
-            }
+            // 1. Reverse only receipts that belong to this deposit.
+            // A surname reference such as KINUTHIA is shared by every APP transfer
+            // from that payer, so it must not match payments from other dates.
+            $relatedPayments = $this->paymentsTiedToRejectedTransaction($transaction, $txnView);
             if ($relatedPayments->isEmpty() && $txnView->payment_id) {
                 $p = Payment::find($txnView->payment_id);
                 if ($p && !$p->reversed) {

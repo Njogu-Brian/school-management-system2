@@ -301,5 +301,86 @@ class FeePostingServiceTest extends TestCase
         $this->assertFalse($diffs->contains(fn ($diff) => (int) $diff['votehead_id'] === (int) $votehead->id));
         $this->assertSame('0.00', number_format((float) $item->fresh()->amount, 2, '.', ''));
     }
+
+    /** @test */
+    public function transport_already_matching_the_fee_is_not_listed_when_original_amount_is_stale()
+    {
+        $student = Student::factory()->create(['category_id' => null, 'stream_id' => null]);
+        $votehead = Votehead::factory()->create([
+            'code' => 'TRANSPORT',
+            'name' => 'Transport',
+            'is_mandatory' => true,
+        ]);
+        $invoice = Invoice::factory()->create([
+            'student_id' => $student->id,
+            'year' => 2026,
+            'term' => 3,
+        ]);
+        InvoiceItem::factory()->create([
+            'invoice_id' => $invoice->id,
+            'votehead_id' => $votehead->id,
+            'amount' => 3600,
+            'original_amount' => 7500,
+            'status' => 'active',
+            'source' => 'transport',
+        ]);
+        TransportFee::create([
+            'student_id' => $student->id,
+            'year' => 2026,
+            'term' => 3,
+            'amount' => 3600,
+            'source' => 'manual',
+        ]);
+
+        $diffs = collect($this->service->previewWithDiffs([
+            'year' => 2026,
+            'term' => 3,
+            'student_id' => $student->id,
+        ])['diffs']);
+
+        $this->assertFalse($diffs->contains(fn ($diff) => (int) $diff['votehead_id'] === (int) $votehead->id));
+    }
+
+    /** @test */
+    public function transport_preview_uses_the_current_invoice_amount_when_the_fee_changed()
+    {
+        $student = Student::factory()->create(['category_id' => null, 'stream_id' => null]);
+        $votehead = Votehead::factory()->create([
+            'code' => 'TRANSPORT',
+            'name' => 'Transport',
+            'is_mandatory' => true,
+        ]);
+        $invoice = Invoice::factory()->create([
+            'student_id' => $student->id,
+            'year' => 2026,
+            'term' => 3,
+        ]);
+        InvoiceItem::factory()->create([
+            'invoice_id' => $invoice->id,
+            'votehead_id' => $votehead->id,
+            'amount' => 5400,
+            'original_amount' => 5400,
+            'status' => 'active',
+            'source' => 'transport',
+        ]);
+        TransportFee::create([
+            'student_id' => $student->id,
+            'year' => 2026,
+            'term' => 3,
+            'amount' => 2550,
+            'source' => 'manual',
+        ]);
+
+        $diff = collect($this->service->previewWithDiffs([
+            'year' => 2026,
+            'term' => 3,
+            'student_id' => $student->id,
+        ])['diffs'])->first(fn ($diff) => (int) $diff['votehead_id'] === (int) $votehead->id);
+
+        $this->assertNotNull($diff);
+        $this->assertSame('decreased', $diff['action']);
+        $this->assertEquals(5400, $diff['old_amount']);
+        $this->assertEquals(2550, $diff['new_amount']);
+    }
 }
 

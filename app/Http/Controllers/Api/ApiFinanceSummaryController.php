@@ -54,13 +54,13 @@ class ApiFinanceSummaryController extends Controller
         $totalInvoiced = (float) (clone $activeInvoiceBase)->sum('total');
         $totalPaid = (float) (clone $activeInvoiceBase)->sum('paid_amount');
 
-        // Match web portal + admin dashboard: current-term, due, unpaid/partial.
+        // Same year-statement outstanding as the admin portal. Archived and
+        // alumni invoices are excluded even when those invoices are still open.
         $termKpis = app(FinanceTermKpiService::class)->forCurrentTerm();
         $outstandingBalance = (float) ($termKpis['fees_outstanding'] ?? 0);
 
-        // All-time invoice balances — diagnostics (all includes archived/alumni).
-        $outstandingBalanceAll = (float) (clone $invoiceBase)->sum('balance');
         $outstandingBalanceActive = (float) (clone $activeInvoiceBase)->sum('balance');
+        $outstandingBalanceAll = $outstandingBalanceActive;
 
         $pendingInvoices = (clone $activeInvoiceBase)->where('balance', '>', 0)->count();
 
@@ -70,10 +70,7 @@ class ApiFinanceSummaryController extends Controller
             ->whereDate('due_date', '<', $today->toDateString())
             ->count();
 
-        $studentsInArrears = (clone $activeInvoiceBase)
-            ->where('balance', '>', 0)
-            ->distinct('student_id')
-            ->count('student_id');
+        $studentsInArrears = (int) ($termKpis['students_owing'] ?? 0);
 
         $pendingReconciliation = app(UnifiedTransactionService::class)
             ->getUnifiedTransactionsQuery(['view' => 'unassigned'])
