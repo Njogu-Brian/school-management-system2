@@ -47,6 +47,10 @@ _stitch_inventory/
 /storage/certificates/
 /storage/temp_backup/
 /storage/app/backups/
+/storage/app/mobirise-import/
+/backups/
+/public/website/imported/
+/public/legacy-mobirise/
 /storage/app/demo_*.json
 /storage/app/demo_*.txt
 /storage/logs/*.log

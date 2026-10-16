@@ -119,6 +119,9 @@
                                     </td>
                                     <td class="small">{{ $job->createdBy->name ?? '—' }}</td>
                                     <td class="text-nowrap">
+                                        @if($job->progressUrl())
+                                            <a href="{{ $job->progressUrl() }}" class="btn btn-sm btn-outline-primary">Progress</a>
+                                        @endif
                                         <a href="{{ route('communication.pending-jobs.show', $job) }}" class="btn btn-sm btn-outline-secondary">Recipients</a>
                                         @if($job->isPausable())
                                             <form action="{{ route('communication.pending-jobs.pause', $job) }}" method="POST" class="d-inline">

@@ -141,7 +141,7 @@ class ExpoPushService
     /**
      * @param  array<int, array<string, mixed>>  $messages
      */
-    private function postMessages(array $messages): void
+    private function postMessages(array $messages, bool $allowSplit = true): void
     {
         $headers = [
             'Accept' => 'application/json',
@@ -154,11 +154,20 @@ class ExpoPushService
         }
 
         try {
+            // Expo requires a JSON array of message objects. An object wrapper is rejected.
             $response = Http::timeout(30)
                 ->withHeaders($headers)
-                ->post(self::PUSH_URL, ['messages' => $messages]);
+                ->withBody(
+                    json_encode(array_values($messages), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    'application/json'
+                )
+                ->post(self::PUSH_URL);
 
             if (! $response->successful()) {
+                if ($allowSplit && $this->resendByExperience($messages, $response->json())) {
+                    return;
+                }
+
                 Log::warning('Expo push send failed', [
                     'status' => $response->status(),
                     'body' => $response->body(),
@@ -169,5 +178,52 @@ class ExpoPushService
                 'message' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Expo rejects a batch that mixes tokens from different apps. Resend each app on its own.
+     *
+     * @param  array<int, array<string, mixed>>  $messages
+     * @param  array<string, mixed>|null  $body
+     */
+    private function resendByExperience(array $messages, ?array $body): bool
+    {
+        $groups = [];
+        foreach ((is_array($body) ? ($body['errors'] ?? []) : []) as $error) {
+            if (($error['code'] ?? '') !== 'PUSH_TOO_MANY_EXPERIENCE_IDS' || ! is_array($error['details'] ?? null)) {
+                continue;
+            }
+            foreach ($error['details'] as $tokens) {
+                if (is_array($tokens) && $tokens !== []) {
+                    $groups[] = $tokens;
+                }
+            }
+        }
+
+        if (count($groups) < 2) {
+            return false;
+        }
+
+        $byToken = [];
+        foreach ($messages as $message) {
+            $to = $message['to'] ?? null;
+            if (is_string($to) && $to !== '') {
+                $byToken[$to] = $message;
+            }
+        }
+
+        foreach ($groups as $tokens) {
+            $subset = [];
+            foreach ($tokens as $token) {
+                if (is_string($token) && isset($byToken[$token])) {
+                    $subset[] = $byToken[$token];
+                }
+            }
+            if ($subset !== []) {
+                $this->postMessages($subset, false);
+            }
+        }
+
+        return true;
     }
 }

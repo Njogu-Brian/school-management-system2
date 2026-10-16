@@ -317,9 +317,16 @@ class="{{ $examsActive ? 'parent-active' : '' }}">
     </a>
 
     <a href="{{ route('academics.exam-marks.bulk.form') }}"
-    class="sublink {{ Request::is('academics/exam-marks*') ? 'active' : '' }}">
+    class="sublink {{ Request::is('academics/exam-marks*') && !Request::is('academics/exam-marks/changes*') ? 'active' : '' }}">
         <i class="bi bi-pencil-square"></i> Enter Marks
     </a>
+
+    @if (Route::has('academics.exam-marks.changes'))
+    <a href="{{ route('academics.exam-marks.changes') }}"
+    class="sublink {{ Request::is('academics/exam-marks/changes*') ? 'active' : '' }}">
+        <i class="bi bi-arrow-left-right"></i> Mark Changes
+    </a>
+    @endif
 
     <a href="{{ route('academics.exams.results.index') }}"
     class="sublink {{ Request::is('academics/exams/results*') ? 'active' : '' }}">

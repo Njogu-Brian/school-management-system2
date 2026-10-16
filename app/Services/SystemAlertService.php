@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -461,7 +462,167 @@ class SystemAlertService
             'title' => $data['title'] ?? null,
         ]);
 
+        if (data_get($data, 'metadata.kind') === 'exam_mark_change_digest') {
+            try {
+                app(\App\Services\Academics\ExamMarkChangeDigestService::class)->reviewFromAlert($data, $user);
+            } catch (\Throwable $e) {
+                Log::warning('Failed to close exam mark change digest', [
+                    'notification_id' => $notificationId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
         return true;
+    }
+
+    /**
+     * Create or refresh one shared alert. Returns true only when a new alert was created.
+     *
+     * @param  array<int, string>  $roles
+     * @param  array<string, mixed>  $metadata
+     */
+    public function syncOpenAlert(
+        array $roles,
+        string $title,
+        string $message,
+        string $category,
+        string $severity,
+        string $fingerprint,
+        ?string $deepLink,
+        array $metadata,
+    ): bool {
+        if (! Schema::hasTable('notifications')) {
+            return false;
+        }
+
+        $title = Str::limit($title, 180);
+        $body = Str::limit($message, 500);
+        $existing = DB::table('notifications')
+            ->where('data->fingerprint', $fingerprint)
+            ->whereNull('data->acknowledged_at')
+            ->get();
+
+        if ($existing->isNotEmpty()) {
+            foreach ($existing as $row) {
+                $payload = json_decode((string) $row->data, true) ?: [];
+                if (! empty($payload['acknowledged_at'])) {
+                    continue;
+                }
+                $payload['title'] = $title;
+                $payload['body'] = $body;
+                $payload['message'] = $body;
+                $payload['category'] = $category;
+                $payload['severity'] = $severity;
+                $payload['source_module'] = $category;
+                $payload['deep_link'] = $deepLink;
+                $payload['metadata'] = $metadata;
+                DB::table('notifications')->where('id', $row->id)->update([
+                    'data' => json_encode($payload, JSON_UNESCAPED_UNICODE),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            return false;
+        }
+
+        $recipients = $this->getUsersByRoles($roles);
+        if ($recipients->isEmpty()) {
+            return false;
+        }
+
+        Notification::sendNow($recipients, new SystemAlertNotification([
+            'title' => $title,
+            'body' => $body,
+            'message' => $body,
+            'category' => $category,
+            'severity' => $severity,
+            'source_module' => $category,
+            'deep_link' => $deepLink,
+            'fingerprint' => $fingerprint,
+            'requires_action' => true,
+            'escalated_at' => null,
+            'metadata' => $metadata,
+        ]));
+
+        $this->audit('system_alert_raised', $title.' — '.$body, null, [
+            'category' => $category,
+            'severity' => $severity,
+            'fingerprint' => $fingerprint,
+            'deep_link' => $deepLink,
+            'metadata' => $metadata,
+            'roles' => $roles,
+        ]);
+
+        return true;
+    }
+
+    /**
+     * @param  array<int, string>  $roles
+     * @param  array<string, mixed>  $data
+     */
+    public function pushToRoles(array $roles, string $title, string $body, array $data = []): void
+    {
+        $recipients = $this->getUsersByRoles($roles);
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        $this->pushToUsers($recipients, $title, $body, $data);
+    }
+
+    public function acknowledgeByFingerprint(string $fingerprint, ?User $user): void
+    {
+        if ($fingerprint === '' || ! Schema::hasTable('notifications')) {
+            return;
+        }
+
+        $ids = DB::table('notifications')
+            ->where('data->fingerprint', $fingerprint)
+            ->pluck('id')
+            ->all();
+
+        $this->acknowledgeIds($ids, $user, false);
+    }
+
+    /**
+     * @param  array<int, string>  $ids
+     */
+    public function acknowledgeIds(array $ids, ?User $user, bool $superseded = false): void
+    {
+        if ($ids === [] || ! Schema::hasTable('notifications')) {
+            return;
+        }
+
+        $rows = DB::table('notifications')->whereIn('id', $ids)->get();
+        foreach ($rows as $row) {
+            $payload = json_decode((string) $row->data, true) ?: [];
+            if (! empty($payload['acknowledged_at'])) {
+                continue;
+            }
+            $payload['acknowledged_at'] = now()->toIso8601String();
+            $payload['acknowledged_by'] = $user?->id;
+            if ($superseded) {
+                $payload['superseded_by_digest'] = true;
+            }
+            DB::table('notifications')->where('id', $row->id)->update([
+                'data' => json_encode($payload, JSON_UNESCAPED_UNICODE),
+                'read_at' => $row->read_at ?? now(),
+                'updated_at' => now(),
+            ]);
+        }
+    }
+
+    public function dismissFingerprint(string $fingerprint): void
+    {
+        if ($fingerprint === '' || ! Schema::hasTable('notifications')) {
+            return;
+        }
+
+        DB::table('notifications')
+            ->where('data->fingerprint', $fingerprint)
+            ->whereNull('data->acknowledged_at')
+            ->delete();
     }
 
     /**
@@ -473,21 +634,18 @@ class SystemAlertService
             return [];
         }
 
+        try {
+            app(\App\Services\Academics\ExamMarkChangeDigestService::class)->collapseLegacyAlerts();
+        } catch (\Throwable $e) {
+            Log::warning('Failed to group exam mark alerts', ['error' => $e->getMessage()]);
+        }
+
         return $user->notifications()
+            ->where('data->requires_action', true)
+            ->whereNull('data->acknowledged_at')
             ->orderByDesc('created_at')
             ->limit($limit)
             ->get()
-            ->filter(function ($notification) {
-                $data = is_string($notification->data)
-                    ? json_decode($notification->data, true)
-                    : (array) $notification->data;
-
-                if (! ($data['requires_action'] ?? false)) {
-                    return false;
-                }
-
-                return empty($data['acknowledged_at']);
-            })
             ->map(fn ($notification) => $this->formatAlert($notification))
             ->values()
             ->all();

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Deploy Royal Kings public Next.js website on the ERP server.
-# Serves the marketing site at https://erp.royalkingsschools.sc.ke/website
-# API remains at /api/website/* (Laravel).
+# Serves the marketing site at https://royalkingsschools.sc.ke/ (empty base path).
+# API remains at https://erp.royalkingsschools.sc.ke/api/website/* (Laravel).
 
 set -euo pipefail
 
@@ -9,7 +9,8 @@ APP_ROOT="${APP_ROOT:-/var/www/erp}"
 WEB_ROOT="$APP_ROOT/website"
 API_URL="${API_URL:-https://erp.royalkingsschools.sc.ke/api}"
 ERP_LOGIN_URL="${ERP_LOGIN_URL:-https://erp.royalkingsschools.sc.ke/login}"
-BASE_PATH="${BASE_PATH:-/website}"
+# Empty base path serves the site at the domain root. Set BASE_PATH=/website to keep the old prefix.
+BASE_PATH="${BASE_PATH-}"
 PORT="${WEBSITE_PORT:-3001}"
 PM2_NAME="${PM2_NAME:-royal-kings-website}"
 
@@ -45,6 +46,7 @@ else
   exit 1
 fi
 
-echo "==> Done. Ensure nginx proxies $BASE_PATH to http://127.0.0.1:$PORT"
+PUBLIC_URL="${PUBLIC_URL:-https://royalkingsschools.sc.ke}"
+echo "==> Done. nginx should proxy ${PUBLIC_URL} to http://127.0.0.1:$PORT"
 echo "    Test API: curl -s $API_URL/website/homepage | head"
-echo "    Test site: https://erp.royalkingsschools.sc.ke$BASE_PATH"
+echo "    Test site: ${PUBLIC_URL}${BASE_PATH}"

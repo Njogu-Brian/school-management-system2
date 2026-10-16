@@ -364,7 +364,15 @@
         }
         .header-alerts .alert-item {
             white-space: normal;
-            padding: 10px 12px;
+        }
+        .header-alerts .alert-open {
+            display: block;
+            padding: 10px 12px 0;
+            color: inherit;
+            text-decoration: none;
+        }
+        .header-alerts .alert-open:hover {
+            background: color-mix(in srgb, var(--brand-primary) 8%, #ffffff 92%);
         }
         .header-alerts .alert-item .alert-title {
             font-weight: 600;
@@ -669,7 +677,7 @@
             @include('layouts.partials.header-search')
             <div class="header-actions ms-auto">
                 @if($canViewSystemAlerts)
-                <div class="dropdown header-alerts" id="headerAlertsRoot">
+                <div class="dropdown header-alerts" id="headerAlertsRoot" data-bs-auto-close="outside">
                     <button class="btn btn-ghost-strong btn-sm dropdown-toggle position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="headerAlertsToggle">
                         <i class="bi bi-bell"></i> Alerts
                         <span class="alert-badge d-none" id="headerAlertsBadge">0</span>
@@ -928,12 +936,15 @@
                     } else {
                         alerts.forEach(alert => {
                             const li = document.createElement('li');
+                            const href = alert.deep_link || '{{ route('admin.alerts.inbox') }}';
                             li.innerHTML = `
-                                <div class="dropdown-item alert-item ${escapeHtml(alert.severity)}">
-                                    <div class="alert-title">${escapeHtml(alert.title)}</div>
-                                    <div class="alert-body">${escapeHtml(alert.body)}</div>
-                                    <div class="d-flex gap-2 mt-2">
-                                        ${alert.deep_link ? `<a class="btn btn-sm btn-outline-primary" href="${escapeHtml(alert.deep_link)}">Open</a>` : ''}
+                                <div class="alert-item ${escapeHtml(alert.severity)}">
+                                    <a class="alert-open" href="${escapeHtml(href)}">
+                                        <div class="alert-title">${escapeHtml(alert.title)}</div>
+                                        <div class="alert-body">${escapeHtml(alert.body)}</div>
+                                    </a>
+                                    <div class="d-flex gap-2 mt-2 px-2 pb-2">
+                                        <a class="btn btn-sm btn-outline-primary" href="${escapeHtml(href)}">Open</a>
                                         <button type="button" class="btn btn-sm btn-success" data-alert-id="${escapeHtml(alert.id)}">
                                             <i class="bi bi-check2"></i> Done
                                         </button>
@@ -942,6 +953,7 @@
                             `;
                             li.querySelector('[data-alert-id]')?.addEventListener('click', (e) => {
                                 e.preventDefault();
+                                e.stopPropagation();
                                 acknowledgeAlert(alert.id);
                             });
                             menu.appendChild(li);
@@ -949,7 +961,7 @@
                     }
 
                     const footer = document.createElement('li');
-                    footer.innerHTML = `<hr class="dropdown-divider"><a class="dropdown-item small" href="{{ route('activity-logs.index', ['alert_audit' => 1]) }}">View alert audit trail</a>`;
+                    footer.innerHTML = `<hr class="dropdown-divider"><a class="dropdown-item small" href="{{ route('admin.alerts.inbox') }}">Open all alerts</a>`;
                     menu.appendChild(footer);
                 }
 

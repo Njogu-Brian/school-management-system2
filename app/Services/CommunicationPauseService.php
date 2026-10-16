@@ -131,24 +131,35 @@ class CommunicationPauseService
     /**
      * Mark in-progress bulk send progress caches as paused.
      */
-    public static function pauseBulkProgress(string $trackingId, string $channel, array $extra = []): void
+    public static function progressCacheKey(string $trackingId, string $channel): ?string
     {
-        $key = match ($channel) {
+        return match ($channel) {
             'sms' => "bulk_sms_progress:{$trackingId}",
             'whatsapp' => "bulk_whatsapp_progress:{$trackingId}",
             'email' => "bulk_email_progress:{$trackingId}",
             default => null,
         };
+    }
+
+    public static function markBulkProgress(string $trackingId, string $channel, string $status, array $extra = []): void
+    {
+        $key = self::progressCacheKey($trackingId, $channel);
         if (!$key) {
             return;
         }
 
         $existing = Cache::get($key, []);
         Cache::put($key, array_merge($existing, array_merge([
-            'status' => 'paused',
+            'status' => $status,
+        ], $extra)), now()->addHours(48));
+    }
+
+    public static function pauseBulkProgress(string $trackingId, string $channel, array $extra = []): void
+    {
+        self::markBulkProgress($trackingId, $channel, 'paused', array_merge([
             'paused_at' => now()->toIso8601String(),
             'pause_reason' => 'insufficient_sms_credits',
-        ], $extra)), now()->addHours(48));
+        ], $extra));
     }
 
     /**

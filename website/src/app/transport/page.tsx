@@ -1,3 +1,4 @@
+import { CmsPageView } from "@/components/cms/CmsPageView";
 import {
   RichPage,
   PageHero,
@@ -30,6 +31,10 @@ const PUNCTUALITY = [
 ];
 
 export default function TransportPage() {
+  return <CmsPageView slug="transport" fallback={<TransportContent />} />;
+}
+
+function TransportContent() {
   return (
     <RichPage>
       <PageHero

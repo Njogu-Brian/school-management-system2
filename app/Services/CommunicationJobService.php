@@ -7,6 +7,9 @@ use App\Jobs\BulkSendSMS;
 use App\Jobs\BulkSendWhatsAppMessages;
 use App\Models\CommunicationJob;
 use App\Models\CommunicationJobRecipient;
+use App\Models\Staff;
+use App\Models\Student;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -148,7 +151,7 @@ class CommunicationJobService
         return $job;
     }
 
-    public function markPaused(CommunicationJob|string $job, string $reason = 'insufficient_sms_credits'): ?CommunicationJob
+    public function markPaused(CommunicationJob|string $job, ?string $reason = null): ?CommunicationJob
     {
         $job = $this->resolve($job);
         if (!$job || in_array($job->status, ['cancelled', 'completed'], true)) {
@@ -157,7 +160,7 @@ class CommunicationJobService
 
         $job->update([
             'status' => 'paused',
-            'pause_reason' => $reason,
+            'pause_reason' => $reason ?? $job->pause_reason ?? 'insufficient_sms_credits',
         ]);
 
         return $job;
@@ -224,6 +227,12 @@ class CommunicationJobService
             'pause_reason' => 'manual',
         ]);
 
+        if ($job->tracking_id) {
+            CommunicationPauseService::markBulkProgress($job->tracking_id, $job->channel, 'cancelled', [
+                'message' => 'Stopped. Messages already sent were kept.',
+            ]);
+        }
+
         if ($job->source_ref_type && $job->source_ref_id) {
             $this->cancelSourceRef($job);
         }
@@ -242,7 +251,14 @@ class CommunicationJobService
             'pause_reason' => $reason,
         ]);
 
-        return $job;
+        if ($job->tracking_id) {
+            CommunicationPauseService::pauseBulkProgress($job->tracking_id, $job->channel, [
+                'pause_reason' => $reason,
+                'message' => 'Paused. Resume to continue the remaining recipients.',
+            ]);
+        }
+
+        return $job->fresh();
     }
 
     public function resumeJob(CommunicationJob $job): CommunicationJob
@@ -262,6 +278,13 @@ class CommunicationJobService
             'status' => $nextStatus,
             'pause_reason' => null,
         ]);
+
+        if ($job->tracking_id) {
+            CommunicationPauseService::markBulkProgress($job->tracking_id, $job->channel, 'processing', [
+                'pause_reason' => null,
+                'message' => null,
+            ]);
+        }
 
         $this->redispatchRemaining($job);
 
@@ -387,6 +410,7 @@ class CommunicationJobService
                 'email' => $job->channel === 'email' ? $r->contact : null,
                 'contact' => $r->contact,
                 'name' => $r->name,
+                'parent_name' => in_array($job->channel, ['sms', 'whatsapp'], true) ? $r->name : null,
                 'recipient_type' => $r->recipient_type,
                 'recipient_id' => $r->recipient_id,
                 'entity' => [
@@ -498,14 +522,161 @@ class CommunicationJobService
         if (!empty($item['parent_name'])) {
             return (string) $item['parent_name'];
         }
-        if (!empty($item['entity']['name'])) {
-            return (string) $item['entity']['name'];
-        }
         $entity = $item['entity'] ?? null;
-        if (is_object($entity) && isset($entity->name)) {
-            return (string) $entity->name;
+        if (is_array($entity)) {
+            if (!empty($entity['name'])) {
+                return (string) $entity['name'];
+            }
+            $studentName = trim(implode(' ', array_filter([
+                $entity['first_name'] ?? null,
+                $entity['middle_name'] ?? null,
+                $entity['last_name'] ?? null,
+            ])));
+            if ($studentName !== '') {
+                return $studentName;
+            }
+        }
+        if (is_object($entity)) {
+            if (!empty($entity->full_name)) {
+                return (string) $entity->full_name;
+            }
+            if (isset($entity->name)) {
+                return (string) $entity->name;
+            }
         }
 
         return null;
+    }
+
+    /**
+     * @return array{total: int, sent: int, failed: int, skipped: int, pending: int, processed: int, percentage: int}
+     */
+    public function recipientCounts(CommunicationJob $job): array
+    {
+        $rows = CommunicationJobRecipient::query()
+            ->where('communication_job_id', $job->id)
+            ->selectRaw('status, COUNT(*) as aggregate')
+            ->groupBy('status')
+            ->pluck('aggregate', 'status');
+
+        $sent = (int) ($rows['sent'] ?? 0);
+        $failed = (int) ($rows['failed'] ?? 0);
+        $skipped = (int) ($rows['skipped'] ?? 0) + (int) ($rows['cancelled'] ?? 0);
+        $pending = (int) ($rows['pending'] ?? 0);
+        $total = $sent + $failed + $skipped + $pending;
+        $processed = $total - $pending;
+
+        return [
+            'total' => $total,
+            'sent' => $sent,
+            'failed' => $failed,
+            'skipped' => $skipped,
+            'pending' => $pending,
+            'processed' => $processed,
+            'percentage' => $total > 0 ? (int) round(($processed / $total) * 100) : 0,
+        ];
+    }
+
+    public function paginateRecipients(CommunicationJob $job, ?string $status = null, ?string $search = null, int $perPage = 25): LengthAwarePaginator
+    {
+        $query = $job->recipients()->orderBy('id');
+
+        if ($status && $status !== 'all') {
+            if ($status === 'skipped') {
+                $query->whereIn('status', ['skipped', 'cancelled']);
+            } else {
+                $query->where('status', $status);
+            }
+        }
+
+        $search = trim((string) $search);
+        if ($search !== '') {
+            $like = '%' . $search . '%';
+            $studentIds = Student::query()
+                ->where(function ($w) use ($like) {
+                    $w->where('first_name', 'like', $like)
+                        ->orWhere('middle_name', 'like', $like)
+                        ->orWhere('last_name', 'like', $like)
+                        ->orWhere('admission_number', 'like', $like)
+                        ->orWhereHas('classroom', fn ($c) => $c->where('name', 'like', $like));
+                })
+                ->limit(1000)
+                ->pluck('id');
+
+            $query->where(function ($w) use ($like, $studentIds) {
+                $w->where('name', 'like', $like)
+                    ->orWhere('contact', 'like', $like)
+                    ->orWhere('error_message', 'like', $like);
+                if ($studentIds->isNotEmpty()) {
+                    $w->orWhereIn('recipient_id', $studentIds);
+                }
+            });
+        }
+
+        return $query->paginate($perPage)->withQueryString();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function enrichRecipients(iterable $recipients): array
+    {
+        $items = collect($recipients);
+        $studentIds = $items
+            ->filter(fn ($r) => $r->recipient_id && !$this->isStaffType($r->recipient_type ?? null))
+            ->pluck('recipient_id')
+            ->unique()
+            ->values();
+        $staffIds = $items
+            ->filter(fn ($r) => $this->isStaffType($r->recipient_type ?? null) && $r->recipient_id)
+            ->pluck('recipient_id')
+            ->unique()
+            ->values();
+
+        $students = $studentIds->isEmpty()
+            ? collect()
+            : Student::with('classroom:id,name')->whereIn('id', $studentIds)->get()->keyBy('id');
+        $staff = $staffIds->isEmpty()
+            ? collect()
+            : Staff::whereIn('id', $staffIds)->get()->keyBy('id');
+
+        $rows = [];
+        foreach ($items as $recipient) {
+            $student = $this->isStaffType($recipient->recipient_type ?? null)
+                ? null
+                : $students->get($recipient->recipient_id);
+            $staffMember = $this->isStaffType($recipient->recipient_type ?? null)
+                ? $staff->get($recipient->recipient_id)
+                : null;
+
+            $studentName = $student?->full_name
+                ?: ($staffMember?->full_name ?: null);
+            $storedName = $recipient->name ? trim((string) $recipient->name) : null;
+            $parentName = null;
+            if ($storedName && $studentName && strcasecmp($storedName, $studentName) !== 0) {
+                $parentName = $storedName;
+            } elseif ($storedName && !$studentName) {
+                $studentName = $storedName;
+            }
+
+            $rows[$recipient->id] = [
+                'id' => $recipient->id,
+                'student_name' => $studentName ?: '—',
+                'parent_name' => $parentName,
+                'classroom' => $student?->classroom?->name,
+                'admission_number' => $student?->admission_number,
+                'contact' => $recipient->contact,
+                'status' => $recipient->status,
+                'error' => $recipient->error_message ?: $recipient->error_code,
+                'sent_at' => $recipient->sent_at?->format('d M Y H:i'),
+            ];
+        }
+
+        return $rows;
+    }
+
+    protected function isStaffType(?string $type): bool
+    {
+        return str_contains(strtolower((string) $type), 'staff');
     }
 }

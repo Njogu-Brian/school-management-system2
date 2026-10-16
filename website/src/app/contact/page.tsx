@@ -2,6 +2,7 @@
 
 import { RichPage, PageHero, SectionBlock } from "@/components/layout/RichPage";
 import { CONTACT, FEES_NOTE } from "@/content/schoolContent";
+import { mapEmbedSrc } from "@/lib/mapEmbed";
 import { useWebsiteSettings } from "@/hooks/useWebsiteData";
 import Link from "next/link";
 
@@ -10,6 +11,7 @@ export default function ContactPage() {
   const phone = settings?.phone || CONTACT.phone;
   const email = settings?.email || CONTACT.email;
   const address = settings?.address || CONTACT.address;
+  const mapSrc = mapEmbedSrc(settings?.google_map);
 
   return (
     <RichPage>
@@ -52,7 +54,7 @@ export default function ContactPage() {
           <div className="overflow-hidden rounded-2xl shadow-lg ring-1 ring-[var(--rk-border)]">
             <iframe
               title="Royal Kings School on Google Maps"
-              src={CONTACT.mapsEmbed}
+              src={mapSrc}
               className="h-[280px] w-full sm:h-[360px] lg:h-full lg:min-h-[420px]"
               loading="lazy"
               referrerPolicy="no-referrer-when-downgrade"

@@ -30,6 +30,9 @@
                     <div class="small text-muted" style="white-space: pre-wrap;">{{ \Illuminate\Support\Str::limit($communicationJob->message, 500) }}</div>
                 @endif
                 <div class="mt-3 d-flex gap-2 flex-wrap">
+                    @if($communicationJob->progressUrl())
+                        <a href="{{ $communicationJob->progressUrl() }}" class="btn btn-sm btn-outline-primary">Live progress</a>
+                    @endif
                     @if($communicationJob->isPausable())
                         <form action="{{ route('communication.pending-jobs.pause', $communicationJob) }}" method="POST">@csrf
                             <button class="btn btn-sm btn-outline-warning" type="submit">Pause</button>
@@ -56,7 +59,10 @@
                     <table class="table table-modern mb-0 align-middle">
                         <thead class="table-light">
                             <tr>
-                                <th>Name</th>
+                                <th>Student / recipient</th>
+                                <th>Class</th>
+                                <th>Admission</th>
+                                <th>Parent</th>
                                 <th>Contact</th>
                                 <th>Status</th>
                                 <th>Error</th>
@@ -65,15 +71,19 @@
                         </thead>
                         <tbody>
                             @forelse($recipients as $r)
+                                @php $detail = $recipientDetails[$r->id] ?? null; @endphp
                                 <tr>
-                                    <td>{{ $r->name ?: '—' }}</td>
+                                    <td>{{ $detail['student_name'] ?? ($r->name ?: '—') }}</td>
+                                    <td>{{ $detail['classroom'] ?? '—' }}</td>
+                                    <td>{{ $detail['admission_number'] ?? '—' }}</td>
+                                    <td>{{ $detail['parent_name'] ?? '—' }}</td>
                                     <td><code>{{ $r->contact ?: '—' }}</code></td>
                                     <td><span class="badge bg-secondary">{{ $r->status }}</span></td>
                                     <td class="small text-muted">{{ $r->error_code ?: $r->error_message }}</td>
                                     <td class="small">{{ $r->sent_at?->format('d M Y H:i') ?? '—' }}</td>
                                 </tr>
                             @empty
-                                <tr><td colspan="5" class="text-center text-muted p-4">No recipients stored for this job.</td></tr>
+                                <tr><td colspan="8" class="text-center text-muted p-4">No recipients stored for this job.</td></tr>
                             @endforelse
                         </tbody>
                     </table>

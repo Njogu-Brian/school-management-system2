@@ -60,6 +60,21 @@ class AdmissionApplicationNotificationService
                     'error' => $e->getMessage(),
                 ]);
             }
+
+            try {
+                $communication->sendWhatsApp(
+                    'admission_application',
+                    $application->id,
+                    $application->phone,
+                    $sms,
+                    'Application Received'
+                );
+            } catch (\Throwable $e) {
+                Log::warning('Admission submit WhatsApp failed', [
+                    'application_id' => $application->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         if ($application->email && ! str_contains($application->email, '@pending.local')) {

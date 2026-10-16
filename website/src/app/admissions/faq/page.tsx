@@ -1,3 +1,4 @@
+import { CmsPageView } from "@/components/cms/CmsPageView";
 import { RichPage, PageHero, SectionBlock, CtaBanner, EditorialIntro } from "@/components/layout/RichPage";
 import { LEGACY_IMAGES } from "@/content/schoolContent";
 
@@ -29,6 +30,10 @@ const FAQS = [
 ];
 
 export default function AdmissionsFaqPage() {
+  return <CmsPageView slug="admissions-faq" fallback={<AdmissionsFaqContent />} />;
+}
+
+function AdmissionsFaqContent() {
   return (
     <RichPage>
       <PageHero

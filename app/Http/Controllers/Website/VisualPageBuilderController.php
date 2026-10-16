@@ -9,6 +9,8 @@ use App\Models\Website\PageSection;
 use App\Models\Website\SectionTemplate;
 use App\Policies\Website\ManagesWebsiteCms;
 use App\Services\Website\PageBuilderService;
+use App\Services\Website\WebsiteMediaService;
+use App\Services\Website\WebsitePageCacheService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -42,7 +44,7 @@ class VisualPageBuilderController extends Controller
         return back()->with('success', 'Section added.');
     }
 
-    public function updateSection(Request $request, PageSection $section, PageBuilderService $builder): RedirectResponse
+    public function updateSection(Request $request, PageSection $section, WebsiteMediaService $media, WebsitePageCacheService $cache): RedirectResponse
     {
         $validated = $request->validate([
             'title' => 'nullable|string|max:255',
@@ -51,18 +53,31 @@ class VisualPageBuilderController extends Controller
             'settings' => 'nullable',
             'sort_order' => 'nullable|integer|min:0',
             'is_active' => 'nullable|boolean',
+            'section_image' => 'nullable|image|max:10240',
+            'photo_files' => 'nullable|array',
+            'photo_files.*' => 'image|max:10240',
+            'photo_replace' => 'nullable|array',
+            'photo_replace.*' => 'image|max:10240',
         ]);
 
         $settings = $validated['settings'] ?? $section->settings;
         if (is_string($settings) && $settings !== '') {
             $settings = json_decode($settings, true) ?? [];
         }
+        if (! is_array($settings)) {
+            $settings = [];
+        }
 
-        $section->update(collect($validated)->except('settings')->all() + [
-            'settings' => is_array($settings) ? $settings : [],
+        $section->update([
+            'title' => $validated['title'] ?? null,
+            'subtitle' => $validated['subtitle'] ?? null,
+            'content' => $validated['content'] ?? null,
+            'settings' => $media->applySectionUploads($request, $settings),
             'is_active' => $request->boolean('is_active', $section->is_active),
             'sort_order' => (int) ($validated['sort_order'] ?? $section->sort_order),
         ]);
+
+        $cache->bustForSection($section);
 
         return back()->with('success', 'Section saved.');
     }

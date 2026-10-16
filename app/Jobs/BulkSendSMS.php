@@ -89,20 +89,7 @@ class BulkSendSMS implements ShouldQueue
         }
 
         if (CommunicationPauseService::isPaused() || $commJob->status === 'paused') {
-            CommunicationPauseService::registerPausedBulkSmsJob(
-                $this->trackingId,
-                $this->recipients,
-                $this->message,
-                $this->title,
-                $this->target,
-                $this->senderId,
-                $this->userId
-            );
-            CommunicationPauseService::pauseBulkProgress($this->trackingId, 'sms', [
-                'total' => count($this->recipients),
-                'message' => 'Paused: insufficient SMS credits. Resume from Communication → Bulk jobs.',
-            ]);
-            $jobService->markPaused($commJob);
+            $this->deferPausedSmsJob($commJob->pause_reason);
             Log::info('Bulk SMS job deferred: communications paused', ['tracking_id' => $this->trackingId]);
 
             return;
@@ -155,16 +142,15 @@ class BulkSendSMS implements ShouldQueue
             $freshJob = $jobService->findByTrackingId($this->trackingId);
             if ($freshJob && in_array($freshJob->status, ['cancelled', 'paused'], true)) {
                 if ($freshJob->status === 'paused') {
-                    CommunicationPauseService::registerPausedBulkSmsJob(
-                        $this->trackingId,
-                        $this->recipients,
-                        $this->message,
-                        $this->title,
-                        $this->target,
-                        $this->senderId,
-                        $this->userId
-                    );
-                    CommunicationPauseService::pauseBulkProgress($this->trackingId, 'sms', [
+                    $this->deferPausedSmsJob($freshJob->pause_reason, [
+                        'processed' => $processed,
+                        'sent' => $sentCount,
+                        'failed' => $failedCount,
+                        'total' => $totalRecipients,
+                    ]);
+                } else {
+                    $this->updateProgress([
+                        'status' => 'cancelled',
                         'processed' => $processed,
                         'sent' => $sentCount,
                         'failed' => $failedCount,
@@ -215,6 +201,7 @@ class BulkSendSMS implements ShouldQueue
                 $idempotencyKey = $phone . '|' . ($recipientId ?? 'null');
                 if (isset($existingSentKeys[$idempotencyKey])) {
                     $sentCount++;
+                    $jobService->markRecipientByContact($this->trackingId, $phone, 'sent', $recipientId);
                     $reportRows[] = $this->buildReportRow(
                         $phone,
                         $entityData,
@@ -453,6 +440,40 @@ class BulkSendSMS implements ShouldQueue
         $row = ['name' => $name, 'contact' => $phone, 'status' => $status];
         if ($reason) $row['reason'] = $reason;
         return $row;
+    }
+
+    /**
+     * Credit pauses are registered for the global resume path.
+     * A manual pause of this job only stops this batch.
+     *
+     * @param  array<string, mixed>  $progress
+     */
+    protected function deferPausedSmsJob(?string $pauseReason, array $progress = []): void
+    {
+        $creditPause = CommunicationPauseService::isPaused()
+            || $pauseReason === 'insufficient_sms_credits';
+
+        if ($creditPause) {
+            CommunicationPauseService::registerPausedBulkSmsJob(
+                $this->trackingId,
+                $this->recipients,
+                $this->message,
+                $this->title,
+                $this->target,
+                $this->senderId,
+                $this->userId
+            );
+        }
+
+        CommunicationPauseService::pauseBulkProgress($this->trackingId, 'sms', array_merge([
+            'total' => count($this->recipients),
+            'pause_reason' => $pauseReason ?: ($creditPause ? 'insufficient_sms_credits' : 'manual'),
+            'message' => $creditPause
+                ? 'Paused: insufficient SMS credits. Resume when credits are available.'
+                : 'Paused. Resume to continue the remaining recipients.',
+        ], $progress));
+
+        app(CommunicationJobService::class)->markPaused($this->trackingId, $pauseReason);
     }
 
     protected function updateProgress(array $data): void

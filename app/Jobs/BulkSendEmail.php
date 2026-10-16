@@ -10,6 +10,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -46,6 +47,15 @@ class BulkSendEmail implements ShouldQueue
         $this->target = $target;
         $this->attachmentPath = $attachmentPath;
         $this->userId = $userId ?? auth()->id();
+    }
+
+    public function middleware(): array
+    {
+        return [
+            (new WithoutOverlapping('bulk_email:' . $this->trackingId))
+                ->releaseAfter(20)
+                ->expireAfter($this->timeout + 600),
+        ];
     }
 
     public function handle(): void
@@ -123,6 +133,15 @@ class BulkSendEmail implements ShouldQueue
         foreach ($this->recipients as $item) {
             $freshJob = $jobService->findByTrackingId($this->trackingId);
             if ($freshJob && in_array($freshJob->status, ['cancelled', 'paused'], true)) {
+                $this->updateProgress([
+                    'status' => $freshJob->status === 'paused' ? 'paused' : 'cancelled',
+                    'total' => $totalRecipients,
+                    'processed' => $processed,
+                    'sent' => $sentCount,
+                    'failed' => $failedCount,
+                    'pause_reason' => $freshJob->pause_reason,
+                ]);
+
                 return;
             }
             if (CommunicationPauseService::isPaused()) {
@@ -143,6 +162,7 @@ class BulkSendEmail implements ShouldQueue
                 continue;
             }
             $processed++;
+            $claimKey = null;
 
             try {
                 $entity = $this->resolveEntity($entityData);
@@ -150,11 +170,23 @@ class BulkSendEmail implements ShouldQueue
                 $idempotencyKey = $email . '|' . ($recipientId ?? 'null');
                 if (isset($existingSentKeys[$idempotencyKey])) {
                     $sentCount++;
+                    $jobService->markRecipientByContact($this->trackingId, $email, 'sent', $recipientId);
                     $reportRows[] = $this->buildReportRow(
                         $email,
                         $entityData,
                         'sent',
                         'Skipped: already sent (idempotent retry)'
+                    );
+                    continue;
+                }
+                $claimKey = 'bulk_email_claim:' . $this->trackingId . ':' . $idempotencyKey;
+                if (! Cache::add($claimKey, true, now()->addHours(24))) {
+                    $sentCount++;
+                    $reportRows[] = $this->buildReportRow(
+                        $email,
+                        $entityData,
+                        'sent',
+                        'Skipped: already claimed'
                     );
                     continue;
                 }
@@ -184,6 +216,9 @@ class BulkSendEmail implements ShouldQueue
                 $jobService->markRecipientByContact($this->trackingId, $email, 'sent', $recipientId);
             } catch (\Throwable $e) {
                 $failedCount++;
+                if (isset($claimKey)) {
+                    Cache::forget($claimKey);
+                }
                 $entity = $entity ?? (is_array($entityData) ? (object) $entityData : (object) []);
                 Log::error('Email send error in bulk job', [
                     'tracking_id' => $this->trackingId,

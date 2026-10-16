@@ -45,7 +45,7 @@ class WebsiteCmsSeeder extends Seeder
             ]
         );
 
-        $img = 'https://royalkingsschools.sc.ke/assets/images';
+        $img = rtrim(asset('website/imported'), '/');
 
         $sections = [
             ['section_type' => 'hero', 'section_key' => 'hero_main', 'title' => 'Building a Sure Foundation for Lifelong Learning', 'subtitle' => 'Creche to Grade 9', 'sort_order' => 0],

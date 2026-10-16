@@ -560,6 +560,8 @@ Route::middleware('auth')->group(function () {
         Route::delete('exams/{exam}/schedules/{examSchedule}', [ExamScheduleController::class, 'destroy'])->name('exams.schedules.destroy');
 
         // Exam marks routes are defined in routes/teacher.php with proper permissions
+        Route::get('exam-marks/changes', [ExamMarkController::class, 'changes'])->name('exam-marks.changes');
+        Route::post('exam-marks/changes/review', [ExamMarkController::class, 'reviewChanges'])->name('exam-marks.changes.review');
 
         // Schemes of Work
         Route::resource('schemes-of-work', SchemeOfWorkController::class)->parameters(['schemes-of-work' => 'schemes_of_work']);
@@ -1431,6 +1433,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         // Bulk send progress (separate paths to avoid routing conflicts)
         Route::get('bulk-sms-progress', [CommunicationController::class, 'smsProgress'])->name('communication.send.sms.progress');
         Route::get('bulk-email-progress', [CommunicationController::class, 'emailProgress'])->name('communication.send.email.progress');
+        Route::get('bulk-progress-data', [CommunicationController::class, 'bulkProgressData'])->name('communication.bulk-progress.data');
         Route::get('send-sms',   [CommunicationController::class, 'createSMS'])->name('communication.send.sms');
         Route::post('send-sms',  [CommunicationController::class, 'sendSMS'])->name('communication.send.sms.submit');
         Route::get('send-whatsapp', [CommunicationController::class, 'createWhatsApp'])->name('communication.send.whatsapp');
@@ -2295,6 +2298,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     Route::prefix('admin/alerts')->name('admin.alerts.')->group(function () {
         Route::middleware('role:Super Admin')->group(function () {
             Route::get('/', [\App\Http\Controllers\AdminAlertController::class, 'index'])->name('index');
+            Route::get('/inbox', [\App\Http\Controllers\AdminAlertController::class, 'inbox'])->name('inbox');
             Route::post('/{id}/acknowledge', [\App\Http\Controllers\AdminAlertController::class, 'acknowledge'])->name('acknowledge');
         });
         Route::get('/sms-balance', [\App\Http\Controllers\AdminAlertController::class, 'smsBalance'])
@@ -2326,6 +2330,8 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::get('/media', [\App\Http\Controllers\Website\MediaLibraryController::class, 'index'])->name('media.index');
             Route::post('/media', [\App\Http\Controllers\Website\MediaLibraryController::class, 'store'])->name('media.store');
             Route::delete('/media/{mediaLibraryItem}', [\App\Http\Controllers\Website\MediaLibraryController::class, 'destroy'])->name('media.destroy');
+            Route::get('/media/{mediaLibraryItem}/replace', [\App\Http\Controllers\Website\MediaLibraryController::class, 'replaceForm'])->name('media.replace');
+            Route::post('/media/{mediaLibraryItem}/replace', [\App\Http\Controllers\Website\MediaLibraryController::class, 'replace'])->name('media.replace.store');
 
             Route::get('/testimonials', [\App\Http\Controllers\Website\TestimonialController::class, 'index'])->name('testimonials.index');
             Route::post('/testimonials', [\App\Http\Controllers\Website\TestimonialController::class, 'store'])->name('testimonials.store');

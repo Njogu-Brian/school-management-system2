@@ -49,7 +49,7 @@ export function useTestimonials(premium = false) {
   });
 }
 
-export function useGallery(category?: string, options?: { premium?: boolean; hero?: boolean }) {
+export function useGallery(category?: string, options?: { premium?: boolean; hero?: boolean; perPage?: number }) {
   return useQuery({
     queryKey: ["website", "gallery", category, options],
     queryFn: async () => {
@@ -57,6 +57,7 @@ export function useGallery(category?: string, options?: { premium?: boolean; her
         category,
         premium: options?.premium,
         hero: options?.hero,
+        per_page: options?.perPage,
       });
       return galleryItemsFromResponse(res);
     },

@@ -80,6 +80,22 @@ class CommunicationJob extends Model
         return $this->status === 'paused';
     }
 
+    public function progressUrl(): ?string
+    {
+        if (!$this->tracking_id) {
+            return null;
+        }
+
+        $route = match ($this->channel) {
+            'email' => 'communication.send.email.progress',
+            'whatsapp' => 'communication.send.whatsapp.progress',
+            'sms' => 'communication.send.sms.progress',
+            default => null,
+        };
+
+        return $route ? route($route, ['tracking_id' => $this->tracking_id]) : null;
+    }
+
     public function statusBadgeClass(): string
     {
         return match ($this->status) {

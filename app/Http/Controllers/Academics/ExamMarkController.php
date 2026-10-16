@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Academics;
 
 use App\Http\Controllers\Controller;
 use App\Models\Academics\Exam;
+use App\Models\Academics\ExamMarkChangeBatch;
 use App\Models\Academics\ExamType;
 use App\Models\Academics\ExamMark;
 use App\Models\Academics\Subject;
 use App\Services\Academics\ClassroomGradingService;
+use App\Services\Academics\ExamMarkChangeDigestService;
 use App\Services\Academics\ExamMarkEntryService;
 use App\Services\Academics\ExamMarkEntryAuditService;
 use App\Models\Academics\Classroom;
@@ -16,6 +18,7 @@ use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class ExamMarkController extends Controller
 {
@@ -838,5 +841,83 @@ class ExamMarkController extends Controller
         return redirect()
             ->route('academics.exam-marks.index', ['exam_id' => $exam_mark->exam_id])
             ->with('success','Mark updated.');
+    }
+
+    public function changes(Request $request)
+    {
+        $user = $request->user();
+        abort_unless($user && $user->hasAnyRole(ExamMarkChangeDigestService::REVIEW_ROLES), 403);
+
+        $empty = [
+            'batch' => null,
+            'items' => collect(),
+            'groups' => collect(),
+            'summary' => [
+                'staff_count' => 0,
+                'paper_count' => 0,
+                'change_count' => 0,
+                'staff_names' => [],
+                'title' => 'Exam marks changed',
+                'body' => 'No exam mark changes are waiting for review.',
+            ],
+            'staffOptions' => collect(),
+            'paperOptions' => collect(),
+            'staff' => '',
+            'examId' => 0,
+            'filtered' => false,
+        ];
+
+        if (! Schema::hasTable('exam_mark_change_batches') || ! Schema::hasTable('exam_mark_change_items')) {
+            return view('academics.exam_marks.changes', $empty);
+        }
+
+        try {
+            app(ExamMarkChangeDigestService::class)->collapseLegacyAlerts();
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        $batch = ExamMarkChangeBatch::query()->where('status', 'open')->latest('id')->first();
+        $items = $batch
+            ? $batch->items()->orderBy('exam_name')->orderBy('classroom_name')->orderBy('student_name')->get()
+            : collect();
+
+        $staff = trim((string) $request->query('staff', ''));
+        $examId = (int) $request->query('exam', 0);
+        $filtered = $items;
+        if ($staff !== '') {
+            $filtered = $filtered->where('editor_name', $staff)->values();
+        }
+        if ($examId > 0) {
+            $filtered = $filtered->where('exam_id', $examId)->values();
+        }
+
+        $summary = app(ExamMarkChangeDigestService::class)->summarize($items);
+
+        return view('academics.exam_marks.changes', [
+            'batch' => $batch,
+            'items' => $items,
+            'groups' => $filtered->groupBy('exam_id'),
+            'summary' => $summary,
+            'staffOptions' => $items->pluck('editor_name')->filter()->unique()->sort()->values(),
+            'paperOptions' => $items->unique('exam_id')->values(),
+            'staff' => $staff,
+            'examId' => $examId,
+            'filtered' => $staff !== '' || $examId > 0,
+        ]);
+    }
+
+    public function reviewChanges(Request $request)
+    {
+        $user = $request->user();
+        abort_unless($user && $user->hasAnyRole(ExamMarkChangeDigestService::REVIEW_ROLES), 403);
+
+        if (! app(ExamMarkChangeDigestService::class)->markOpenBatchReviewed($user)) {
+            return back()->with('error', 'Could not mark the changes as reviewed. Try again.');
+        }
+
+        return redirect()
+            ->route('academics.exam-marks.changes')
+            ->with('success', 'Exam mark changes marked as reviewed.');
     }
 }

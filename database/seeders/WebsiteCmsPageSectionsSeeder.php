@@ -16,7 +16,7 @@ class WebsiteCmsPageSectionsSeeder extends Seeder
 
     public function run(): void
     {
-        $this->img = 'https://royalkingsschools.sc.ke/assets/images';
+        $this->img = rtrim(asset('website/imported'), '/');
 
         $this->seedHomepageSchoolStory();
         $this->seedAboutPage();
@@ -323,7 +323,7 @@ class WebsiteCmsPageSectionsSeeder extends Seeder
 
     private function upsertSection(int $pageId, string $key, array $data): void
     {
-        PageSection::query()->updateOrCreate(
+        PageSection::query()->firstOrCreate(
             ['page_id' => $pageId, 'section_key' => $key],
             $data + ['page_id' => $pageId, 'is_active' => true]
         );

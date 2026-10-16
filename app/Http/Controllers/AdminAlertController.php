@@ -21,7 +21,7 @@ class AdminAlertController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
-                'alerts' => $this->alerts->pendingAlertsFor($user),
+                'alerts' => $this->alerts->pendingAlertsFor($user, 50),
                 'pending_count' => $this->alerts->pendingCountFor($user),
             ],
         ]);
@@ -47,11 +47,25 @@ class AdminAlertController extends Controller
             abort(404);
         }
 
+        if (! $request->expectsJson()) {
+            return back();
+        }
+
         return response()->json([
             'success' => true,
             'data' => [
                 'pending_count' => $this->alerts->pendingCountFor($user),
             ],
+        ]);
+    }
+
+    public function inbox(Request $request)
+    {
+        $user = $request->user();
+        abort_unless($user && $user->hasRole('Super Admin'), 403);
+
+        return view('admin.alerts.inbox', [
+            'alerts' => $this->alerts->pendingAlertsFor($user, 100),
         ]);
     }
 }

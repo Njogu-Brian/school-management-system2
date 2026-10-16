@@ -36,7 +36,7 @@ class WebsiteSetting extends Model
     public static function current(): self
     {
         return static::query()->firstOrCreate([], [
-            'school_name' => setting('school_name', 'Royal Kings Education Centre'),
+            'school_name' => setting('school_name', 'Royal Kings Premier School'),
             'tagline' => 'Where Little Steps Grow Into Great Futures',
             'primary_color' => '#5B2C8E',
             'secondary_color' => '#D4AF37',

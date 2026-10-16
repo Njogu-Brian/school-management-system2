@@ -10,16 +10,27 @@ export type CmsPhoto = {
   src: string;
   title: string;
   caption?: string;
+  href?: string;
 };
 
 export function sectionSettings(section: PageSection): Record<string, unknown> {
   return section.settings ?? {};
 }
 
+const RETIRED_IMAGE_MARKERS = ["2025-admissions", "whatsapp-image-2024-10-28-at-18.13.54"];
+
+export function isRetiredImage(src: string): boolean {
+  const value = src.toLowerCase();
+  return RETIRED_IMAGE_MARKERS.some((marker) => value.includes(marker));
+}
+
 export function sectionImage(section: PageSection): string | undefined {
   const s = sectionSettings(section);
   const url = s.image_url ?? s.imageUrl;
-  return typeof url === "string" && url.length > 0 ? url : undefined;
+  if (typeof url !== "string" || url.length === 0 || isRetiredImage(url)) {
+    return undefined;
+  }
+  return url;
 }
 
 export function sectionItems(section: PageSection): CmsGridItem[] {
@@ -43,7 +54,7 @@ export function sectionPhotos(section: PageSection): CmsPhoto[] {
   const s = sectionSettings(section);
   const raw = s.photos;
   if (Array.isArray(raw)) {
-    return raw as CmsPhoto[];
+    return (raw as CmsPhoto[]).filter((photo) => photo?.src && !isRetiredImage(photo.src));
   }
   if (typeof raw === "string") {
     try {

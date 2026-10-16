@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Website\Page;
 use App\Models\Website\PageSection;
 use App\Policies\Website\ManagesWebsiteCms;
+use App\Services\Website\WebsiteMediaService;
+use App\Services\Website\WebsitePageCacheService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -69,29 +71,44 @@ class HomepageBuilderController extends Controller
         return back()->with('success', 'Section added.');
     }
 
-    public function update(Request $request, PageSection $section): RedirectResponse
+    public function update(Request $request, PageSection $section, WebsiteMediaService $media, WebsitePageCacheService $cache): RedirectResponse
     {
         $validated = $request->validate([
-            'section_type' => 'required|string|max:100',
-            'section_key' => 'required|string|max:100',
+            'section_type' => 'nullable|string|max:100',
+            'section_key' => 'nullable|string|max:100',
             'title' => 'nullable|string|max:255',
             'subtitle' => 'nullable|string|max:500',
             'content' => 'nullable|string',
             'settings' => 'nullable',
             'sort_order' => 'nullable|integer|min:0',
             'is_active' => 'nullable|boolean',
+            'section_image' => 'nullable|image|max:10240',
+            'photo_files' => 'nullable|array',
+            'photo_files.*' => 'image|max:10240',
+            'photo_replace' => 'nullable|array',
+            'photo_replace.*' => 'image|max:10240',
         ]);
 
         $settings = $validated['settings'] ?? $section->settings;
         if (is_string($settings) && $settings !== '') {
             $settings = json_decode($settings, true) ?? [];
         }
+        if (! is_array($settings)) {
+            $settings = [];
+        }
 
-        $section->update(collect($validated)->except('settings')->all() + [
-            'settings' => is_array($settings) ? $settings : [],
+        $section->update([
+            'section_type' => $validated['section_type'] ?? $section->section_type,
+            'section_key' => $validated['section_key'] ?? $section->section_key,
+            'title' => $validated['title'] ?? null,
+            'subtitle' => $validated['subtitle'] ?? null,
+            'content' => $validated['content'] ?? null,
+            'settings' => $media->applySectionUploads($request, $settings),
             'is_active' => $request->boolean('is_active', true),
             'sort_order' => (int) ($validated['sort_order'] ?? $section->sort_order),
         ]);
+
+        $cache->bustForSection($section);
 
         return back()->with('success', 'Section updated.');
     }

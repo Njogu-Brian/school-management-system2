@@ -6,7 +6,7 @@ import { assetPath } from "@/lib/assetPath";
 import { getErpParentPortalUrl } from "@/lib/erpUrls";
 
 const QUICK_LINKS: Array<{ href: string; label: string; external?: boolean }> = [
-  { href: "/admissions/apply", label: "Apply Now" },
+  { href: "/admissions/apply", label: "Admissions" },
   { href: "/fees", label: "School Fees" },
   { href: "/academics", label: "Academics" },
   { href: "/campus-life", label: "Gallery" },

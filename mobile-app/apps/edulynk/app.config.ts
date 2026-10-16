@@ -24,7 +24,7 @@ const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
 const splashBackground = '#000000';
 /** Linked EAS project under @breysoms-team. */
 const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID ?? '54d4662d-a1f2-472d-86de-acfec0eea76d';
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.0.2';
 
 const updatesUrl = `https://u.expo.dev/${EAS_PROJECT_ID}`;
 
@@ -73,7 +73,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'com.edulynk.app',
-    versionCode: 2,
+    versionCode: 3,
     softwareKeyboardLayoutMode: 'resize',
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
@@ -84,6 +84,7 @@ const config: ExpoConfig = {
         apiKey: googleMapsApiKey,
       },
     },
+    googleServicesFile: './google-services.json',
     permissions: [
       'USE_BIOMETRIC',
       'USE_FINGERPRINT',
@@ -92,9 +93,16 @@ const config: ExpoConfig = {
       'ACCESS_BACKGROUND_LOCATION',
       'FOREGROUND_SERVICE',
       'FOREGROUND_SERVICE_LOCATION',
+      'POST_NOTIFICATIONS',
     ],
   },
   plugins: [
+    [
+      'expo-notifications',
+      {
+        defaultChannel: 'default',
+      },
+    ],
     '../../plugins/withAndroid16KbPageSize',
     '../../plugins/withAndroidTabletSupport',
     'expo-local-authentication',

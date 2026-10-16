@@ -215,14 +215,15 @@ class BulkSendWhatsAppMessages implements ShouldQueue
         foreach ($batch as $item) {
             $freshJob = $jobService->findByTrackingId($this->trackingId);
             if ($freshJob && in_array($freshJob->status, ['cancelled', 'paused'], true)) {
-                if ($freshJob->status === 'paused') {
-                    CommunicationPauseService::pauseBulkProgress($this->trackingId, 'whatsapp', [
-                        'total' => $totalRecipients,
-                        'processed' => $processed,
-                        'sent' => $sentCount,
-                        'failed' => $failedCount,
-                    ]);
-                }
+                $this->updateProgress([
+                    'status' => $freshJob->status === 'paused' ? 'paused' : 'cancelled',
+                    'total' => $totalRecipients,
+                    'processed' => $processed,
+                    'sent' => $sentCount,
+                    'failed' => $failedCount,
+                    'skipped' => $skippedCount,
+                    'pause_reason' => $freshJob->pause_reason,
+                ]);
 
                 return;
             }
@@ -244,12 +245,14 @@ class BulkSendWhatsAppMessages implements ShouldQueue
                 continue;
             }
             $processed++;
-            
+            $claimKey = null;
+
             try {
                 $recipientId = is_array($entityData) ? ($entityData['id'] ?? null) : ($entityData->id ?? null);
                 $idempotencyKey = $phone . '|' . ($recipientId ?? 'null');
                 if (isset($existingSentKeys[$idempotencyKey])) {
                     $sentCount++;
+                    $jobService->markRecipientByContact($this->trackingId, $phone, 'sent', $recipientId);
                     $reportRows[] = $this->buildReportRow(
                         $phone,
                         $entityData,
@@ -270,6 +273,14 @@ class BulkSendWhatsAppMessages implements ShouldQueue
                     
                     if ($alreadySent) {
                         $skippedCount++;
+                        $jobService->markRecipientByContact(
+                            $this->trackingId,
+                            $phone,
+                            'skipped',
+                            $recipientId,
+                            'ALREADY_SENT',
+                            'Already sent in last 24h'
+                        );
                         $reportRows[] = $this->buildReportRow($phone, $entityData, 'skipped', 'Already sent in last 24h');
                         $this->updateProgress([
                             'skipped' => $skippedCount,
@@ -277,6 +288,18 @@ class BulkSendWhatsAppMessages implements ShouldQueue
                         ]);
                         continue;
                     }
+                }
+
+                $claimKey = 'bulk_whatsapp_claim:' . $this->trackingId . ':' . $idempotencyKey;
+                if (! Cache::add($claimKey, true, now()->addHours(24))) {
+                    $sentCount++;
+                    $reportRows[] = $this->buildReportRow(
+                        $phone,
+                        $entityData,
+                        'sent',
+                        'Skipped: already claimed'
+                    );
+                    continue;
                 }
 
                 // Rate limit: wait before each WhatsApp API call
@@ -403,6 +426,9 @@ class BulkSendWhatsAppMessages implements ShouldQueue
                     $reportRows[] = $this->buildReportRow($phone, $entityData, 'sent');
                 } else {
                     $failedCount++;
+                    if (isset($claimKey)) {
+                        Cache::forget($claimKey);
+                    }
                     $reportRows[] = $this->buildReportRow($phone, $entityData, 'failed', json_encode(data_get($response, 'body') ?? $response));
                 }
 
@@ -420,6 +446,9 @@ class BulkSendWhatsAppMessages implements ShouldQueue
 
             } catch (\Throwable $e) {
                 $failedCount++;
+                if (isset($claimKey)) {
+                    Cache::forget($claimKey);
+                }
                 Log::error('WhatsApp send error in bulk job', [
                     'tracking_id' => $this->trackingId,
                     'phone' => $phone,

@@ -90,7 +90,7 @@ class ExamMarkEntryService
             throw new \RuntimeException('This exam is not open for mark entry.');
         }
 
-        $exam->loadMissing('examType');
+        $exam->loadMissing(['examType', 'subject', 'classroom']);
         $subjectId = (int) $exam->subject_id;
         if ($subjectId <= 0) {
             throw new \RuntimeException('This exam has no subject configured.');
@@ -103,10 +103,11 @@ class ExamMarkEntryService
 
         $saved = 0;
         $skipped = 0;
+        $markChanges = [];
 
         DB::transaction(function () use (
             $exam, $classroomId, $subjectId, $rows, $user, $finalize,
-            $maxMarks, $minMarks, $grading, $staffId, &$saved, &$skipped
+            $maxMarks, $minMarks, $grading, $staffId, &$saved, &$skipped, &$markChanges
         ) {
             foreach ($rows as $row) {
                 $studentId = (int) ($row['student_id'] ?? 0);
@@ -228,13 +229,18 @@ class ExamMarkEntryService
                 $saved++;
 
                 if ($hasScore && $previousScore !== null && abs($previousScore - (float) $score) > 0.0001) {
-                    $this->notifyMarkChange(
-                        $exam,
-                        $student,
-                        $previousScore,
-                        (float) $score,
-                        $user
-                    );
+                    $markChanges[] = [
+                        'exam_id' => (int) $exam->id,
+                        'student_id' => (int) $student->id,
+                        'student_name' => person_display_name($student, 'full') ?: 'Student',
+                        'editor_id' => $user?->id,
+                        'editor_name' => $user?->name ?: 'A staff member',
+                        'exam_name' => (string) ($exam->name ?: 'Exam'),
+                        'subject_name' => (string) ($exam->subject?->name ?: 'Subject'),
+                        'classroom_name' => (string) ($exam->classroom?->name ?: ''),
+                        'score_from' => (float) $previousScore,
+                        'score_to' => (float) $score,
+                    ];
                 }
             }
 
@@ -243,54 +249,18 @@ class ExamMarkEntryService
             }
         });
 
-        return ['saved' => $saved, 'skipped' => $skipped];
-    }
-
-    protected function notifyMarkChange(
-        Exam $exam,
-        Student $student,
-        float $from,
-        float $to,
-        ?User $user = null,
-    ): void {
-        try {
-            $exam->loadMissing(['subject', 'classroom']);
-            $editor = $user?->name ?? 'A teacher';
-            $subject = $exam->subject?->name ?? 'Subject';
-            $class = $exam->classroom?->name ?? 'Class';
-            $studentName = person_display_name($student, 'full');
-            $title = 'Exam mark changed';
-            $message = "{$editor} changed {$studentName}'s {$subject} mark ({$exam->name}, {$class}) from {$from} to {$to}.";
-
-            app(\App\Services\SystemAlertService::class)->raiseForRoles(
-                [
-                    'Super Admin', 'Admin', 'System Admin',
-                    'Senior Teacher', 'senior teacher', 'Senior teacher',
-                    'Deputy Senior Teacher', 'deputy senior teacher',
-                ],
-                $title,
-                $message,
-                'academics',
-                'warning',
-                'mark_change_'.sha1($exam->id.'|'.$student->id.'|'.$from.'|'.$to.'|'.now()->format('YmdHi')),
-                '/academics/exams/'.$exam->id,
-                [
+        if ($markChanges !== []) {
+            try {
+                app(ExamMarkChangeDigestService::class)->record($markChanges);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Failed to group exam mark change alert', [
                     'exam_id' => $exam->id,
-                    'student_id' => $student->id,
-                    'from' => $from,
-                    'to' => $to,
-                    'edited_by' => $user?->id,
-                ],
-                true,
-                false
-            );
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('Failed to raise mark-change alert', [
-                'exam_id' => $exam->id,
-                'student_id' => $student->id,
-                'error' => $e->getMessage(),
-            ]);
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
+
+        return ['saved' => $saved, 'skipped' => $skipped];
     }
 
     /**

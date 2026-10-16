@@ -1,5 +1,6 @@
 "use client";
 
+import { CmsPageView } from "@/components/cms/CmsPageView";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { RichPage, PageHero, SectionBlock, PhotoGrid, CtaBanner } from "@/components/layout/RichPage";
@@ -8,6 +9,10 @@ import { SocialBarLight } from "@/components/layout/SocialBar";
 import { enterpriseService } from "@/services/enterpriseService";
 
 export default function CommunityPage() {
+  return <CmsPageView slug="community" fallback={<CommunityContent />} />;
+}
+
+function CommunityContent() {
   const { data } = useQuery({ queryKey: ["community"], queryFn: enterpriseService.community });
   const community = data?.data;
   const [referralSent, setReferralSent] = useState(false);

@@ -1,6 +1,6 @@
 "use client";
 
-import { RichPage, PageHero, SectionBlock, CtaBanner } from "@/components/layout/RichPage";
+import { RichPage, PageHero, SectionBlock } from "@/components/layout/RichPage";
 import { ADMISSIONS_CONTENT, FEES_NOTE } from "@/content/schoolContent";
 import { LEGACY_HEROES } from "@/content/legacyGallery";
 import { websiteService } from "@/services/websiteService";
@@ -89,8 +89,10 @@ export function AdmissionsPageStatic() {
           </article>
         </div>
         <div className="mt-8 flex justify-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={LEGACY_HEROES.admissionsPromo} alt="Admissions open" className="max-w-xs rounded-2xl shadow-lg" />
+          <a href="/admissions/apply" className="block">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/images/2027-admissions-open.jpg" alt="2027 Admissions Now Open" className="w-full max-w-4xl rounded-2xl shadow-lg" />
+          </a>
         </div>
       </SectionBlock>
 
@@ -103,9 +105,6 @@ export function AdmissionsPageStatic() {
         </ul>
       </SectionBlock>
 
-      <SectionBlock alt>
-        <CtaBanner title="2025 Admissions Open" body="Limited spaces available. Begin your child's Royal Kings journey today." href="/admissions/apply" label="Apply Now" />
-      </SectionBlock>
     </RichPage>
   );
 }

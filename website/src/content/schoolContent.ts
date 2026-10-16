@@ -11,11 +11,11 @@ export const BRAND = {
   name: "Royal Kings Premier School LTD",
   shortName: "Royal Kings Premier School",
   legalName: "Royal Kings Premier School LTD",
-  tagline: "Where Little Steps Grow Into Great Futures",
-  heroHeadline: "Building a Sure Foundation for Lifelong Learning",
+  tagline: "Building a Sure Foundation",
+  heroHeadline: "Building a Sure Foundation",
   heroSubheadline: "Where Learning is Fun!",
   heroIntro:
-    "A warm Christian school where children grow in faith, confidence, and excellence from age 3 to Grade 9.",
+    "Welcome to Royal Kings School, where education is our legacy and our passion. We have proudly served as a leading child-centered institution for nearly two decades, shaping young minds and nurturing future leaders since 2006.",
   founded: 2006,
   location: "Wangige, Kiambu County, Kenya",
   purpleBright: "#B400FF",
@@ -46,13 +46,13 @@ export const CONTACT = {
   },
   mapsUrl: "https://www.google.com/maps/search/?api=1&query=Royal+Kings+Premier+School+Wangige+Kenya",
   mapsEmbed:
-    "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3989.0!2d36.705!3d-1.245!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2sRoyal%20Kings%20School%20Wangige!5e0!3m2!1sen!2ske!4v1719000000000!5m2!1sen!2ske",
+    "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d1994.455054429061!2d36.71075248631994!3d-1.2225392285959067!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x182f18a6c739aecd%3A0x58e56a33309f8eea!2sRoyal%20Kings%20Education%20Centre!5e0!3m2!1sen!2ske!4v1713269445338!5m2!1sen!2ske",
 };
 
 export const LEGACY_IMAGES = {
   logo: "https://erp.royalkingsschools.sc.ke/images/logo.png",
   campus: LEGACY_HEROES.homeMural,
-  admissions: LEGACY_HEROES.admissionsPromo,
+  admissions: "/images/2027-admissions-open.jpg",
   classroom: LEGACY_HEROES.classroom,
   students: LEGACY_HEROES.empowering,
   mission: LEGACY_HEROES.mission,
@@ -84,7 +84,7 @@ export const INTRO = {
     "Join us on a journey of holistic education that sparks curiosity, ignites passion, and shapes tomorrow's leaders. We are dedicated to nurturing well-rounded individuals, emphasizing academic achievement alongside emotional, spiritual, and social development.",
   aboutFull: `Royal Kings Premier School LTD is a Christian-centered institution serving families across Wangige, Lower Kabete, Kikuyu, Gitaru, Uthiru and surrounding communities. Since 2006, we have built a reputation for nurturing learners from Creche through Grade 9 in an environment where faith, family, and academic excellence go hand in hand.
 
-We believe every child is fearfully and wonderfully made. Our teachers know learners by name, our parents are partners in the journey, and our campus feels like an extension of home. From morning devotions to afternoon sports, from CBC classrooms to November Talent Camp — Royal Kings is where little steps grow into great futures.`,
+We believe every child is fearfully and wonderfully made. Our teachers know learners by name, our parents are partners in the journey, and our campus feels like an extension of home. From morning devotions to afternoon sports, from CBC classrooms to school celebrations — Royal Kings is where little steps grow into great futures.`,
 };
 
 export const MISSION = {
@@ -116,8 +116,7 @@ export const LEGACY_TESTIMONIALS = [
 ];
 
 export const HIGHLIGHTS = [
-  { title: "November Talent Camp", subtitle: "Holiday enrichment & creative discovery for all ages", image: LEGACY_HEROES.novemberCamp },
-  { title: "2025 Admissions Open", subtitle: "Limited spaces — enroll your child today", image: LEGACY_HEROES.admissionsPromo },
+  { title: "2027 Admissions Open", subtitle: "Interview dates 4th–6th November 2026 at Riverside, Wangige", image: "/images/2027-admissions-open.jpg" },
   { title: "Nearly 20 Years", subtitle: "Shaping leaders since 2006 in Wangige", image: LEGACY_HEROES.community },
 ];
 
@@ -242,6 +241,5 @@ export const CO_CURRICULAR = {
     { name: "Ballet & Skating", detail: "Grace, discipline, and physical confidence", icon: "🩰" },
     { name: "Archery & Sports", detail: "Football, athletics, and competitive excellence", icon: "🏹" },
     { name: "Arts & Drama", detail: "Creative expression and public speaking", icon: "🎭" },
-    { name: "November Talent Camp", detail: "Annual holiday enrichment programme", icon: "⭐" },
   ],
 };

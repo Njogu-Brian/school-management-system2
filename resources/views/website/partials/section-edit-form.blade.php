@@ -1,6 +1,6 @@
 <details class="mt-3 border-top pt-3">
     <summary class="small text-primary cursor-pointer">Edit section content</summary>
-    <form action="{{ $updateRoute }}" method="POST" class="mt-3 row g-2">
+    <form action="{{ $updateRoute }}" method="POST" enctype="multipart/form-data" class="mt-3 row g-2">
         @csrf
         @method('PUT')
         <div class="col-md-6">
@@ -15,6 +15,33 @@
             <label class="form-label small">Content (paragraphs — separate with blank line)</label>
             <textarea name="content" class="form-control form-control-sm" rows="4">{{ old('content', $section->content) }}</textarea>
         </div>
+        @php
+            $sectionSettings = is_array($section->settings) ? $section->settings : [];
+            $sectionImage = $sectionSettings['image_url'] ?? null;
+            $sectionPhotos = is_array($sectionSettings['photos'] ?? null) ? $sectionSettings['photos'] : [];
+        @endphp
+        <div class="col-md-6">
+            <label class="form-label small">Section image</label>
+            @if(is_string($sectionImage) && $sectionImage !== '')
+                <img src="{{ $sectionImage }}" alt="" class="img-fluid rounded mb-2" style="max-height:140px">
+            @endif
+            <input type="file" name="section_image" class="form-control form-control-sm" accept="image/*">
+            <div class="form-text">Uploading replaces the image on this section.</div>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label small">Add photos</label>
+            <input type="file" name="photo_files[]" class="form-control form-control-sm" accept="image/*" multiple>
+            <div class="form-text">New photos are added to galleries and promo banners. Set href in the JSON below if a photo should be a link.</div>
+        </div>
+        @foreach($sectionPhotos as $index => $photo)
+            <div class="col-md-4">
+                <label class="form-label small">Replace {{ $photo['title'] ?? 'photo '.($index + 1) }}</label>
+                @if(!empty($photo['src']))
+                    <img src="{{ $photo['src'] }}" alt="" class="img-fluid rounded mb-1" style="max-height:90px">
+                @endif
+                <input type="file" name="photo_replace[{{ $index }}]" class="form-control form-control-sm" accept="image/*">
+            </div>
+        @endforeach
         <div class="col-12">
             <label class="form-label small">Settings (JSON) — image_url, href, label, items, photos, variant, bank, mpesa…</label>
             <textarea name="settings" class="form-control form-control-sm font-monospace" rows="5">{{ old('settings', json_encode($section->settings ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)) }}</textarea>

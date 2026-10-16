@@ -1,5 +1,6 @@
 "use client";
 
+import { CmsPageView } from "@/components/cms/CmsPageView";
 import {
   RichPage,
   PageHero,
@@ -33,6 +34,10 @@ const FALLBACK_LEADERS = [
 ];
 
 export default function LeadershipPage() {
+  return <CmsPageView slug="leadership" fallback={<LeadershipContent />} />;
+}
+
+function LeadershipContent() {
   const brand = useBrandContent();
   const leaders = brand.items("leader");
   const team = leaders.length > 0 ? leaders : FALLBACK_LEADERS;

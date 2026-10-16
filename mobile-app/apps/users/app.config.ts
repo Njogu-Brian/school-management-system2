@@ -23,7 +23,7 @@ const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
 const primaryColor = '#004A99';
 /** EAS project for Royal Kings Users (`@breysoms-team/royal-kings-users`). */
 const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID ?? 'f958de71-5153-4219-a112-0b1b503eefe7';
-const APP_VERSION = '1.0.8';
+const APP_VERSION = '1.0.9';
 
 const config: ExpoConfig = {
   name: 'Royal Kings Users',
@@ -67,7 +67,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'com.royalkingsschools.users',
-    versionCode: 18,
+    versionCode: 19,
     softwareKeyboardLayoutMode: 'resize',
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
@@ -78,6 +78,7 @@ const config: ExpoConfig = {
         apiKey: googleMapsApiKey,
       },
     },
+    googleServicesFile: './google-services.json',
     permissions: [
       'USE_BIOMETRIC',
       'USE_FINGERPRINT',
@@ -86,9 +87,16 @@ const config: ExpoConfig = {
       'ACCESS_BACKGROUND_LOCATION',
       'FOREGROUND_SERVICE',
       'FOREGROUND_SERVICE_LOCATION',
+      'POST_NOTIFICATIONS',
     ],
   },
   plugins: [
+    [
+      'expo-notifications',
+      {
+        defaultChannel: 'default',
+      },
+    ],
     '../../plugins/withAndroid16KbPageSize',
     '../../plugins/withAndroidTabletSupport',
     'expo-local-authentication',

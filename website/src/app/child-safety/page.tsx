@@ -1,3 +1,4 @@
+import { CmsPageView } from "@/components/cms/CmsPageView";
 import {
   RichPage,
   PageHero,
@@ -33,6 +34,10 @@ const VISITORS = [
 ];
 
 export default function ChildSafetyPage() {
+  return <CmsPageView slug="child-safety" fallback={<ChildSafetyContent />} />;
+}
+
+function ChildSafetyContent() {
   return (
     <RichPage>
       <PageHero

@@ -1,10 +1,15 @@
 "use client";
 
+import { CmsPageView } from "@/components/cms/CmsPageView";
 import { RichPage, PageHero, SectionBlock } from "@/components/layout/RichPage";
 import { useEvents } from "@/hooks/useWebsiteData";
 import Link from "next/link";
 
 export default function CalendarPage() {
+  return <CmsPageView slug="calendar" fallback={<CalendarContent />} />;
+}
+
+function CalendarContent() {
   const { data: events } = useEvents();
 
   return (

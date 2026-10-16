@@ -94,10 +94,64 @@ class MediaLibraryController extends Controller
 
     public function destroy(MediaLibraryItem $mediaLibraryItem): RedirectResponse
     {
+        if ($this->media->usages($mediaLibraryItem) !== []) {
+            return redirect()
+                ->route('website.media.replace', $mediaLibraryItem)
+                ->withErrors(['delete' => 'This image is used on the website. Choose a replacement before it can be removed.']);
+        }
+
         $this->media->deleteItem($mediaLibraryItem, $this->optimizer);
         $mediaLibraryItem->delete();
 
         return back()->with('success', 'Media deleted.');
+    }
+
+    public function replaceForm(MediaLibraryItem $mediaLibraryItem): View
+    {
+        return view('website.media.replace', [
+            'item' => $mediaLibraryItem,
+            'usages' => $this->media->usages($mediaLibraryItem),
+            'library' => MediaLibraryItem::query()
+                ->where('id', '!=', $mediaLibraryItem->id)
+                ->where('type', 'image')
+                ->latest()
+                ->limit(80)
+                ->get(),
+        ]);
+    }
+
+    public function replace(Request $request, MediaLibraryItem $mediaLibraryItem): RedirectResponse
+    {
+        $validated = $request->validate([
+            'replacement_id' => 'nullable|integer|exists:media_library,id',
+            'replacement_file' => 'nullable|file|max:10240|mimes:jpg,jpeg,png,gif,webp',
+        ]);
+
+        $replacement = null;
+        if ($request->hasFile('replacement_file')) {
+            $replacement = $this->media->storeLibraryImage(
+                $request->file('replacement_file'),
+                (string) $request->input('replacement_title', 'Replacement image'),
+                $request->user()?->id
+            );
+        } elseif (! empty($validated['replacement_id'])) {
+            $replacement = MediaLibraryItem::query()->find($validated['replacement_id']);
+        }
+
+        if (! $replacement || $replacement->id === $mediaLibraryItem->id) {
+            return back()->withErrors(['replacement_id' => 'Choose an existing image or upload a new one.']);
+        }
+
+        $this->media->replaceEverywhere($mediaLibraryItem, $replacement);
+        $this->media->deleteItem($mediaLibraryItem, $this->optimizer);
+        $mediaLibraryItem->delete();
+
+        \Illuminate\Support\Facades\Cache::forget('website.api.homepage');
+        \Illuminate\Support\Facades\Cache::forget('website.api.settings.v2');
+        \Illuminate\Support\Facades\Cache::forget('website.api.media.hero');
+        \Illuminate\Support\Facades\Cache::forget('website.api.brand');
+
+        return redirect()->route('website.media.index')->with('success', 'Image replaced and the original was deleted.');
     }
 
     public function updateQuality(Request $request, MediaLibraryItem $mediaLibraryItem): RedirectResponse

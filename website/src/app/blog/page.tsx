@@ -13,9 +13,9 @@ const FALLBACK_POSTS = [
   },
   {
     id: 2,
-    title: "2025 Admissions Now Open",
-    excerpt: "Join a school where education is our legacy — serving Wangige families since 2006.",
-    published_at: "2025",
+    title: "2027 Admissions Now Open",
+    excerpt: "Enrol your child for preschool, primary, or junior secondary. Interviews run 4th–6th November 2026.",
+    published_at: "2026",
   },
   {
     id: 3,

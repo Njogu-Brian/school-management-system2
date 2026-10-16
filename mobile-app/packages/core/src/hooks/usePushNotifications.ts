@@ -78,6 +78,11 @@ export function usePushNotifications(
           showBadge: true,
           lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         };
+        await Notifications.setNotificationChannelAsync('default', {
+          name: 'School alerts',
+          description: 'Announcements and school alerts',
+          ...channelBase,
+        });
         await Notifications.setNotificationChannelAsync('teacher-alerts', {
           name: 'Teacher alerts',
           description: 'Clock-in and attendance reminders',

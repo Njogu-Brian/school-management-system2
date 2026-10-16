@@ -1,3 +1,4 @@
+import { CmsPageView } from "@/components/cms/CmsPageView";
 import { RichPage, PageHero, SectionBlock, CtaBanner } from "@/components/layout/RichPage";
 import { ACADEMICS_CONTENT, LEGACY_IMAGES } from "@/content/schoolContent";
 
@@ -8,6 +9,10 @@ const GROUPS = [
 ];
 
 export default function AcademicsPage() {
+  return <CmsPageView slug="academics" fallback={<AcademicsContent />} />;
+}
+
+function AcademicsContent() {
   return (
     <RichPage>
       <PageHero title="Academics" subtitle={ACADEMICS_CONTENT.intro} image={LEGACY_IMAGES.classroom} />

@@ -9,8 +9,9 @@ import {
 import { AlertCard, DashboardSection, EmptyState, useTheme } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import React, { useMemo } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Alert, View } from 'react-native';
 import { navigateToDrawer } from '../../../navigation/navigateWorkspace';
+import { isExamMarkChangeAlert, openExamMarkChangesInPortal } from '../../notifications/openPortal';
 import { confirmAction } from '../../shared/utils/feedback';
 
 type AlertRow = {
@@ -50,6 +51,14 @@ export const AlertsSection: React.FC = () => {
 
     for (const alert of systemQuery.data?.alerts ?? []) {
       rows.push(systemAlertRow(alert, () => {
+        if (isExamMarkChangeAlert(alert)) {
+          Alert.alert(alert.title, alert.body, [
+            { text: 'Close', style: 'cancel' },
+            { text: 'Done', onPress: () => void acknowledge.mutateAsync(alert.id) },
+            { text: 'Open', onPress: () => openExamMarkChangesInPortal(alert.deep_link) },
+          ]);
+          return;
+        }
         confirmAction(alert.title, alert.body, 'Acknowledge', () => void acknowledge.mutateAsync(alert.id));
       }));
     }

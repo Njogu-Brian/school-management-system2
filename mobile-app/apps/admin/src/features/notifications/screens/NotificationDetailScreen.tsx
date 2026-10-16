@@ -7,6 +7,7 @@ import type { DashboardStackParamList } from '../../../navigation/dashboardStack
 import { navigateDashboardBack } from '../../../navigation/navigateWorkspace';
 import { formatDateTimeLabel } from '../../shared/utils/formatters';
 import { showSuccess } from '../../shared/utils/feedback';
+import { isExamMarkChangeAlert } from '../openPortal';
 import { resolveNotificationDeepLink } from '../resolveDeepLink';
 
 type Props = StackScreenProps<DashboardStackParamList, 'NotificationDetail'>;
@@ -97,7 +98,7 @@ export const NotificationDetailScreen: React.FC<Props> = ({ navigation, route })
         </View>
       ) : null}
       <Button
-        label="Open related screen"
+        label={isExamMarkChangeAlert(notification) ? 'Open in portal' : 'Open related screen'}
         onPress={() => {
           resolveNotificationDeepLink(navigation, notification);
           navigation.goBack();

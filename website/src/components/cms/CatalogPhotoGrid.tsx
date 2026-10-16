@@ -19,7 +19,7 @@ export function CatalogPhotoGrid({
   subtitle?: string;
   sectionKey?: string;
 }) {
-  const { data, isLoading, isError } = useGallery();
+  const { data, isLoading, isError } = useGallery("gallery", { perPage: 500 });
 
   const photos: Photo[] = (data ?? [])
     .map((item) => {

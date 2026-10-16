@@ -961,25 +961,7 @@ class CommunicationController extends Controller
      */
     public function smsProgress(Request $request)
     {
-        abort_unless(can_access("communication", "sms", "add"), 403);
-        $trackingId = $request->query('tracking_id');
-        if (!$trackingId) {
-            return redirect()->route('communication.send.sms')->with('error', 'Invalid tracking ID');
-        }
-        $progress = Cache::get("bulk_sms_progress:{$trackingId}", [
-            'status' => 'processing',
-            'total' => $request->query('total', 0),
-            'sent' => 0,
-            'failed' => 0,
-            'processed' => 0,
-        ]);
-        return view('communication.bulk-progress', [
-            'trackingId' => $trackingId,
-            'progress' => $progress,
-            'channel' => 'sms',
-            'backRoute' => 'communication.send.sms',
-            'backLabel' => 'Back to Send SMS',
-        ]);
+        return $this->renderBulkProgress($request, 'sms', 'communication.send.sms', 'Back to Send SMS');
     }
 
     /**
@@ -987,25 +969,7 @@ class CommunicationController extends Controller
      */
     public function emailProgress(Request $request)
     {
-        abort_unless(can_access("communication", "email", "add"), 403);
-        $trackingId = $request->query('tracking_id');
-        if (!$trackingId) {
-            return redirect()->route('communication.send.email')->with('error', 'Invalid tracking ID');
-        }
-        $progress = Cache::get("bulk_email_progress:{$trackingId}", [
-            'status' => 'processing',
-            'total' => $request->query('total', 0),
-            'sent' => 0,
-            'failed' => 0,
-            'processed' => 0,
-        ]);
-        return view('communication.bulk-progress', [
-            'trackingId' => $trackingId,
-            'progress' => $progress,
-            'channel' => 'email',
-            'backRoute' => 'communication.send.email',
-            'backLabel' => 'Back to Send Email',
-        ]);
+        return $this->renderBulkProgress($request, 'email', 'communication.send.email', 'Back to Send Email');
     }
 
     /**
@@ -1013,23 +977,29 @@ class CommunicationController extends Controller
      */
     public function whatsappProgress(Request $request)
     {
-        abort_unless(can_access('communication', 'whatsapp', 'add'), 403);
-        
-        $trackingId = $request->query('tracking_id');
-        if (!$trackingId) {
-            return redirect()->route('communication.send.whatsapp')->with('error', 'Invalid tracking ID');
-        }
+        return $this->renderBulkProgress($request, 'whatsapp', 'communication.send.whatsapp', 'Back to Send WhatsApp');
+    }
 
-        $progress = \Cache::get("bulk_whatsapp_progress:{$trackingId}", [
-            'status' => 'processing',
-            'total' => $request->query('total', 0),
-            'sent' => 0,
-            'failed' => 0,
-            'skipped' => 0,
-            'processed' => 0,
-        ]);
+    /**
+     * Live recipient rows and counts for any bulk SMS, email, or WhatsApp job.
+     */
+    public function bulkProgressData(Request $request)
+    {
+        $trackingId = (string) $request->query('tracking_id', '');
+        $channel = (string) $request->query('channel', 'sms');
+        abort_unless($trackingId !== '', 404);
+        $this->authorizeBulkChannel($channel);
 
-        return view('communication.whatsapp-progress', compact('trackingId', 'progress'));
+        $payload = $this->bulkProgressPayload(
+            $trackingId,
+            $channel,
+            (int) $request->query('total', 0),
+            $request->query('status'),
+            $request->query('q')
+        );
+        unset($payload['job_model']);
+
+        return response()->json($payload);
     }
 
     /**
@@ -1081,6 +1051,137 @@ class CommunicationController extends Controller
         // Use URL directly to avoid route cache issues
         $progressUrl = url('/communication/send-whatsapp/progress') . '?tracking_id=' . urlencode($retryTrackingId) . '&total=' . count($recipients);
         return redirect($progressUrl)->with('success', 'Retry job started for ' . count($recipients) . ' failed messages');
+    }
+
+    private function renderBulkProgress(Request $request, string $channel, string $backRoute, string $backLabel)
+    {
+        $this->authorizeBulkChannel($channel);
+        $trackingId = (string) $request->query('tracking_id', '');
+        if ($trackingId === '') {
+            return redirect()->route($backRoute)->with('error', 'Invalid tracking ID');
+        }
+
+        $payload = $this->bulkProgressPayload(
+            $trackingId,
+            $channel,
+            (int) $request->query('total', 0)
+        );
+
+        return view('communication.bulk-progress', [
+            'trackingId' => $trackingId,
+            'progress' => $payload['progress'],
+            'channel' => $channel,
+            'backRoute' => $backRoute,
+            'backLabel' => $backLabel,
+            'communicationJob' => $payload['job_model'],
+            'recipientRows' => $payload['recipients']['data'],
+            'recipientMeta' => $payload['recipients'],
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function bulkProgressPayload(
+        string $trackingId,
+        string $channel,
+        int $fallbackTotal = 0,
+        ?string $statusFilter = null,
+        ?string $search = null
+    ): array {
+        $jobService = app(\App\Services\CommunicationJobService::class);
+        $job = $jobService->findByTrackingId($trackingId);
+        $cacheKey = CommunicationPauseService::progressCacheKey($trackingId, $channel);
+        $cached = $cacheKey ? Cache::get($cacheKey, []) : [];
+
+        $counts = $job ? $jobService->recipientCounts($job) : [
+            'total' => (int) ($cached['total'] ?? $fallbackTotal),
+            'sent' => (int) ($cached['sent'] ?? 0),
+            'failed' => (int) ($cached['failed'] ?? 0),
+            'skipped' => (int) ($cached['skipped'] ?? 0),
+            'pending' => max(0, (int) ($cached['total'] ?? $fallbackTotal) - (int) ($cached['processed'] ?? 0)),
+            'processed' => (int) ($cached['processed'] ?? 0),
+            'percentage' => 0,
+        ];
+        if (!$job && $counts['total'] > 0) {
+            $counts['percentage'] = (int) round(($counts['processed'] / $counts['total']) * 100);
+        }
+
+        $uiStatus = $this->uiStatusForJob($job, is_array($cached) ? $cached : []);
+        $progress = array_merge(is_array($cached) ? $cached : [], $counts, [
+            'status' => $uiStatus,
+            'report_id' => $cached['report_id'] ?? null,
+        ]);
+
+        $rows = [];
+        $meta = [
+            'data' => [],
+            'current_page' => 1,
+            'last_page' => 1,
+            'total' => 0,
+            'from' => 0,
+            'to' => 0,
+        ];
+
+        if ($job) {
+            $paginator = $jobService->paginateRecipients($job, $statusFilter, $search, 25);
+            $enriched = $jobService->enrichRecipients($paginator->items());
+            $rows = array_values($enriched);
+            $meta = [
+                'data' => $rows,
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'total' => $paginator->total(),
+                'from' => $paginator->firstItem() ?? 0,
+                'to' => $paginator->lastItem() ?? 0,
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'job_model' => $job,
+            'job' => $job ? [
+                'id' => $job->id,
+                'status' => $job->status,
+                'ui_status' => $uiStatus,
+                'channel' => $job->channel,
+                'title' => $job->title,
+                'pause_reason' => $job->pause_reason,
+                'pausable' => $job->isPausable(),
+                'resumable' => $job->isResumable(),
+                'cancellable' => $job->isCancellable(),
+                'tracking_id' => $job->tracking_id,
+            ] : null,
+            'progress' => $progress,
+            'recipients' => $meta,
+        ];
+    }
+
+    private function uiStatusForJob(?\App\Models\CommunicationJob $job, array $cache): string
+    {
+        if (!$job) {
+            return (string) ($cache['status'] ?? 'processing');
+        }
+
+        return match ($job->status) {
+            'running', 'pending', 'scheduled' => 'processing',
+            'paused' => 'paused',
+            'completed' => 'completed',
+            'failed' => 'failed',
+            'cancelled' => 'cancelled',
+            default => (string) ($cache['status'] ?? $job->status),
+        };
+    }
+
+    private function authorizeBulkChannel(string $channel): void
+    {
+        $allowed = match ($channel) {
+            'email' => can_access('communication', 'email', 'add'),
+            'whatsapp' => can_access('communication', 'whatsapp', 'add'),
+            'sms' => can_access('communication', 'sms', 'add'),
+            default => false,
+        };
+        abort_unless($allowed, 403);
     }
 
     /* ========== PREVIEW ========== */
@@ -1922,8 +2023,9 @@ class CommunicationController extends Controller
         abort_unless(can_access('communication', 'sms', 'add') || can_access('communication', 'email', 'add'), 403);
 
         $recipients = $communicationJob->recipients()->orderBy('id')->paginate(50)->withQueryString();
+        $recipientDetails = app(\App\Services\CommunicationJobService::class)->enrichRecipients($recipients->items());
 
-        return view('communication.job-show', compact('communicationJob', 'recipients'));
+        return view('communication.job-show', compact('communicationJob', 'recipients', 'recipientDetails'));
     }
 
     public function pauseCommunicationJob(\App\Models\CommunicationJob $communicationJob)

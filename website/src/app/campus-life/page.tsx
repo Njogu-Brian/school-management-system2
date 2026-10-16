@@ -1,9 +1,14 @@
+import { CmsPageView } from "@/components/cms/CmsPageView";
 import Link from "next/link";
-import { RichPage, PageHero, SectionBlock, PhotoGrid, CtaBanner } from "@/components/layout/RichPage";
+import { RichPage, PageHero, SectionBlock, PhotoGrid } from "@/components/layout/RichPage";
 import { CAMPUS_LIFE, HIGHLIGHTS, CONTACT } from "@/content/schoolContent";
 import { LEGACY_GALLERY, LEGACY_HEROES } from "@/content/legacyGallery";
 
 export default function CampusLifePage() {
+  return <CmsPageView slug="campus-life" fallback={<CampusLifeContent />} />;
+}
+
+function CampusLifeContent() {
   return (
     <RichPage>
       <PageHero title="Campus & Gallery" subtitle={CAMPUS_LIFE.intro} image={LEGACY_HEROES.playground} />
@@ -92,9 +97,6 @@ export default function CampusLifePage() {
             </div>
           </div>
         </div>
-      </SectionBlock>
-      <SectionBlock alt>
-        <CtaBanner title="2025 Admissions Open" body="Limited spaces available. Enroll your child at Royal Kings Premier School today." href="/admissions" label="Apply Now" />
       </SectionBlock>
     </RichPage>
   );

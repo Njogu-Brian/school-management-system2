@@ -11,14 +11,6 @@ import { getErpParentPortalUrl } from "@/lib/erpUrls";
 
 const NAV_GROUPS = [
   {
-    label: "Schools",
-    items: [
-      { href: "/academics#early-years", label: "Early Years" },
-      { href: "/academics#primary", label: "Primary" },
-      { href: "/academics#junior-secondary", label: "Junior Secondary" },
-    ],
-  },
-  {
     label: "Admissions",
     items: [
       { href: "/admissions/apply", label: "Apply" },

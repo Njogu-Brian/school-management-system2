@@ -8,6 +8,7 @@
     'subtitle' => $page->name,
 ])
 <div class="d-flex gap-2 mb-3">
+    <a href="{{ route('website.pages.index') }}" class="btn btn-outline-secondary btn-sm">All pages</a>
     <a href="{{ route('website.pages.preview', $page) }}" class="btn btn-outline-secondary btn-sm" target="_blank"><i class="bi bi-eye"></i> Preview</a>
     <form action="{{ route('website.builder.snapshot', $page) }}" method="POST" class="d-inline">@csrf
         <button class="btn btn-outline-primary btn-sm"><i class="bi bi-clock-history"></i> Save Version</button>

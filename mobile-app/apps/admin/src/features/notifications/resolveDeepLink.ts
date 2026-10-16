@@ -1,10 +1,16 @@
 import type { NotificationRecord } from '@erp/core';
 import { navigateToDrawer, navigateToTab, type WorkspaceNavigation } from '../../navigation/navigateWorkspace';
+import { isExamMarkChangeAlert, openExamMarkChangesInPortal } from './openPortal';
 
 export function resolveNotificationDeepLink(
   navigation: WorkspaceNavigation,
   notification: NotificationRecord,
 ): void {
+  if (isExamMarkChangeAlert(notification)) {
+    openExamMarkChangesInPortal(notification.deep_link);
+    return;
+  }
+
   const link = notification.deep_link ?? '';
   const data = notification.data ?? {};
   const category = (notification.category ?? '').toLowerCase();

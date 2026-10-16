@@ -11,15 +11,15 @@ export function legacyImg(path: string): string {
 
 /** Page-specific hero & editorial images — each section gets a different photo */
 export const LEGACY_HEROES = {
-  homeMural: legacyImg("whatsapp-image-2024-10-28-at-18.13.54-cb80dc6a-705x999.jpg"),
+  homeMural: legacyImg("bg-1-1920x1280.jpg"),
   empowering: legacyImg("325404592-1597148387416946-3846122370734442560-n-1-906x604.jpeg"),
   mission: legacyImg("fb-img-1713928866746-1036x691.jpg"),
   aboutWelcome: legacyImg("326278193-5858633464182480-7349085187052583899-n-2048x1365.jpg"),
   aboutFacilities: legacyImg("screenshot-2024-04-16-162903-1101x619.png"),
   fees: legacyImg("332419888-1246340212647102-4730361110570400332-n-1101x734.jpeg"),
   admissions: legacyImg("326278193-5858633464182480-7349085187052583899-n-1695x1130.jpg"),
-  admissionsPromo: legacyImg("2025-admissions-815x815.png"),
-  novemberCamp: legacyImg("349297852-270039605413050-4816736476140741163-n-2048x1365.jpg"),
+  admissionsPromo: "/images/2027-admissions-open.jpg",
+  novemberCamp: legacyImg("20241024-img-1319-5184x3456.jpg"),
   classroom: legacyImg("418895251-888303299961455-2787170897480080371-n-1920x1280.jpg"),
   playground: legacyImg("353656422-744351687689951-6059922830462771828-n-1-2048x1365.jpg"),
   sports: legacyImg("424586410-911309330994185-5108768823401027837-n-2048x1365.jpg"),

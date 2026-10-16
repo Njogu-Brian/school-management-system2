@@ -7,11 +7,11 @@ import { useBrandContent } from "@/hooks/useBrandContent";
 import { useSchoolPathways } from "@/hooks/useSchoolPathways";
 import { enrichBrandItemsWithMedia } from "@/lib/premiumMedia";
 import { HeroSection } from "@/sections/HeroSection";
+import { HomePromos } from "@/components/cms/HomePromos";
 import { SchoolStoryFromCms } from "@/components/cms/SchoolStoryFromCms";
 import { FindYourPlaceSection } from "@/sections/brand/FindYourPlaceSection";
 import { OneJourney } from "@/sections/brand/OneJourney";
 import { BeyondClassroom } from "@/sections/brand/BeyondClassroom";
-import { AdmissionsBanner } from "@/sections/brand/AdmissionsBanner";
 import { TestimonialsCarousel, LatestEvents } from "@/sections/HomeSections";
 
 export default function HomePage() {
@@ -23,6 +23,7 @@ export default function HomePage() {
   const { data: premiumMedia = [] } = usePremiumGallery({ per_page: 24 });
   const { data: homepageData } = useHomepage();
   const homepageSections = homepageData?.page?.sections ?? [];
+  const heroSection = homepageSections.find((section) => section.key === "hero_main");
   const { pathways, intro } = useSchoolPathways();
 
   const journeyMilestones = enrichBrandItemsWithMedia(brand.items("journey_milestone"), premiumMedia);
@@ -30,14 +31,14 @@ export default function HomePage() {
 
   return (
     <SiteShell>
-      <HeroSection settings={settings} trustPills={brand.items("trust_pill")} heroMedia={heroMedia ?? undefined} />
+      <HeroSection settings={settings} heroMedia={heroMedia ?? undefined} cmsHero={heroSection} />
+      <HomePromos sections={homepageSections} />
       <SchoolStoryFromCms sections={homepageSections} />
       <FindYourPlaceSection pathways={pathways} subtitle={intro.subtitle} />
       <OneJourney milestones={journeyMilestones} />
       <BeyondClassroom items={cocurricular} />
       <TestimonialsCarousel testimonials={testimonials.data || []} />
       <LatestEvents events={events.data || []} />
-      <AdmissionsBanner />
     </SiteShell>
   );
 }

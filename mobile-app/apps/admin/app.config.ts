@@ -21,7 +21,7 @@ const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '';
 const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
 /** Linked EAS project: @breysoms-team/royal-kings-admin */
 const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID ?? 'c647e9a8-c6a0-4a8a-964e-381032e4bd9c';
-const APP_VERSION = '1.0.17';
+const APP_VERSION = '1.0.18';
 /** Matches Royal Kings logo purple used in launcher assets. */
 const iconBackground = '#390754';
 
@@ -64,7 +64,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'com.royalkingsschools.admin',
-    versionCode: 20,
+    versionCode: 21,
     softwareKeyboardLayoutMode: 'resize',
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
@@ -75,14 +75,22 @@ const config: ExpoConfig = {
         apiKey: googleMapsApiKey,
       },
     },
+    googleServicesFile: './google-services.json',
     permissions: [
       'USE_BIOMETRIC',
       'USE_FINGERPRINT',
       'ACCESS_COARSE_LOCATION',
       'ACCESS_FINE_LOCATION',
+      'POST_NOTIFICATIONS',
     ],
   },
   plugins: [
+    [
+      'expo-notifications',
+      {
+        defaultChannel: 'default',
+      },
+    ],
     '../../plugins/withAndroid16KbPageSize',
     'expo-local-authentication',
     'expo-image-picker',
