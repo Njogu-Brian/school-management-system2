@@ -15,7 +15,7 @@ const COVERS = [
   { title: "Sports & Clubs", description: "Football, athletics, skating, ballet, coding, music, worship, and more.", icon: "⚽" },
   { title: "House Activities", description: "Inter-class competitions, sports days, and team-building events.", icon: "🏆" },
   { title: "Pastoral Care", description: "Daily devotions, chaplain support, and Christian character formation.", icon: "✝️" },
-  { title: "Transport (Optional)", description: "Safe daily routes serving Wangige, Lower Kabete, Kikuyu, Gitaru & Uthiru.", icon: "🚌" },
+  { title: "Transport (Optional)", description: "Buses and vans on seven routes around Wangige, with listed drop-off points.", icon: "🚌" },
 ];
 
 export function FeesPageStatic() {

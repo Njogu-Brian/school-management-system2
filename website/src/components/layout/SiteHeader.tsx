@@ -7,7 +7,7 @@ import type { WebsiteSettings } from "@/types/website";
 import { BRAND } from "@/content/schoolContent";
 import { SocialBar } from "@/components/layout/SocialBar";
 import { assetPath } from "@/lib/assetPath";
-import { getErpParentPortalUrl } from "@/lib/erpUrls";
+import { getUsersAppUrl } from "@/lib/erpUrls";
 
 const NAV_GROUPS = [
   {
@@ -108,7 +108,9 @@ export function SiteHeader({ settings }: { settings?: WebsiteSettings }) {
             </div>
           ))}
           <a
-            href={getErpParentPortalUrl()}
+            href={getUsersAppUrl()}
+            target="_blank"
+            rel="noreferrer"
             className="rounded-full px-3 py-2 text-sm text-white/80 transition hover:bg-white/10 hover:text-white"
           >
             Parents
@@ -154,7 +156,7 @@ export function SiteHeader({ settings }: { settings?: WebsiteSettings }) {
                 ))}
             </div>
           ))}
-          <a href={getErpParentPortalUrl()} onClick={() => setOpen(false)} className="mt-2 block rounded-lg px-2 py-2.5 text-white/90">
+          <a href={getUsersAppUrl()} target="_blank" rel="noreferrer" onClick={() => setOpen(false)} className="mt-2 block rounded-lg px-2 py-2.5 text-white/90">
             Parents
           </a>
           <Link

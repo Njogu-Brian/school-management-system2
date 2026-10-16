@@ -1,6 +1,10 @@
+import type { Metadata } from "next";
 import { CmsPageView } from "@/components/cms/CmsPageView";
 import { RichPage, PageHero, SectionBlock, CtaBanner, EditorialIntro } from "@/components/layout/RichPage";
 import { LEGACY_IMAGES } from "@/content/schoolContent";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = pageMetadata("/admissions/faq");
 
 const FAQS = [
   {
@@ -17,7 +21,7 @@ const FAQS = [
   },
   {
     q: "Do you offer transport?",
-    a: "Yes. We serve Wangige, Lower Kabete, Kikuyu, Gitaru, Uthiru and surrounding areas. Contact admissions to confirm route availability.",
+    a: "Yes. Buses and vans serve Lower Kabete, Wangige, Cuura, Muthure, Kibichiku, Karura and Ngecha. Contact admissions to confirm the stop nearest you.",
   },
   {
     q: "When are school fees due?",

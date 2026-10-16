@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { CmsPageView } from "@/components/cms/CmsPageView";
 import {
   RichPage,
@@ -8,6 +9,9 @@ import {
   EditorialIntro,
 } from "@/components/layout/RichPage";
 import { LEGACY_IMAGES } from "@/content/schoolContent";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = pageMetadata("/child-safety");
 
 const SAFEGUARDING = [
   { title: "Safeguarding Policy", description: "Every staff member is committed to the safety, dignity, and wellbeing of every learner." },

@@ -206,7 +206,7 @@ export function AnnouncementsTicker({ announcements }: { announcements: Homepage
 }
 
 export function TransportPreview() {
-  const routes = ["Wangige", "Lower Kabete", "Kikuyu", "Gitaru", "Uthiru"];
+  const routes = ["Lower Kabete", "Wangige", "Cuura", "Muthure", "Kibichiku", "Karura", "Ngecha"];
 
   return (
     <section className="py-20">

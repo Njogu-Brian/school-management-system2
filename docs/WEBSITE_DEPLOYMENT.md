@@ -90,3 +90,12 @@ The zone is already on Cloudflare (`aida.ns.cloudflare.com`, `jasper.ns.cloudfla
 **Rollback:** set the `@` and `www` A records back to the DirectAdmin server `84.16.254.2` (Proxied). The change is nearly immediate. Keep that hosting account for about two weeks after cutover.
 
 Confirm `13.245.211.78` is an Elastic IP in the EC2 console before relying on it. A normal public IP changes when the instance stops.
+
+## Google Search Console
+
+After the Next.js app is deployed, these URLs are live on the public site:
+
+- `https://royalkingsschools.sc.ke/sitemap.xml`
+- `https://royalkingsschools.sc.ke/robots.txt`
+
+In Search Console, open the property for `royalkingsschools.sc.ke` → Sitemaps → submit `sitemap.xml`. Do not submit the staff API sitemap (`erp.royalkingsschools.sc.ke/api/website/sitemap.xml`); that file lists the ERP host, not the public site.

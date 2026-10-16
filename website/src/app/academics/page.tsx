@@ -1,6 +1,10 @@
+import type { Metadata } from "next";
 import { CmsPageView } from "@/components/cms/CmsPageView";
 import { RichPage, PageHero, SectionBlock, CtaBanner } from "@/components/layout/RichPage";
 import { ACADEMICS_CONTENT, LEGACY_IMAGES } from "@/content/schoolContent";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = pageMetadata("/academics");
 
 const GROUPS = [
   { id: "early-years", title: "Early Years", stages: ACADEMICS_CONTENT.stages.slice(0, 2) },

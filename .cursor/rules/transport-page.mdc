@@ -1,0 +1,18 @@
+---
+description: Public transport page — bus as the story, SVG service map, no live maps
+globs: website/src/app/transport/**/*,website/src/components/transport/**/*
+alwaysApply: false
+---
+
+# Transport page
+
+The bus is the storytelling device. Keep header, purple/gold/cream/white, Playfair + DM Sans, and the seven route names.
+
+- Hero copy is short: “Every journey starts with care.” and “Safe, supervised transport across seven school routes.”
+- One dominant transparent bus in the hero. Do not use equal “Our Fleet” product cards.
+- Service map is a stylized SVG hub at Royal Kings, Riverside Wangige. No Google Maps, tiles, or live tracking.
+- Map shows area names only. Full drop-off lists stay in the accessible list under the map.
+- Click, hover, or keyboard focus highlights one route and updates a details panel. Reassure with “Morning pick-up and afternoon drop-off.”
+- Animate once on arrival (about 5–7s), then stop. Honor `prefers-reduced-motion`. Decorative bus is `alt=""`.
+- Route data lives in one typed config. Keep the existing area names.
+- Close with attendants, routine checks, communication, and “Enquire about your route”.

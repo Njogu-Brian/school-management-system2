@@ -82,7 +82,7 @@ export const INTRO = {
     "Welcome to the realm of Royal Kings Premier School, where education meets excellence in a whirlwind of Christian values and boundless potential. Our institution in Wangige, Kenya, is not just a school — it is a vibrant ecosystem where learners thrive under the guidance of dedicated professionals.",
   holistic:
     "Join us on a journey of holistic education that sparks curiosity, ignites passion, and shapes tomorrow's leaders. We are dedicated to nurturing well-rounded individuals, emphasizing academic achievement alongside emotional, spiritual, and social development.",
-  aboutFull: `Royal Kings Premier School LTD is a Christian-centered institution serving families across Wangige, Lower Kabete, Kikuyu, Gitaru, Uthiru and surrounding communities. Since 2006, we have built a reputation for nurturing learners from Creche through Grade 9 in an environment where faith, family, and academic excellence go hand in hand.
+  aboutFull: `Royal Kings Premier School LTD is a Christian-centered institution serving families across Wangige, Lower Kabete, Cuura, Muthure, Kibichiku, Karura, Ngecha and surrounding communities. Since 2006, we have built a reputation for nurturing learners from Creche through Grade 9 in an environment where faith, family, and academic excellence go hand in hand.
 
 We believe every child is fearfully and wonderfully made. Our teachers know learners by name, our parents are partners in the journey, and our campus feels like an extension of home. From morning devotions to afternoon sports, from CBC classrooms to school celebrations — Royal Kings is where little steps grow into great futures.`,
 };
@@ -228,7 +228,7 @@ export const CAMPUS_LIFE = {
     { title: "Safe Playgrounds", detail: "Supervised outdoor spaces for physical development and fun" },
     { title: "Nutritious Meals", detail: "Caring kitchen staff serving balanced meals daily" },
     { title: "Family Events", detail: "Open days, sports days, graduation, and talent showcases" },
-    { title: "School Transport", detail: "Routes serving Wangige, Lower Kabete, Kikuyu, Gitaru & Uthiru" },
+    { title: "School Transport", detail: "Buses and vans on seven routes: Wangige, Lower Kabete, Cuura, Muthure, Kibichiku, Karura and Ngecha" },
     { title: "Modern Classrooms", detail: "Bright, well-equipped CBC learning environments" },
   ],
 };

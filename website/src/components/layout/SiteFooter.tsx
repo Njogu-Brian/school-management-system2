@@ -3,7 +3,7 @@ import type { WebsiteSettings } from "@/types/website";
 import { BRAND, CONTACT, SOCIAL } from "@/content/schoolContent";
 import { SocialBar } from "@/components/layout/SocialBar";
 import { assetPath } from "@/lib/assetPath";
-import { getErpParentPortalUrl } from "@/lib/erpUrls";
+import { getUsersAppUrl } from "@/lib/erpUrls";
 
 const QUICK_LINKS: Array<{ href: string; label: string; external?: boolean }> = [
   { href: "/admissions/apply", label: "Admissions" },
@@ -12,7 +12,7 @@ const QUICK_LINKS: Array<{ href: string; label: string; external?: boolean }> = 
   { href: "/campus-life", label: "Gallery" },
   { href: "/leadership", label: "Leadership" },
   { href: "/child-safety", label: "Child Safety" },
-  { href: getErpParentPortalUrl(), label: "Parent Portal", external: true },
+  { href: getUsersAppUrl(), label: "Parents", external: true },
 ];
 
 export function SiteFooter({ settings }: { settings?: WebsiteSettings }) {
@@ -89,7 +89,7 @@ export function SiteFooter({ settings }: { settings?: WebsiteSettings }) {
           <nav className="mt-rk-4 flex flex-col gap-rk-2 text-sm text-white/80">
             {QUICK_LINKS.map((link) =>
               link.external ? (
-                <a key={link.href} href={link.href} className="hover:text-white">
+                <a key={link.href} href={link.href} target="_blank" rel="noreferrer" className="hover:text-white">
                   {link.label}
                 </a>
               ) : (

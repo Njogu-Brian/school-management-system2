@@ -1,8 +1,12 @@
-import { CmsPageView } from "@/components/cms/CmsPageView";
+import type { Metadata } from "next";
 import Link from "next/link";
+import { CmsPageView } from "@/components/cms/CmsPageView";
 import { RichPage, PageHero, SectionBlock, PhotoGrid } from "@/components/layout/RichPage";
 import { CAMPUS_LIFE, HIGHLIGHTS, CONTACT } from "@/content/schoolContent";
 import { LEGACY_GALLERY, LEGACY_HEROES } from "@/content/legacyGallery";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = pageMetadata("/campus-life");
 
 export default function CampusLifePage() {
   return <CmsPageView slug="campus-life" fallback={<CampusLifeContent />} />;

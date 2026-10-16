@@ -3,6 +3,11 @@ export function getErpBaseUrl(): string {
   return api.replace(/\/$/, "");
 }
 
+/** Royal Kings Users app (parents, teachers, drivers) on Google Play. */
+export function getUsersAppUrl(): string {
+  return "https://play.google.com/store/apps/details?id=com.royalkingsschools.users";
+}
+
 /** ERP parent dashboard — unauthenticated users are sent to login, then returned here. */
 export function getErpParentPortalUrl(): string {
   return `${getErpBaseUrl()}/parent/home`;
