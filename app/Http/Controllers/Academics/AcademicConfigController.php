@@ -7,7 +7,9 @@ use App\Models\AcademicYear;
 use App\Models\Term;
 use App\Models\SchoolDay;
 use App\Models\Event;
+use App\Services\FeeStructureYearCopyService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Carbon\Carbon;
 
@@ -30,23 +32,40 @@ class AcademicConfigController extends Controller
     // --------- Academic Year ---------
     public function createYear() { return view('settings.academic.create_year'); }
 
-    public function storeYear(Request $request)
+    public function storeYear(Request $request, FeeStructureYearCopyService $feeStructureYearCopyService)
     {
         $request->validate([
             'year' => 'required|digits:4|unique:academic_years,year',
             'is_active' => 'nullable|boolean',
         ]);
 
-        if ($request->boolean('is_active')) {
-            AcademicYear::query()->update(['is_active' => false]);
+        $copyResult = DB::transaction(function () use ($request, $feeStructureYearCopyService) {
+            if ($request->boolean('is_active')) {
+                AcademicYear::query()->update(['is_active' => false]);
+            }
+
+            $year = AcademicYear::create([
+                'year' => $request->year,
+                'is_active' => $request->boolean('is_active'),
+            ]);
+
+            // Snapshot previous year's fee structures into the new year as independent rows.
+            return $feeStructureYearCopyService->copyFromPreviousYear($year);
+        });
+
+        $message = 'Academic year created.';
+        if (!empty($copyResult['from']) && (($copyResult['copied'] ?? 0) + ($copyResult['filled'] ?? 0)) > 0) {
+            $message .= sprintf(
+                ' Fee structures copied from %s (%d created, %d filled). Each year can be edited independently.',
+                $copyResult['from'],
+                $copyResult['copied'] ?? 0,
+                $copyResult['filled'] ?? 0
+            );
+        } elseif (!empty($copyResult['from'])) {
+            $message .= sprintf(' No fee structures needed copying from %s.', $copyResult['from']);
         }
 
-        AcademicYear::create([
-            'year' => $request->year,
-            'is_active' => $request->boolean('is_active'),
-        ]);
-
-        return redirect()->route('settings.academic.index')->with('success', 'Academic year created.');
+        return redirect()->route('settings.academic.index')->with('success', $message);
     }
 
    public function updateYear(Request $request, AcademicYear $year)
