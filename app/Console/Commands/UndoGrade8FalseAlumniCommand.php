@@ -56,7 +56,7 @@ class UndoGrade8FalseAlumniCommand extends Command
         DB::transaction(function () use ($rows, $grade9, $fix, &$fixed) {
             foreach ($rows as $history) {
                 /** @var Student|null $student */
-                $student = Student::find($history->student_id);
+                $student = Student::withAlumni()->whereKey($history->student_id)->first();
                 if (! $student) {
                     $this->warn("Missing student #{$history->student_id}, skip history #{$history->id}");
                     continue;
