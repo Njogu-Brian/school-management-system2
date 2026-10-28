@@ -14,6 +14,8 @@ class Invoice extends Model
     use HasFactory, SoftDeletes;
     protected $fillable = [
         'student_id',
+        'classroom_id',
+        'stream_id',
         'family_id',
         'academic_year_id',
         'term_id',
@@ -55,6 +57,36 @@ class Invoice extends Model
     public function student(): BelongsTo
     {
         return $this->belongsTo(Student::class);
+    }
+
+    public function classroom(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Academics\Classroom::class, 'classroom_id');
+    }
+
+    public function stream(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Academics\Stream::class, 'stream_id');
+    }
+
+    /**
+     * Class shown on this invoice (billed placement), falling back to the student's current class.
+     */
+    public function displayClassroomName(): string
+    {
+        $this->loadMissing(['classroom', 'stream', 'student.classroom', 'student.stream']);
+
+        $class = $this->classroom?->name ?? $this->student?->classroom?->name;
+        if (! $class) {
+            return '—';
+        }
+
+        $stream = $this->stream?->name ?? ($this->classroom_id ? null : $this->student?->stream?->name);
+        if ($stream) {
+            return $class.' / '.$stream;
+        }
+
+        return $class;
     }
 
     public function family(): BelongsTo

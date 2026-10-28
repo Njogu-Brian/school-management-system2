@@ -72,7 +72,7 @@
                         <strong>Admission Number:</strong> {{ $student->admission_number ?? '—' }}
                     </p>
                     <p class="mb-2">
-                        <strong>Class:</strong> {{ $student?->classroom?->name ?? '—' }} 
+                        <strong>Class:</strong> {{ $invoice->displayClassroomName() }} 
                         @if($student && $student->stream)
                             / {{ $student->stream->name }}
                         @endif

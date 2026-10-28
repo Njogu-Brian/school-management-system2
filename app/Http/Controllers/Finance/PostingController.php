@@ -173,6 +173,8 @@ class PostingController extends Controller
             'groupedDiffs' => $studentsPaginator, // Paginated student groups
             'allDiffs' => $diffs, // Keep all diffs for form submission
             'summary' => $result['summary'],
+            'billingErrors' => $result['billing_errors'] ?? [],
+            'usesNextClass' => $result['uses_next_class'] ?? false,
             'filters' => $request->all(),
             'perPage' => $perPage
         ]);

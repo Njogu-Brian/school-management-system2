@@ -14,7 +14,10 @@ class InvoiceService
      * Ensure invoice exists for student/year/term
      * Handles race conditions by catching unique constraint violations
      */
-    public static function ensure(int $studentId, int $year, int $term): Invoice
+    /**
+     * @param  array{classroom_id?:int,stream_id?:?int}|null  $placement  Billed class/stream (e.g. next class for future years)
+     */
+    public static function ensure(int $studentId, int $year, int $term, ?array $placement = null): Invoice
     {
         $student = Student::findOrFail($studentId);
         
@@ -40,16 +43,17 @@ class InvoiceService
         // Resolve due_date from the term's opening date (academic days).
         // This stays on opening day even during the holiday before the term starts.
         $dueDate = $termModel && $termModel->opening_date ? $termModel->opening_date->toDateString() : null;
+        $placementFields = self::placementFields($student, $placement);
 
         // If found and soft deleted, restore it
         if ($invoice && $invoice->trashed()) {
             $invoice->restore();
             // Update the invoice with current data
-            $updateData = [
+            $updateData = array_merge([
                 'family_id' => $student->family_id,
                 'academic_year_id' => $academicYear->id ?? $invoice->academic_year_id,
                 'term_id' => $termModel->id ?? $invoice->term_id,
-            ];
+            ], $placementFields);
             if ($dueDate) {
                 $updateData['due_date'] = $dueDate;
             }
@@ -61,7 +65,7 @@ class InvoiceService
         // If found and not deleted, return it
         if ($invoice && !$invoice->trashed()) {
             // Update academic_year_id, term_id, and due_date if needed (for legacy invoices)
-            $updateData = [];
+            $updateData = $placementFields;
             if (!$invoice->academic_year_id && $academicYear) {
                 $updateData['academic_year_id'] = $academicYear->id;
             }
@@ -80,7 +84,7 @@ class InvoiceService
         
         // Try to create new invoice, handling race conditions
         try {
-            $invoice = Invoice::create([
+            $invoice = Invoice::create(array_merge([
                 'student_id' => $studentId,
                 'year' => $year, // Keep for backward compatibility
                 'term' => $term, // Keep for backward compatibility
@@ -94,7 +98,7 @@ class InvoiceService
                 'status' => 'unpaid',
                 'issued_date' => now(),
                 'due_date' => $dueDate,
-            ]);
+            ], $placementFields));
 
             self::finalizeInvoiceAfterEnsure($invoice, $student, $year, $term);
 
@@ -110,12 +114,16 @@ class InvoiceService
                     ->first();
                 
                 if ($invoice) {
+                    $raceUpdate = $placementFields;
                     // Update academic_year_id and term_id if they're null
                     if (!$invoice->academic_year_id && $academicYear) {
-                        $invoice->update(['academic_year_id' => $academicYear->id]);
+                        $raceUpdate['academic_year_id'] = $academicYear->id;
                     }
                     if (!$invoice->term_id && $termModel) {
-                        $invoice->update(['term_id' => $termModel->id]);
+                        $raceUpdate['term_id'] = $termModel->id;
+                    }
+                    if (! empty($raceUpdate)) {
+                        $invoice->update($raceUpdate);
                     }
                     self::finalizeInvoiceAfterEnsure($invoice, $student, $year, $term);
                     return $invoice;
@@ -125,6 +133,35 @@ class InvoiceService
             // Re-throw if it's not a unique constraint violation
             throw $e;
         }
+    }
+
+    /**
+     * @param  array{classroom_id?:int,stream_id?:?int}|null  $placement
+     * @return array{classroom_id?:int,stream_id?:?int}
+     */
+    private static function placementFields(Student $student, ?array $placement): array
+    {
+        if (is_array($placement) && ! empty($placement['classroom_id'])) {
+            return [
+                'classroom_id' => (int) $placement['classroom_id'],
+                'stream_id' => isset($placement['stream_id']) && $placement['stream_id']
+                    ? (int) $placement['stream_id']
+                    : null,
+            ];
+        }
+
+        if (! \Illuminate\Support\Facades\Schema::hasColumn('invoices', 'classroom_id')) {
+            return [];
+        }
+
+        if ($student->classroom_id) {
+            return [
+                'classroom_id' => (int) $student->classroom_id,
+                'stream_id' => $student->stream_id ? (int) $student->stream_id : null,
+            ];
+        }
+
+        return [];
     }
 
     /**

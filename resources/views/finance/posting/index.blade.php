@@ -20,6 +20,10 @@
           <strong>Tip:</strong> Leaving Class, Stream, and Student as "All" will post for the <strong>entire school</strong>. To post for fewer students, select a Class, Stream, or search and add specific students.
         </small>
       </div>
+      <div class="alert alert-secondary mb-3">
+        <strong>Future years:</strong> if you post for a year after the current academic year (e.g. 2027 while still in 2026),
+        invoices use each child’s <em>mapped next class</em> fee structure. Children whose next class is alumni are blocked with an error.
+      </div>
       <form method="POST" action="{{ route('finance.posting.preview') }}" class="row g-3">
         @csrf
 

@@ -31,13 +31,23 @@ class FeePostingService
         
         $students = $this->getFilteredStudents($filters);
         $diffs = collect();
+        $billingErrors = [];
+        $usesNextClass = $this->isFutureBillingYear($year);
         
         foreach ($students as $student) {
+            // Future-year posting bills the mapped next class; leavers (alumni next) error out.
+            try {
+                $placement = $this->resolveBillingPlacement($student, $year);
+            } catch (\InvalidArgumentException $e) {
+                $billingErrors[] = $e->getMessage();
+                continue;
+            }
+
             // Get existing invoice items for this student/year/term
             $existingItems = $this->getExistingInvoiceItems($student->id, $year, $term);
             
             // Get proposed items from structures/optional fees
-            $proposedItems = $this->getProposedItems($student, $year, $term, $filters);
+            $proposedItems = $this->getProposedItems($student, $year, $term, $filters, $placement);
 
             // Handle transport diffs explicitly so we only show real changes
             $transportVotehead = TransportFeeService::transportVotehead();
@@ -93,6 +103,10 @@ class FeePostingService
                     }
                     $diff = $this->calculateDiff($student, $voteheadId, $existingTransport, $proposed);
                     if ($diff) {
+                        $diff['billing_classroom_id'] = $placement['classroom_id'];
+                        $diff['billing_stream_id'] = $placement['stream_id'] ?? null;
+                        $diff['billing_classroom_name'] = $placement['classroom_name'];
+                        $diff['used_next_class'] = $placement['used_next_class'];
                         $diffs->push($diff);
                     }
                     continue;
@@ -101,6 +115,10 @@ class FeePostingService
                 
                 $diff = $this->calculateDiff($student, $voteheadId, $existing, $proposed);
                 if ($diff) {
+                    $diff['billing_classroom_id'] = $placement['classroom_id'];
+                    $diff['billing_stream_id'] = $placement['stream_id'] ?? null;
+                    $diff['billing_classroom_name'] = $placement['classroom_name'];
+                    $diff['used_next_class'] = $placement['used_next_class'];
                     $diffs->push($diff);
                 }
             }
@@ -190,8 +208,9 @@ class FeePostingService
                 // 2. They were already charged this year
                 // They should only be removed if they're NOT in the current fee structure (e.g., student changed grade)
                 if ($votehead && $votehead->charge_type === 'once_annually') {
-                    // Check if this votehead is in the fee structure for the student's CURRENT classroom
-                    $structureQuery = FeeStructure::where('classroom_id', $student->classroom_id)
+                    // Check if this votehead is in the fee structure for the billing classroom
+                    // (current class, or next class when posting a future academic year)
+                    $structureQuery = FeeStructure::where('classroom_id', $placement['classroom_id'])
                         ->where('is_active', true);
                     
                     // Try to match academic_year_id first, fallback to year column
@@ -212,10 +231,11 @@ class FeePostingService
                         $structureQuery->where('student_category_id', $student->category_id);
                     }
                     
-                    // Match stream if set
-                    if ($student->stream_id) {
-                        $structureQuery->where(function($q) use ($student) {
-                            $q->where('stream_id', $student->stream_id)
+                    // Match stream from billing placement
+                    $billingStreamId = $placement['stream_id'] ?? null;
+                    if ($billingStreamId) {
+                        $structureQuery->where(function ($q) use ($billingStreamId) {
+                            $q->where('stream_id', $billingStreamId)
                               ->orWhereNull('stream_id');
                         });
                     } else {
@@ -308,6 +328,8 @@ class FeePostingService
         return [
             'diffs' => $diffs,
             'summary' => $this->calculateSummary($diffs),
+            'billing_errors' => $billingErrors,
+            'uses_next_class' => $usesNextClass,
         ];
     }
     
@@ -323,6 +345,18 @@ class FeePostingService
         array $filters = []
     ): FeePostingRun {
         return DB::transaction(function () use ($diffs, $year, $term, $activateNow, $effectiveDate, $filters) {
+            // Future-year posts must resolve each student's continuing next class before commit.
+            if ($this->isFutureBillingYear($year)) {
+                $studentIds = $diffs->pluck('student_id')->unique()->filter();
+                foreach ($studentIds as $studentId) {
+                    $student = Student::with('classroom.nextClass')->find($studentId);
+                    if (! $student) {
+                        throw new \InvalidArgumentException("Student #{$studentId} not found for future-year posting.");
+                    }
+                    $this->resolveBillingPlacement($student, $year);
+                }
+            }
+
             // Include inactive academic years so posting works for any configured year/term
             $academicYear = AcademicYear::where('year', $year)->first();
             $termModel = null;
@@ -510,7 +544,11 @@ class FeePostingService
                     }
                 }
 
-                $invoice = InvoiceService::ensure($diff['student_id'], $year, $term);
+                $studentForPlacement = Student::with('classroom.nextClass')->find($diff['student_id']);
+                $placement = $studentForPlacement
+                    ? $this->resolveBillingPlacement($studentForPlacement, $year)
+                    : null;
+                $invoice = InvoiceService::ensure($diff['student_id'], $year, $term, $placement);
                 // Note: InvoiceService::ensure() adds legacy BBF on Term 1 (2026+) and prior-term arrears on Term 2+ when applicable
                 
                 // Check if item already exists (check ALL sources first to avoid unique constraint violation)
@@ -1366,7 +1404,8 @@ class FeePostingService
         if (is_array($studentIds) && !empty($studentIds)) {
             $ids = array_filter(array_map('intval', $studentIds));
             if (!empty($ids)) {
-                return Student::whereIn('id', $ids)
+                return Student::with(['classroom.nextClass'])
+                    ->whereIn('id', $ids)
                     ->where('archive', 0)
                     ->where('is_alumni', false)
                     ->get();
@@ -1375,7 +1414,8 @@ class FeePostingService
 
         // If student_id is explicitly provided, ONLY return that student
         if (!empty($filters['student_id'])) {
-            return Student::where('id', $filters['student_id'])
+            return Student::with(['classroom.nextClass'])
+                ->where('id', $filters['student_id'])
                 ->where('archive', 0)
                 ->where('is_alumni', false)
                 ->get();
@@ -1383,6 +1423,7 @@ class FeePostingService
         
         // Otherwise, apply class/stream filters (exclude alumni/archived)
         return Student::query()
+            ->with(['classroom.nextClass'])
             ->where('archive', 0)
             ->where('is_alumni', false)
             ->when(!empty($filters['class_id']), fn($q) => $q->where('classroom_id', $filters['class_id']))
@@ -1463,16 +1504,108 @@ class FeePostingService
     }
     
     /**
-     * Get proposed items from structures/optional fees
+     * Whether the posting year is after the school's current academic year.
+     * Future-year posts bill using each student's mapped next class.
      */
-    private function getProposedItems(Student $student, int $year, int $term, array $filters): Collection
+    public function isFutureBillingYear(int $year): bool
+    {
+        $current = get_current_academic_year();
+
+        return $current !== null && (int) $year > (int) $current;
+    }
+
+    /**
+     * Resolve which classroom/stream fee structure to use for this student + year.
+     *
+     * @return array{classroom_id:int,stream_id:?int,classroom_name:string,used_next_class:bool}
+     *
+     * @throws \InvalidArgumentException when a future-year post cannot bill a continuing next class
+     */
+    public function resolveBillingPlacement(Student $student, int $year): array
+    {
+        $student->loadMissing(['classroom.nextClass']);
+        $name = trim((string) ($student->full_name ?? (($student->first_name ?? '').' '.($student->last_name ?? '')))) ?: ('#'.$student->id);
+        $current = $student->classroom;
+
+        if (! $this->isFutureBillingYear($year)) {
+            if (! $current) {
+                throw new \InvalidArgumentException("Cannot post {$year} fees for {$name}: no current class assigned.");
+            }
+
+            return [
+                'classroom_id' => (int) $current->id,
+                'stream_id' => $student->stream_id ? (int) $student->stream_id : null,
+                'classroom_name' => (string) $current->name,
+                'used_next_class' => false,
+            ];
+        }
+
+        if ($student->is_alumni) {
+            throw new \InvalidArgumentException(
+                "Cannot post {$year} fees for {$name}: student is already alumni."
+            );
+        }
+
+        if (! $current) {
+            throw new \InvalidArgumentException(
+                "Cannot post {$year} fees for {$name}: no current class assigned."
+            );
+        }
+
+        if ($current->is_alumni) {
+            throw new \InvalidArgumentException(
+                "Cannot post {$year} fees for {$name}: current class {$current->name} is an alumni class."
+            );
+        }
+
+        $next = $current->nextClass;
+        if (! $next) {
+            throw new \InvalidArgumentException(
+                "Cannot post {$year} fees for {$name}: {$current->name} has no next class mapped."
+            );
+        }
+
+        if ($next->is_alumni) {
+            throw new \InvalidArgumentException(
+                "Cannot post {$year} fees for {$name}: next class after {$current->name} is {$next->name} (alumni / last class). Mark as alumni instead of billing."
+            );
+        }
+
+        $newStreamId = null;
+        if ($student->stream_id) {
+            $oldStream = \App\Models\Academics\Stream::find($student->stream_id);
+            if ($oldStream) {
+                $match = \App\Models\Academics\Stream::where('classroom_id', $next->id)
+                    ->where('name', $oldStream->name)
+                    ->first();
+                $newStreamId = $match?->id ? (int) $match->id : null;
+            }
+        }
+
+        return [
+            'classroom_id' => (int) $next->id,
+            'stream_id' => $newStreamId,
+            'classroom_name' => (string) $next->name,
+            'used_next_class' => true,
+        ];
+    }
+
+    /**
+     * Get proposed items from structures/optional fees
+     *
+     * @param  array{classroom_id:int,stream_id:?int,classroom_name:string,used_next_class:bool}|null  $placement
+     */
+    private function getProposedItems(Student $student, int $year, int $term, array $filters, ?array $placement = null): Collection
     {
         $items = collect();
         $extraIncomeVoteheadIds = $this->extraIncomeVoteheadIds($year, $term);
+        $placement ??= $this->resolveBillingPlacement($student, $year);
+        $billingClassroomId = (int) $placement['classroom_id'];
+        $billingStreamId = $placement['stream_id'] ?? null;
         
-        // From fee structure - match by classroom, academic_year, term, stream, and student category
+        // From fee structure - match by billing classroom (next class when posting a future year)
         $structureQuery = FeeStructure::with('charges.votehead')
-            ->where('classroom_id', $student->classroom_id)
+            ->where('classroom_id', $billingClassroomId)
             ->where('is_active', true);
         
         // Try to match academic_year_id first, fallback to year column
@@ -1496,9 +1629,9 @@ class FeePostingService
         }
         
         // Match stream if set; if none, require structures without stream
-        if ($student->stream_id) {
-            $structureQuery->where(function($q) use ($student) {
-                $q->where('stream_id', $student->stream_id)
+        if ($billingStreamId) {
+            $structureQuery->where(function ($q) use ($billingStreamId) {
+                $q->where('stream_id', $billingStreamId)
                   ->orWhereNull('stream_id'); // allow class-wide structures still
             });
         } else {
@@ -1600,9 +1733,9 @@ class FeePostingService
             
             // If amount is 0 or null, try to get it from the fee structure
             if ($amount <= 0) {
-                // Try to get amount from fee structure for this student's class
+                // Try to get amount from fee structure for the billing class
                 $structureQuery = FeeStructure::with('charges')
-                    ->where('classroom_id', $student->classroom_id)
+                    ->where('classroom_id', $billingClassroomId)
                     ->where('is_active', true);
                 
                 // Try to match academic_year_id first, fallback to year column
@@ -1624,9 +1757,9 @@ class FeePostingService
                 }
                 
                 // Match stream if set
-                if ($student->stream_id) {
-                    $structureQuery->where(function($q) use ($student) {
-                        $q->where('stream_id', $student->stream_id)
+                if ($billingStreamId) {
+                    $structureQuery->where(function ($q) use ($billingStreamId) {
+                        $q->where('stream_id', $billingStreamId)
                           ->orWhereNull('stream_id');
                     });
                 } else {

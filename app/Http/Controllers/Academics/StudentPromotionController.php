@@ -435,4 +435,206 @@ class StudentPromotionController extends Controller
         // Use the existing promote method
         return $this->promote($request, $classroom);
     }
+
+    /**
+     * Promote the whole school in one transaction.
+     * Snapshots each class's students BEFORE any moves so Grade 3→4 and Grade 4→5
+     * cannot cascade the same cohort twice.
+     */
+    public function promoteSchool(Request $request)
+    {
+        $request->validate([
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'term_id' => 'required|exists:terms,id',
+            'promotion_date' => 'required|date',
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        $academicYearId = (int) $request->academic_year_id;
+        $termId = (int) $request->term_id;
+        $promotionDate = Carbon::parse($request->promotion_date);
+        $notes = $request->notes ?? 'Whole-school promotion';
+
+        $classrooms = Classroom::with('nextClass')->orderBy('name')->get();
+
+        // Snapshot student IDs per source class before any classroom_id changes.
+        $snapshots = [];
+        $unmapped = [];
+        foreach ($classrooms as $classroom) {
+            $studentIds = Student::query()
+                ->where('classroom_id', $classroom->id)
+                ->where('is_alumni', false)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            if (empty($studentIds)) {
+                continue;
+            }
+
+            if (! $classroom->nextClass && ! $classroom->is_alumni) {
+                $unmapped[] = $classroom->name.' ('.count($studentIds).' students)';
+                continue;
+            }
+
+            $snapshots[] = [
+                'classroom' => $classroom,
+                'student_ids' => $studentIds,
+            ];
+        }
+
+        if (! empty($unmapped)) {
+            return redirect()->route('academics.promotions.index')
+                ->with('error', 'Cannot promote whole school. Map a next class (or mark alumni) for: '.implode(', ', $unmapped));
+        }
+
+        if (empty($snapshots)) {
+            return redirect()->route('academics.promotions.index')
+                ->with('info', 'No students found to promote.');
+        }
+
+        $promoted = 0;
+        $graduated = 0;
+        $skipped = 0;
+        $classSummaries = [];
+
+        try {
+            DB::transaction(function () use (
+                $snapshots,
+                $academicYearId,
+                $termId,
+                $promotionDate,
+                $notes,
+                &$promoted,
+                &$graduated,
+                &$skipped,
+                &$classSummaries
+            ) {
+                foreach ($snapshots as $snap) {
+                    /** @var Classroom $classroom */
+                    $classroom = $snap['classroom'];
+                    $studentIds = $snap['student_ids'];
+
+                    $alreadyPromotedClass = \App\Models\StudentAcademicHistory::where('classroom_id', $classroom->id)
+                        ->where('academic_year_id', $academicYearId)
+                        ->whereIn('promotion_status', ['promoted', 'graduated'])
+                        ->exists();
+
+                    if ($alreadyPromotedClass) {
+                        $skipped += count($studentIds);
+                        $classSummaries[] = $classroom->name.': skipped (already promoted this year)';
+                        continue;
+                    }
+
+                    $students = Student::whereIn('id', $studentIds)->get();
+                    $classPromoted = 0;
+                    $classGraduated = 0;
+                    $classSkipped = 0;
+
+                    foreach ($students as $student) {
+                        if ($student->is_alumni) {
+                            $classSkipped++;
+                            continue;
+                        }
+
+                        $alreadyPromoted = \App\Models\StudentAcademicHistory::where('student_id', $student->id)
+                            ->where('academic_year_id', $academicYearId)
+                            ->whereIn('promotion_status', ['promoted', 'graduated'])
+                            ->exists();
+                        if ($alreadyPromoted) {
+                            $classSkipped++;
+                            continue;
+                        }
+
+                        $oldClassroomId = $student->classroom_id;
+                        $oldStreamId = $student->stream_id;
+                        $newStreamId = null;
+                        $nextClassroomId = null;
+                        $status = 'promoted';
+
+                        if ($classroom->is_alumni) {
+                            $student->update([
+                                'is_alumni' => true,
+                                'alumni_date' => $promotionDate,
+                                'classroom_id' => null,
+                                'stream_id' => null,
+                            ]);
+                            app(FamilyArchiveService::class)->onStudentArchivedOrAlumni($student->fresh());
+                            $status = 'graduated';
+                            $classGraduated++;
+                        } else {
+                            $nextClassroom = $classroom->nextClass;
+                            if (! $nextClassroom) {
+                                $classSkipped++;
+                                continue;
+                            }
+
+                            $nextClassroomId = (int) $nextClassroom->id;
+
+                            // Alumni destination = graduate
+                            if ($nextClassroom->is_alumni) {
+                                $student->update([
+                                    'is_alumni' => true,
+                                    'alumni_date' => $promotionDate,
+                                    'classroom_id' => null,
+                                    'stream_id' => null,
+                                ]);
+                                app(FamilyArchiveService::class)->onStudentArchivedOrAlumni($student->fresh());
+                                $status = 'graduated';
+                                $classGraduated++;
+                            } else {
+                                $newStreamId = $this->findMatchingStream($oldStreamId, $nextClassroom->id);
+                                $student->update([
+                                    'classroom_id' => $nextClassroom->id,
+                                    'stream_id' => $newStreamId,
+                                ]);
+                                $status = 'promoted';
+                                $classPromoted++;
+                            }
+                        }
+
+                        \App\Models\StudentAcademicHistory::where('student_id', $student->id)
+                            ->where('is_current', true)
+                            ->update(['is_current' => false]);
+
+                        \App\Models\StudentAcademicHistory::create([
+                            'student_id' => $student->id,
+                            'academic_year_id' => $academicYearId,
+                            'term_id' => $termId,
+                            'classroom_id' => $oldClassroomId,
+                            'stream_id' => $oldStreamId,
+                            'next_classroom_id' => $nextClassroomId,
+                            'next_stream_id' => $status === 'graduated' ? null : $newStreamId,
+                            'enrollment_date' => $promotionDate,
+                            'promotion_status' => $status,
+                            'promotion_date' => $promotionDate,
+                            'promoted_by' => auth()->id(),
+                            'notes' => $notes,
+                            'is_current' => true,
+                        ]);
+                    }
+
+                    $promoted += $classPromoted;
+                    $graduated += $classGraduated;
+                    $skipped += $classSkipped;
+                    $classSummaries[] = sprintf(
+                        '%s: %d promoted, %d alumni, %d skipped',
+                        $classroom->name,
+                        $classPromoted,
+                        $classGraduated,
+                        $classSkipped
+                    );
+                }
+            });
+        } catch (\Throwable $e) {
+            return redirect()->route('academics.promotions.index')
+                ->with('error', 'Whole-school promotion failed: '.$e->getMessage());
+        }
+
+        $message = "Whole-school promotion complete. Promoted: {$promoted}. Alumni: {$graduated}. Skipped: {$skipped}.";
+
+        return redirect()->route('academics.promotions.index')
+            ->with('success', $message)
+            ->with('promotion_details', $classSummaries);
+    }
 }

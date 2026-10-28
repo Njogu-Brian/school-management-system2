@@ -166,12 +166,14 @@
     $prior_balance_total = (float) ($bundle['prior_balance_total'] ?? 0);
     $pdf_balance_due = isset($bundle['pdf_balance_due']) ? (float) $bundle['pdf_balance_due'] : (float) ($invoice->balance ?? 0);
     $s = $invoice->student;
-    $classId = $s->classroom_id ?? null;
+    $classId = $invoice->classroom_id ?? $s->classroom_id ?? null;
+    $className = $invoice->classroom->name ?? $s->classroom->name ?? '—';
+    $streamName = $invoice->stream->name ?? ($invoice->classroom_id ? null : ($s->stream->name ?? null));
   @endphp
   <div class="invoice-page" @if(!$loop->last) style="page-break-after: always;" @endif>
     @if($classId !== $lastClassId)
       @php $lastClassId = $classId; @endphp
-      <div class="class-banner">Class: {{ $s->classroom->name ?? '—' }}</div>
+      <div class="class-banner">Class: {{ $className }}</div>
     @endif
 
     <div class="inv-title">Fee invoice</div>
@@ -185,9 +187,9 @@
       </tr>
       <tr>
         <th>Class</th>
-        <td>{{ $s->classroom->name ?? '-' }}</td>
+        <td>{{ $className }}</td>
         <th>Stream</th>
-        <td>{{ $s->stream->name ?? '-' }}</td>
+        <td>{{ $streamName ?? '-' }}</td>
       </tr>
       <tr>
         <th>Invoice #</th>

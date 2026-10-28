@@ -45,6 +45,29 @@
 
     <div class="finance-card finance-animate mb-3 shadow-sm rounded-4 border-0">
         <div class="finance-card-body p-4">
+            @if(!empty($usesNextClass))
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i>
+                Posting for a <strong>future academic year</strong>: fee structures use each student’s
+                <strong>mapped next class</strong> (e.g. Grade 3 → Grade 4), even if promotions are not done yet.
+                Students whose next class is alumni / last class are blocked below.
+            </div>
+            @endif
+
+            @if(!empty($billingErrors))
+            <div class="alert alert-danger">
+                <strong>{{ count($billingErrors) }} student(s) could not be billed for this year:</strong>
+                <ul class="mb-0 mt-2">
+                    @foreach(array_slice($billingErrors, 0, 25) as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                    @if(count($billingErrors) > 25)
+                        <li>…and {{ count($billingErrors) - 25 }} more.</li>
+                    @endif
+                </ul>
+            </div>
+            @endif
+
             @if(isset($summary))
             <div class="row g-3">
                 <div class="col-md-3">
@@ -169,6 +192,10 @@
                                     @if($student)
                                         <strong>{{ $student->full_name }}</strong>
                                         <br><small class="text-muted">{{ $student->admission_number }}</small>
+                                        @php $billClass = $studentDiffs->first()['billing_classroom_name'] ?? null; @endphp
+                                        @if($billClass)
+                                            <br><small class="text-primary">Billing as: {{ $billClass }}@if(!empty($studentDiffs->first()['used_next_class'])) (next class)@endif</small>
+                                        @endif
                                     @else
                                         <strong>Student ID: {{ $studentId }}</strong>
                                     @endif

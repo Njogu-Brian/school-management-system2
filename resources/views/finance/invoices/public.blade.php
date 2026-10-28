@@ -135,7 +135,7 @@
                     <div class="student-name">{{ $student->full_name ?? trim($student->first_name.' '.$student->last_name) }}</div>
                     <div class="student-meta">
                         {{ $student->admission_number ?? '' }}
-                        @if($student->classroom?->name) · {{ $student->classroom->name }} @endif
+                        @if($invoice->displayClassroomName() !== '—') · {{ $invoice->displayClassroomName() }} @endif
                     </div>
                 </div>
             @endif

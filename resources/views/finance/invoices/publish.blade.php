@@ -136,7 +136,7 @@
                     <span class="badge bg-secondary ms-1">Draft</span>
                   </td>
                   <td>{{ $invoice->student?->full_name ?? trim(($invoice->student->first_name ?? '').' '.($invoice->student->last_name ?? '')) }}</td>
-                  <td>{{ $invoice->student?->classroom?->name ?? '—' }} @if($invoice->student?->stream) / {{ $invoice->student->stream->name }} @endif</td>
+                  <td>{{ $invoice->displayClassroomName() }}</td>
                   <td>{{ $invoice->year }} / Term {{ $invoice->term }}</td>
                   <td class="text-end">{{ number_format((float) $invoice->total, 2) }}</td>
                   <td class="text-end">{{ number_format((float) $invoice->balance, 2) }}</td>

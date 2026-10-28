@@ -13,16 +13,41 @@
         <h1 class="mb-1">Student Promotions</h1>
         <p class="text-muted mb-0">Promote students to mapped classes or mark as alumni.</p>
       </div>
-      <div class="d-flex gap-2">
+      <div class="d-flex gap-2 flex-wrap">
         <a href="{{ route('academics.promotions.alumni') }}" class="btn btn-ghost-strong">
           <i class="bi bi-trophy"></i> View Alumni
         </a>
+        @if($currentYear && $currentTerm)
+        <form action="{{ route('academics.promotions.promote-school') }}" method="POST"
+              onsubmit="return confirm('Promote the ENTIRE school for {{ $currentYear->year }}?\n\nEach class moves to its mapped next class in one step (Grade 3→4 and Grade 4→5 will not mix the same children).\nLeavers mapped to alumni become alumni.\n\nThis cannot be easily undone.');">
+          @csrf
+          <input type="hidden" name="academic_year_id" value="{{ $currentYear->id }}">
+          <input type="hidden" name="term_id" value="{{ $currentTerm->id }}">
+          <input type="hidden" name="promotion_date" value="{{ date('Y-m-d') }}">
+          <button type="submit" class="btn btn-settings-primary">
+            <i class="bi bi-building-up"></i> Promote Whole School
+          </button>
+        </form>
+        @endif
       </div>
     </div>
 
     @if(session('success'))
       <div class="alert alert-success alert-dismissible fade show">
         {{ session('success') }}
+        @if(session('promotion_details'))
+          <ul class="mb-0 mt-2 small">
+            @foreach(session('promotion_details') as $line)
+              <li>{{ $line }}</li>
+            @endforeach
+          </ul>
+        @endif
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    @endif
+    @if(session('info'))
+      <div class="alert alert-info alert-dismissible fade show">
+        {{ session('info') }}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
       </div>
     @endif
@@ -32,6 +57,11 @@
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
       </div>
     @endif
+
+    <div class="alert alert-secondary">
+      <strong>Tip:</strong> Use <em>Promote Whole School</em> so every class moves from a frozen snapshot of who was in it.
+      That avoids the cascade problem of promoting Grade 3→4 first, then accidentally moving those same children again with Grade 4→5.
+    </div>
 
     <div class="settings-card">
       <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">

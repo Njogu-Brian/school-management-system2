@@ -192,10 +192,7 @@
                                 <br><small class="text-muted">{{ $student->admission_number ?? '—' }}</small>
                             </td>
                             <td>
-                                {{ $student?->classroom?->name ?? '—' }}
-                                @if($student && $student->stream)
-                                    / {{ $student->stream->name }}
-                                @endif
+                                {{ $inv->displayClassroomName() }}
                             </td>
                             <td>
                                 @php $invTermLabel = $inv->termDisplayLabel(); @endphp

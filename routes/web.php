@@ -528,6 +528,7 @@ Route::middleware('auth')->group(function () {
         // Student Promotions
         Route::get('promotions', [\App\Http\Controllers\Academics\StudentPromotionController::class, 'index'])->name('promotions.index');
         Route::get('promotions/alumni', [\App\Http\Controllers\Academics\StudentPromotionController::class, 'alumni'])->name('promotions.alumni');
+        Route::post('promotions/promote-school', [\App\Http\Controllers\Academics\StudentPromotionController::class, 'promoteSchool'])->name('promotions.promote-school');
         Route::get('promotions/{classroom}', [\App\Http\Controllers\Academics\StudentPromotionController::class, 'show'])->name('promotions.show');
         Route::post('promotions/{classroom}/promote', [\App\Http\Controllers\Academics\StudentPromotionController::class, 'promote'])->name('promotions.promote');
         Route::post('promotions/{classroom}/promote-all', [\App\Http\Controllers\Academics\StudentPromotionController::class, 'promoteAll'])->name('promotions.promote-all');
