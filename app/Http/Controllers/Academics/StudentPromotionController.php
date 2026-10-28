@@ -552,6 +552,9 @@ class StudentPromotionController extends Controller
                         $nextClassroomId = null;
                         $status = 'promoted';
 
+                        // Only graduate when THIS class is the alumni/leaving class.
+                        // A next class flagged is_alumni (e.g. Grade 9) still means "move into
+                        // that class" — same behaviour as per-class promote — not leave school.
                         if ($classroom->is_alumni) {
                             $student->update([
                                 'is_alumni' => true,
@@ -570,27 +573,13 @@ class StudentPromotionController extends Controller
                             }
 
                             $nextClassroomId = (int) $nextClassroom->id;
-
-                            // Alumni destination = graduate
-                            if ($nextClassroom->is_alumni) {
-                                $student->update([
-                                    'is_alumni' => true,
-                                    'alumni_date' => $promotionDate,
-                                    'classroom_id' => null,
-                                    'stream_id' => null,
-                                ]);
-                                app(FamilyArchiveService::class)->onStudentArchivedOrAlumni($student->fresh());
-                                $status = 'graduated';
-                                $classGraduated++;
-                            } else {
-                                $newStreamId = $this->findMatchingStream($oldStreamId, $nextClassroom->id);
-                                $student->update([
-                                    'classroom_id' => $nextClassroom->id,
-                                    'stream_id' => $newStreamId,
-                                ]);
-                                $status = 'promoted';
-                                $classPromoted++;
-                            }
+                            $newStreamId = $this->findMatchingStream($oldStreamId, $nextClassroom->id);
+                            $student->update([
+                                'classroom_id' => $nextClassroom->id,
+                                'stream_id' => $newStreamId,
+                            ]);
+                            $status = 'promoted';
+                            $classPromoted++;
                         }
 
                         \App\Models\StudentAcademicHistory::where('student_id', $student->id)
