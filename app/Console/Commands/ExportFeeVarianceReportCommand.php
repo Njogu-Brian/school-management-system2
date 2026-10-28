@@ -44,7 +44,7 @@ class ExportFeeVarianceReportCommand extends Command
 
         $studentIds = collect($amounts)->keys()->map(fn ($id) => (int) $id)->unique()->sort()->values();
         $students = Student::withAlumni()
-            ->with(['classroom:id,name', 'stream:id,name', 'family:id,name'])
+            ->with(['classroom:id,name', 'stream:id,name', 'family:id,guardian_name,father_name,mother_name'])
             ->whereIn('id', $studentIds)
             ->get()
             ->keyBy('id');
