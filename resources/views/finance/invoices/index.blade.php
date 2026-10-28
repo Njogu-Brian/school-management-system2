@@ -229,6 +229,9 @@
                                 <span class="finance-badge badge-{{ $inv->status === 'paid' ? 'paid' : ($inv->status === 'partial' ? 'partial' : ($inv->status === 'reversed' ? 'reversed' : 'unpaid')) }}">
                                     {{ ucfirst($inv->status) }}
                                 </span>
+                                @if(! $inv->isPublished() && ! $inv->isReversed())
+                                    <span class="badge bg-secondary ms-1">Draft</span>
+                                @endif
                                 @if($inv->isOverdue())
                                     <span class="finance-badge badge-unpaid ms-1">Overdue</span>
                                 @endif

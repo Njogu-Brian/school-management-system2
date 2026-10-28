@@ -228,10 +228,15 @@ class PostingController extends Controller
             if ($rejected->isNotEmpty()) {
                 $message .= ' '.$rejected->count().' change(s) were rejected and left as they are.';
             }
+            $message .= ' Invoices stay hidden from parents until you publish them.';
 
             return redirect()
                 ->route('finance.posting.show', $run)
-                ->with('success', $message);
+                ->with('success', $message)
+                ->with('publish_invoices_url', route('finance.invoices.publish', [
+                    'year' => (int) $request->year,
+                    'term' => (int) $request->term,
+                ]));
         } catch (\InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage())->withInput();
         }

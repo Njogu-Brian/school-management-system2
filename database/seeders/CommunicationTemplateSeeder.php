@@ -114,6 +114,22 @@ class CommunicationTemplateSeeder extends Seeder
                 'content' => "<p>{{greeting}},</p><p>A payment of <strong>{{amount}}</strong> for <strong>{{student_name}}</strong> (Admission: {{admission_number}}) dated {{payment_date}} has been <strong>reversed</strong>.</p><p><strong>Receipt:</strong> {{receipt_number}}<br><strong>Transaction:</strong> {{transaction_code}}<br><strong>Reason:</strong> {{reversal_reason}}</p><p>If you have questions, please contact the school finance office.</p><p>{{school_name}}</p>",
             ],
 
+            // Finance: invoice published (after Post Pending Fees → Publish Invoices)
+            [
+                'code'    => 'finance_invoice_published_sms',
+                'title'   => 'Invoice Published (SMS)',
+                'type'    => 'sms',
+                'subject' => null,
+                'content' => "Dear {{parent_name}},\n\nA new fee invoice ({{invoice_number}}) for {{student_name}} ({{term_name}}) has been published.\nAmount due: KES {{outstanding_amount}}\nView: {{invoice_link}}\n\n{{school_name}}",
+            ],
+            [
+                'code'    => 'finance_invoice_published_whatsapp',
+                'title'   => 'Invoice Published (WhatsApp)',
+                'type'    => 'whatsapp',
+                'subject' => null,
+                'content' => "Dear {{parent_name}},\n\nA new fee invoice ({{invoice_number}}) for {{student_name}} ({{term_name}}) has been published.\nAmount due: KES {{outstanding_amount}}\nView invoice: {{invoice_link}}\n\n{{school_name}}",
+            ],
+
             // Finance: share invoice/receipt/statement
             [
                 'code'    => 'finance_share_link_sms',

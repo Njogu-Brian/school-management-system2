@@ -982,6 +982,11 @@ class InvoiceController extends Controller
         $invoice = Invoice::where('hashed_id', $hash)
             ->whereRaw('LENGTH(hashed_id) = 10') // Ensure it's exactly 10 chars
             ->firstOrFail();
+
+        // Draft invoices (not yet published) are not publicly viewable.
+        if (! $invoice->isPublished() || $invoice->isReversed()) {
+            abort(404);
+        }
         
         // Load relationships
         $invoice->load([

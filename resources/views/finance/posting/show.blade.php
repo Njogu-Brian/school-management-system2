@@ -19,12 +19,27 @@
                     </button>
                 </form>
                 @endif
+                @php
+                  $publishTerm = null;
+                  if ($run->term && preg_match('/(\d+)/', (string) $run->term->name, $m)) {
+                      $publishTerm = (int) $m[1];
+                  }
+                @endphp
+                <a href="{{ route('finance.invoices.publish', array_filter(['year' => $run->academicYear->year ?? null, 'term' => $publishTerm])) }}" class="btn btn-finance btn-finance-primary">
+                    <i class="bi bi-send-check"></i> Publish Invoices
+                </a>
                 <a href="{{ route('finance.posting.index') }}" class="btn btn-finance btn-finance-outline">
                     <i class="bi bi-arrow-left"></i> Back
                 </a>
             </div>
         </div>
         <div class="finance-card-body">
+    @if(session('publish_invoices_url'))
+      <div class="alert alert-info d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span>Invoices from this run are drafts until published. Parents will not see them on the app and will not be notified until you publish.</span>
+        <a href="{{ session('publish_invoices_url') }}" class="btn btn-sm btn-finance btn-finance-primary">Publish now</a>
+      </div>
+    @endif
 
     <div class="row mb-4">
         <div class="col-md-4">

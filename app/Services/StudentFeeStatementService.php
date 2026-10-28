@@ -19,9 +19,9 @@ use Illuminate\Support\Facades\Schema;
  */
 class StudentFeeStatementService
 {
-    public function forStudent(Student $student, ?int $year = null, $termId = null): array
+    public function forStudent(Student $student, ?int $year = null, $termId = null, bool $publishedOnly = false): array
     {
-        $events = $this->buildEvents($student, $year, $termId);
+        $events = $this->buildEvents($student, $year, $termId, $publishedOnly);
         $running = 0.0;
         $transactions = [];
         $totalCharges = 0.0;
@@ -291,12 +291,13 @@ class StudentFeeStatementService
             && (float) ($payment->allocated_amount ?? 0) > 0.009;
     }
 
-    private function buildEvents(Student $student, ?int $year = null, $termId = null): array
+    private function buildEvents(Student $student, ?int $year = null, $termId = null, bool $publishedOnly = false): array
     {
         $invoices = Invoice::query()
             ->where('student_id', $student->id)
             ->where('status', '!=', 'reversed')
             ->whereNull('reversed_at')
+            ->when($publishedOnly, fn ($q) => $q->published())
             ->with([
                 'items.votehead',
                 'items.creditNotes',

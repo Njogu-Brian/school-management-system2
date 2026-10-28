@@ -51,8 +51,11 @@ class ApiStudentStatementController extends Controller
             'class_name' => ($student->classroom->name ?? '').($student->stream ? ' '.$student->stream->name : ''),
         ];
 
+        $user = $request->user();
+        $parentViewer = $user && method_exists($user, 'shouldScopeAsParent') && $user->shouldScopeAsParent();
+
         if ($year >= 2026) {
-            $pack = app(StudentFeeStatementService::class)->forStudent($student, $year, $termId);
+            $pack = app(StudentFeeStatementService::class)->forStudent($student, $year, $termId, $parentViewer);
             $transactions = $this->mapLedgerTransactions($pack['transactions'], $detailed);
 
             return response()->json([
@@ -83,7 +86,8 @@ class ApiStudentStatementController extends Controller
             ->whereNull('reversed_at')
             ->where(function ($q) {
                 $q->whereNull('status')->orWhere('status', '!=', 'reversed');
-            });
+            })
+            ->when($parentViewer, fn ($q) => $q->published());
 
         if ($termId) {
             $invoicesQuery->where('term_id', $termId);

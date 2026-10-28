@@ -12,6 +12,8 @@ class ApiInvoiceController extends Controller
     public function index(Request $request)
     {
         $perPage = (int) $request->input('per_page', 20);
+        $user = $request->user();
+        $parentViewer = $user && method_exists($user, 'shouldScopeAsParent') && $user->shouldScopeAsParent();
 
         $query = Invoice::with(['student.classroom', 'student.stream', 'items', 'term', 'academicYear'])
             ->when(! $request->boolean('include_reversed'), function ($q) {
@@ -20,6 +22,8 @@ class ApiInvoiceController extends Controller
                         $qq->whereNull('status')->orWhere('status', '!=', 'reversed');
                     });
             })
+            // Parents only see invoices that staff have published.
+            ->when($parentViewer, fn ($q) => $q->published())
             ->when($request->filled('year') || $request->filled('year_id'), fn($q) => $q->where('academic_year_id', $request->year ?? $request->year_id))
             ->when($request->filled('term') || $request->filled('term_id'), fn($q) => $q->where('term_id', $request->term ?? $request->term_id))
             ->when($request->filled('student_id'), fn($q) => $q->where('student_id', (int) $request->student_id))
@@ -63,6 +67,11 @@ class ApiInvoiceController extends Controller
             ->findOrFail($id);
 
         $this->assertFinanceOrViewStudent($request->user(), (int) $invoice->student_id);
+
+        $user = $request->user();
+        if ($user && method_exists($user, 'shouldScopeAsParent') && $user->shouldScopeAsParent() && ! $invoice->isPublished()) {
+            abort(404, 'Invoice is not published yet.');
+        }
 
         return response()->json([
             'success' => true,
@@ -151,6 +160,8 @@ class ApiInvoiceController extends Controller
             'paid_amount' => $paid,
             'balance' => $balance,
             'status' => $this->invoiceStatus($inv, $balance),
+            'published_at' => $inv->published_at?->toIso8601String(),
+            'is_published' => $inv->isPublished(),
             'due_date' => $inv->due_date?->format('Y-m-d'),
             'issue_date' => $inv->created_at->format('Y-m-d'),
             'created_at' => $inv->created_at->toIso8601String(),

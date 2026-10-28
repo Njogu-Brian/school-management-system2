@@ -72,6 +72,7 @@ use App\Http\Controllers\ParentNotificationBlockController;
 use App\Http\Controllers\Finance\VoteheadController;
 use App\Http\Controllers\Finance\FeeStructureController;
 use App\Http\Controllers\Finance\InvoiceController;
+use App\Http\Controllers\Finance\InvoicePublishController;
 use App\Http\Controllers\Finance\PaymentController;
 use App\Http\Controllers\Finance\BankAccountController;
 use App\Http\Controllers\Finance\PaymentMethodController;
@@ -1576,6 +1577,8 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::post('/import',[InvoiceController::class, 'import'])->name('import');
             Route::get('/adjustments/import', [InvoiceAdjustmentController::class, 'importForm'])->name('adjustments.import.form');
             Route::post('/adjustments/import',[InvoiceAdjustmentController::class, 'import'])->name('adjustments.import');
+            Route::get('/publish', [InvoicePublishController::class, 'index'])->name('publish');
+            Route::post('/publish', [InvoicePublishController::class, 'publish'])->name('publish.submit');
 
             Route::get('/{invoice}',      [InvoiceController::class, 'show'])->name('show');
             Route::post('/{invoice}/send-payment-link', [InvoiceController::class, 'sendPaymentLink'])->name('send-payment-link');

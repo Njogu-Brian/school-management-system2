@@ -429,6 +429,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     <a href="{{ route('finance.voteheads.index') }}" class="{{ Request::is('finance/voteheads*') ? 'active' : '' }}"><i class="bi bi-list-ul"></i> Voteheads</a>
     <a href="{{ route('finance.fee-structures.manage') }}" class="{{ Request::is('finance/fee-structures*') ? 'active' : '' }}"><i class="bi bi-table"></i> Fee Structures</a>
     <a href="{{ route('finance.posting.index') }}" class="{{ Request::is('finance/posting*') ? 'active' : '' }}"><i class="bi bi-arrow-right-circle"></i> Posting (Pending → Active)</a>
+    <a href="{{ route('finance.invoices.publish') }}" class="{{ Request::is('finance/invoices/publish*') ? 'active' : '' }}"><i class="bi bi-send-check"></i> Publish Invoices</a>
     
     {{-- Additional Fees (Optional & Transport) --}}
     @php

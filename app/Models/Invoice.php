@@ -34,6 +34,8 @@ class Invoice extends Model
         'posting_run_id',
         'posted_by',
         'posted_at',
+        'published_at',
+        'published_by',
         'notes',
     ];
 
@@ -46,6 +48,7 @@ class Invoice extends Model
         'issued_date' => 'date',
         'reversed_at' => 'datetime',
         'posted_at' => 'datetime',
+        'published_at' => 'datetime',
         'archived_at' => 'datetime',
     ];
 
@@ -149,6 +152,26 @@ class Invoice extends Model
             ->where(function ($q) {
                 $q->whereNull('status')->orWhere('status', '<>', 'reversed');
             });
+    }
+
+    public function isPublished(): bool
+    {
+        return $this->published_at !== null;
+    }
+
+    public function scopePublished($query)
+    {
+        return $query->whereNotNull('published_at');
+    }
+
+    public function scopeUnpublished($query)
+    {
+        return $query->whereNull('published_at');
+    }
+
+    public function publishedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'published_by');
     }
 
     public function items(): HasMany

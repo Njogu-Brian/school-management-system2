@@ -680,24 +680,9 @@ class FeePostingService
                 );
             }
 
-            // Notify parents (Users app) for invoices touched in this posting run.
-            try {
-                $notify = app(\App\Services\ParentAppNotifyService::class);
-                $invoiceIds = \App\Models\InvoiceItem::where('posting_run_id', $run->id)
-                    ->pluck('invoice_id')
-                    ->unique()
-                    ->filter();
-                foreach ($invoiceIds as $invoiceId) {
-                    $invoice = \App\Models\Invoice::with('student')->find($invoiceId);
-                    if ($invoice) {
-                        $notify->notifyInvoiceGenerated($invoice);
-                    }
-                }
-            } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::warning('Fee posting parent invoice notify failed: '.$e->getMessage(), [
-                    'run_id' => $run->id,
-                ]);
-            }
+            // Parent WhatsApp/SMS/in-app notify happens only when staff publish invoices
+            // (Finance → Publish Invoices). Posting creates draft invoices that stay hidden
+            // from the parent mobile app until published.
             
             return $run;
         });
