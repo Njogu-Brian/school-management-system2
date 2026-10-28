@@ -29,14 +29,41 @@ class PostingController extends Controller
         $voteheads  = \App\Models\Votehead::orderBy('name')->get();
         $categories = StudentCategory::orderBy('name')->get();
 
+        $academicYears = \App\Models\AcademicYear::query()
+            ->orderByDesc('year')
+            ->get(['id', 'year', 'is_active']);
+
+        $termsByYear = \App\Models\Term::query()
+            ->with('academicYear:id,year')
+            ->orderBy('opening_date')
+            ->orderBy('name')
+            ->get()
+            ->groupBy(fn ($t) => (string) ($t->academicYear?->year ?? ''))
+            ->map(function ($terms) {
+                return $terms->map(function ($t) {
+                    $num = (int) preg_replace('/\D+/', '', (string) $t->name);
+                    if ($num < 1 || $num > 3) {
+                        $num = 1;
+                    }
+
+                    return [
+                        'id' => (int) $t->id,
+                        'name' => (string) $t->name,
+                        'number' => $num,
+                    ];
+                })->values();
+            })
+            ->filter(fn ($_, $year) => $year !== '')
+            ->all();
+
         $currentYear = get_current_academic_year()
             ?? (int) (\App\Models\AcademicYear::query()->where('is_active', true)->value('year') ?: date('Y'));
         $currentTermNumber = get_current_term_number() ?? (int) setting('current_term', 1);
         if ($currentTermNumber < 1 || $currentTermNumber > 3) {
             $currentTermNumber = 1;
         }
-        $defaultYear = $currentYear;
-        $defaultTerm = $currentTermNumber;
+        $defaultYear = (int) ($request->input('year') ?: $currentYear);
+        $defaultTerm = (int) ($request->input('term') ?: $currentTermNumber);
         
         // Get posting run history
         $runs = FeePostingRun::with(['academicYear', 'term', 'postedBy'])
@@ -49,6 +76,8 @@ class PostingController extends Controller
             'voteheads',
             'categories',
             'runs',
+            'academicYears',
+            'termsByYear',
             'currentYear',
             'currentTermNumber',
             'defaultYear',

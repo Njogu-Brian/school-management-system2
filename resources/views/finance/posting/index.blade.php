@@ -30,16 +30,27 @@
 
         <div class="col-md-6 col-lg-2">
           <label class="finance-form-label">Academic Year</label>
-          <input type="number" name="year" class="finance-form-control" value="{{ request('year', $currentYear ?? $defaultYear ?? now()->year) }}" required>
+          <select name="year" id="postingYearSelect" class="finance-form-select" required>
+            @forelse($academicYears ?? [] as $ay)
+              <option value="{{ $ay->year }}"
+                @selected((int) request('year', $defaultYear ?? $currentYear ?? now()->year) === (int) $ay->year)>
+                {{ $ay->year }}@if(!$ay->is_active) (inactive)@endif
+              </option>
+            @empty
+              <option value="{{ $defaultYear ?? now()->year }}">{{ $defaultYear ?? now()->year }}</option>
+            @endforelse
+          </select>
         </div>
 
-        <div class="col-md-6 col-lg-2">
+        <div class="col-md-6 col-lg-3">
           <label class="finance-form-label">Term</label>
-          <select name="term" class="finance-form-select" required>
-            @for($i=1;$i<=3;$i++)
-              <option value="{{ $i }}" {{ (request('term', $currentTermNumber ?? $defaultTerm ?? 1) == $i) ? 'selected' : '' }}>Term {{ $i }}</option>
-            @endfor
+          <select name="term" id="postingTermSelect" class="finance-form-select" required>
+            {{-- Populated by JS from terms that exist for the selected year --}}
           </select>
+          <small id="postingTermHint" class="text-muted d-none">
+            No terms for this year yet. Add them under
+            <a href="{{ route('settings.academic.index') }}">Settings → Academic</a>.
+          </small>
         </div>
 
         <div class="col-md-6 col-lg-3">
@@ -186,6 +197,57 @@
   @push('scripts')
   <script>
   document.addEventListener('DOMContentLoaded', function() {
+    const termsByYear = @json($termsByYear ?? new \stdClass());
+    const preferredTerm = {{ (int) ($defaultTerm ?? $currentTermNumber ?? 1) }};
+    const yearSelect = document.getElementById('postingYearSelect');
+    const termSelect = document.getElementById('postingTermSelect');
+    const termHint = document.getElementById('postingTermHint');
+    const previewBtn = document.querySelector('form[action="{{ route('finance.posting.preview') }}"] button[type="submit"]');
+
+    function refreshTerms() {
+      if (!yearSelect || !termSelect) return;
+      const year = String(yearSelect.value || '');
+      const terms = termsByYear[year] || [];
+      const previous = termSelect.value;
+      termSelect.innerHTML = '';
+
+      if (!terms.length) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'No terms for ' + year;
+        termSelect.appendChild(opt);
+        termSelect.disabled = true;
+        termSelect.required = false;
+        if (termHint) termHint.classList.remove('d-none');
+        if (previewBtn) previewBtn.disabled = true;
+        return;
+      }
+
+      termSelect.disabled = false;
+      termSelect.required = true;
+      if (termHint) termHint.classList.add('d-none');
+      if (previewBtn) previewBtn.disabled = false;
+
+      terms.forEach(function (t) {
+        const opt = document.createElement('option');
+        opt.value = String(t.number);
+        opt.textContent = t.name;
+        termSelect.appendChild(opt);
+      });
+
+      const preferred = previous || String(preferredTerm);
+      if ([...termSelect.options].some(o => o.value === preferred)) {
+        termSelect.value = preferred;
+      } else {
+        termSelect.selectedIndex = 0;
+      }
+    }
+
+    if (yearSelect) {
+      yearSelect.addEventListener('change', refreshTerms);
+      refreshTerms();
+    }
+
     const container = document.getElementById('posting-selected-students');
     const displayInput = document.getElementById('posting_student_display');
     const hiddenInput = document.getElementById('posting_student_id');
