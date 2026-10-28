@@ -382,9 +382,17 @@ class FeePostingService
                         ->first();
                 }
             }
-            if (!$termModel || !$academicYear) {
+            if (!$academicYear) {
                 throw new \InvalidArgumentException(
-                    "Could not resolve term for year {$year}, term {$term}. Ensure the academic year and term exist in Settings > Academic (including inactive years)."
+                    "Academic year {$year} was not found. Create it under Settings > Academic (inactive years are fine)."
+                );
+            }
+            if (!$termModel) {
+                $termCount = Term::where('academic_year_id', $academicYear->id)->count();
+                throw new \InvalidArgumentException(
+                    $termCount === 0
+                        ? "Academic year {$year} exists but has no terms yet. Add Term {$term} (and the other terms) under Settings > Academic → Add Term."
+                        : "Could not find Term {$term} under academic year {$year} ({$termCount} term(s) exist). Add or rename it under Settings > Academic → Add Term."
                 );
             }
             $run = FeePostingRun::create([
