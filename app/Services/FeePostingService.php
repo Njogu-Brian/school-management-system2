@@ -1552,22 +1552,13 @@ class FeePostingService
             );
         }
 
-        if ($current->is_alumni) {
-            throw new \InvalidArgumentException(
-                "Cannot post {$year} fees for {$name}: current class {$current->name} is an alumni class."
-            );
-        }
-
+        // Future-year billing uses the mapped next class even when that class is the
+        // final year (e.g. Grade 8 → Grade 9). Only block true leavers: no next class
+        // mapped means they are leaving school after the current year.
         $next = $current->nextClass;
         if (! $next) {
             throw new \InvalidArgumentException(
-                "Cannot post {$year} fees for {$name}: {$current->name} has no next class mapped."
-            );
-        }
-
-        if ($next->is_alumni) {
-            throw new \InvalidArgumentException(
-                "Cannot post {$year} fees for {$name}: next class after {$current->name} is {$next->name} (alumni / last class). Mark as alumni instead of billing."
+                "Cannot post {$year} fees for {$name}: {$current->name} has no next class mapped (leaving / last class). Mark as alumni instead of billing."
             );
         }
 

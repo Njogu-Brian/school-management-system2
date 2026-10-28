@@ -49,8 +49,8 @@
             <div class="alert alert-info">
                 <i class="bi bi-info-circle"></i>
                 Posting for a <strong>future academic year</strong>: fee structures use each student’s
-                <strong>mapped next class</strong> (e.g. Grade 3 → Grade 4), even if promotions are not done yet.
-                Students whose next class is alumni / last class are blocked below.
+                <strong>mapped next class</strong> (e.g. Grade 3 → Grade 4, or Grade 8 → Grade 9), even if promotions are not done yet.
+                Students with no next class mapped (leaving school) are blocked below.
             </div>
             @endif
 

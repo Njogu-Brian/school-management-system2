@@ -63,17 +63,34 @@ class FeePostingNextClassBillingTest extends TestCase
     }
 
     #[Test]
-    public function future_year_errors_when_next_class_is_alumni(): void
+    public function future_year_bills_final_year_even_if_next_class_flagged_alumni(): void
     {
         AcademicYear::create(['year' => 2026, 'is_active' => true]);
         AcademicYear::create(['year' => 2027, 'is_active' => false]);
 
-        $alumni = Classroom::create(['name' => 'ALUMNI', 'is_alumni' => true]);
-        $grade8 = Classroom::create(['name' => 'GRADE 8', 'next_class_id' => $alumni->id, 'is_alumni' => false]);
+        // Grade 9 may be flagged is_alumni in class mapping; joining it next year must still bill.
+        $grade9 = Classroom::create(['name' => 'GRADE 9', 'is_alumni' => true]);
+        $grade8 = Classroom::create(['name' => 'GRADE 8', 'next_class_id' => $grade9->id, 'is_alumni' => false]);
         $student = $this->makeStudentInClass($grade8);
 
+        $placement = app(FeePostingService::class)->resolveBillingPlacement($student, 2027);
+
+        $this->assertTrue($placement['used_next_class']);
+        $this->assertSame((int) $grade9->id, $placement['classroom_id']);
+        $this->assertSame('GRADE 9', $placement['classroom_name']);
+    }
+
+    #[Test]
+    public function future_year_errors_when_no_next_class_mapped(): void
+    {
+        AcademicYear::create(['year' => 2026, 'is_active' => true]);
+        AcademicYear::create(['year' => 2027, 'is_active' => false]);
+
+        $grade9 = Classroom::create(['name' => 'GRADE 9', 'is_alumni' => true]);
+        $student = $this->makeStudentInClass($grade9);
+
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('alumni');
+        $this->expectExceptionMessage('no next class mapped');
 
         app(FeePostingService::class)->resolveBillingPlacement($student, 2027);
     }

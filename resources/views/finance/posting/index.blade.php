@@ -22,7 +22,8 @@
       </div>
       <div class="alert alert-secondary mb-3">
         <strong>Future years:</strong> if you post for a year after the current academic year (e.g. 2027 while still in 2026),
-        invoices use each child’s <em>mapped next class</em> fee structure. Children whose next class is alumni are blocked with an error.
+        invoices use each child’s <em>mapped next class</em> fee structure (including the final year, e.g. Grade 8 → Grade 9).
+        Only children with no next class mapped (leaving school) are blocked.
       </div>
       <form method="POST" action="{{ route('finance.posting.preview') }}" class="row g-3">
         @csrf
