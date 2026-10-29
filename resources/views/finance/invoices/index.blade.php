@@ -5,7 +5,7 @@
         'title' => 'Invoices',
         'icon' => 'bi bi-file-text',
         'subtitle' => 'Manage and track all student invoices',
-        'actions' => '<a href="' . route('finance.invoices.print', request()->only(['year','term','votehead_id','class_id','stream_id','student_id','status'])) . '" target="_blank" class="btn btn-finance btn-finance-outline"><i class="bi bi-file-pdf"></i> Export PDF (bulk)</a>'
+        'actions' => '<a href="' . route('finance.invoices.print', request()->only(['year','term','votehead_id','class_id','stream_id','student_id','status'])) . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-file-pdf"></i> Export PDF (bulk)</a>'
     ])
 
     @includeIf('finance.invoices.partials.alerts')
@@ -94,7 +94,7 @@
             <p class="small text-muted mb-2">
                 <strong>CSV export</strong> requires year and term. Uses the filters above (class, stream, student, votehead, status).
                 Rows are sorted by class, then stream, then first name. Includes full name, admission number, class, stream, totals.
-                <strong>PDF (bulk)</strong> uses the same filters and order: A4, one invoice per page, class headings, line-level paid/balance, payments list, and current balance due.
+                <strong>PDF (bulk)</strong> uses the same filters and order: A4, one invoice per page, class/stream batches (streams treated as separate classes), alphabetical names within each batch. Large exports queue automatically and email you a ZIP when ready.
             </p>
             @if(request()->filled('year') && request()->filled('term'))
                 <a href="{{ route('finance.invoices.export_csv', request()->only(['year','term','votehead_id','class_id','stream_id','student_id','status'])) }}"
@@ -128,7 +128,7 @@
                     <i class="bi bi-trash"></i> Bulk Delete (<span id="bulkDeleteInvoicesCount">0</span>)
                 </button>
             </form>
-            <a href="{{ route('finance.invoices.print', request()->only(['year','term','votehead_id','class_id','stream_id','student_id','status'])) }}" target="_blank" class="btn btn-finance btn-finance-outline"><i class="bi bi-file-pdf"></i> Export PDF (bulk)</a>
+            <a href="{{ route('finance.invoices.print', request()->only(['year','term','votehead_id','class_id','stream_id','student_id','status'])) }}" class="btn btn-finance btn-finance-outline"><i class="bi bi-file-pdf"></i> Export PDF (bulk)</a>
         </div>
     </div>
 

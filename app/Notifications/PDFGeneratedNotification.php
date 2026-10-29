@@ -36,10 +36,14 @@ class PDFGeneratedNotification extends Notification
      */
     public function toMail($notifiable): MailMessage
     {
+        $isZip = str_ends_with(strtolower((string) $this->filename), '.zip');
+
         return (new MailMessage)
-            ->subject('PDF Generated: ' . $this->filename)
-            ->line('Your PDF document has been generated successfully.')
-            ->action('Download PDF', $this->url)
+            ->subject(($isZip ? 'Invoice PDF batches ready: ' : 'PDF Generated: ').$this->filename)
+            ->line($isZip
+                ? 'Your invoice PDF export is ready. The ZIP contains one PDF per class/stream batch (alphabetical within each), plus a merged PDF when available.'
+                : 'Your PDF document has been generated successfully.')
+            ->action($isZip ? 'Download ZIP' : 'Download PDF', $this->url)
             ->line('Thank you for using our system!');
     }
 
@@ -49,7 +53,7 @@ class PDFGeneratedNotification extends Notification
     public function toArray($notifiable): array
     {
         return [
-            'message' => 'PDF generated: ' . $this->filename,
+            'message' => 'PDF ready: '.$this->filename,
             'url' => $this->url,
             'filename' => $this->filename,
         ];

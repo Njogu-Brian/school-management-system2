@@ -134,7 +134,7 @@
           @foreach(['year'=>'Year','term'=>'Term','votehead_id'=>'Votehead','class_id'=>'Class','stream_id'=>'Stream','student_id'=>'Student','status'=>'Status'] as $k=>$l)
             @if(!empty($filters[$k])) {{ $l }}={{ $filters[$k] }}; @endif
           @endforeach
-          Sorted by class, stream, first name.
+          Sorted by class, stream (streams as separate batches), then name.
         </div>
         <hr class="sep">
       </td>
@@ -157,7 +157,7 @@
   </table>
 </div>
 
-@php $lastClassId = null; @endphp
+@php $lastClassStreamKey = null; @endphp
 @foreach($invoiceBundles as $bundle)
   @php
     $invoice = $bundle['invoice'];
@@ -166,14 +166,15 @@
     $prior_balance_total = (float) ($bundle['prior_balance_total'] ?? 0);
     $pdf_balance_due = isset($bundle['pdf_balance_due']) ? (float) $bundle['pdf_balance_due'] : (float) ($invoice->balance ?? 0);
     $s = $invoice->student;
-    $classId = $invoice->classroom_id ?? $s->classroom_id ?? null;
     $className = $invoice->classroom->name ?? $s->classroom->name ?? '—';
-    $streamName = $invoice->stream->name ?? ($invoice->classroom_id ? null : ($s->stream->name ?? null));
+    $streamName = trim((string) ($s->stream->name ?? ''));
+    $classStreamKey = strtolower(trim((string) $className)).'|'.strtolower($streamName);
+    $bannerLabel = $streamName !== '' ? ('Class: '.$className.' — Stream: '.$streamName) : ('Class: '.$className);
   @endphp
   <div class="invoice-page" @if(!$loop->last) style="page-break-after: always;" @endif>
-    @if($classId !== $lastClassId)
-      @php $lastClassId = $classId; @endphp
-      <div class="class-banner">Class: {{ $className }}</div>
+    @if($classStreamKey !== $lastClassStreamKey)
+      @php $lastClassStreamKey = $classStreamKey; @endphp
+      <div class="class-banner">{{ $bannerLabel }}</div>
     @endif
 
     <div class="inv-title">Fee invoice</div>

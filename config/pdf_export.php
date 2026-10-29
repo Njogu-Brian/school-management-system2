@@ -20,7 +20,7 @@ return [
     'sync_max_items' => (int) env('PDF_EXPORT_SYNC_MAX', 150),
 
     /** Absolute hard cap even for queued exports. */
-    'hard_max_items' => (int) env('PDF_EXPORT_HARD_MAX', 500),
+    'hard_max_items' => (int) env('PDF_EXPORT_HARD_MAX', 2000),
 
     /** Memory limit applied while a chunked export runs. */
     'memory_limit' => env('PDF_EXPORT_MEMORY_LIMIT', '512M'),
