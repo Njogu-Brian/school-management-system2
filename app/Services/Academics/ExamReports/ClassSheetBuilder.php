@@ -10,6 +10,7 @@ use App\Models\Academics\ExamSession;
 use App\Models\Academics\Stream;
 use App\Models\Academics\Subject;
 use App\Models\Student;
+use App\Models\StudentAcademicHistory;
 use Illuminate\Support\Collection;
 
 class ClassSheetBuilder
@@ -28,7 +29,13 @@ class ClassSheetBuilder
             termId: $exam->term_id
         );
 
-        $students = $this->studentsForClassroom($classroom, $streamId);
+        $students = $this->studentsForExamContext(
+            $classroom,
+            $streamId,
+            academicYearId: $exam->academic_year_id ? (int) $exam->academic_year_id : null,
+            termId: $exam->term_id ? (int) $exam->term_id : null,
+            examIds: [$exam->id],
+        );
         $streamNames = $this->streamNameMapForClassroom($classroom->id);
 
         $marks = ExamMark::query()
@@ -153,7 +160,13 @@ class ClassSheetBuilder
 
         $subjects = collect([$subject]);
 
-        $students = $this->studentsForClassroom($classroom, $streamId);
+        $students = $this->studentsForExamContext(
+            $classroom,
+            $streamId,
+            academicYearId: $exam->academic_year_id ? (int) $exam->academic_year_id : null,
+            termId: $exam->term_id ? (int) $exam->term_id : null,
+            examIds: [$exam->id],
+        );
         $streamNames = $this->streamNameMapForClassroom($classroom->id);
 
         $marks = ExamMark::query()
@@ -290,7 +303,13 @@ class ClassSheetBuilder
         $subjects = $papers->map(fn (Exam $e) => $e->subject)->filter()->unique('id')->values();
         $paperIds = $papers->pluck('id');
 
-        $students = $this->studentsForClassroom($classroom, $streamId);
+        $students = $this->studentsForExamContext(
+            $classroom,
+            $streamId,
+            academicYearId: $session->academic_year_id ? (int) $session->academic_year_id : null,
+            termId: $session->term_id ? (int) $session->term_id : null,
+            examIds: $paperIds->all(),
+        );
         $streamNames = $this->streamNameMapForClassroom($classroom->id);
 
         $marks = ExamMark::query()
@@ -399,12 +418,18 @@ class ClassSheetBuilder
             termId: $termId
         );
 
-        $students = $this->studentsForClassroom($classroom, $streamId);
-        $streamNames = $this->streamNameMapForClassroom($classroom->id);
-
         $exams = $this->examScope->papersForTerm($academicYearId, $termId, $classroom->id, $streamId);
 
         $examIds = $exams->pluck('id');
+        $students = $this->studentsForExamContext(
+            $classroom,
+            $streamId,
+            academicYearId: $academicYearId,
+            termId: $termId,
+            examIds: $examIds->all(),
+        );
+        $streamNames = $this->streamNameMapForClassroom($classroom->id);
+
         $weights = $exams->mapWithKeys(function (Exam $e) {
             $w = $e->weight;
             $w = is_numeric($w) ? (float) $w : 1.0;
@@ -611,12 +636,89 @@ class ClassSheetBuilder
 
     // ranking delegated to RowRanker
 
-    private function studentsForClassroom(Classroom $classroom, ?int $streamId)
-    {
+    /**
+     * Resolve the roster for a class sheet.
+     *
+     * After promotion, marks still belong to the students who sat the papers even
+     * though students.classroom_id has moved on. Prefer that historical cohort
+     * when marks exist outside the current class; otherwise use the live roster.
+     *
+     * @param  list<int|string>|Collection<int, int|string>  $examIds
+     */
+    private function studentsForExamContext(
+        Classroom $classroom,
+        ?int $streamId,
+        ?int $academicYearId = null,
+        ?int $termId = null,
+        iterable $examIds = [],
+    ): Collection {
+        $examIdList = collect($examIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        $currentIds = Student::query()
+            ->where('classroom_id', $classroom->id)
+            ->pluck('id');
+
+        $markIds = $examIdList->isEmpty()
+            ? collect()
+            : ExamMark::query()
+                ->whereIn('exam_id', $examIdList)
+                ->distinct()
+                ->pluck('student_id');
+
+        $historyIds = collect();
+        if ($academicYearId) {
+            $historyIds = StudentAcademicHistory::query()
+                ->where('classroom_id', $classroom->id)
+                ->where('academic_year_id', $academicYearId)
+                ->when($termId, function ($q) use ($termId) {
+                    $q->where(function ($inner) use ($termId) {
+                        $inner->where('term_id', $termId)->orWhereNull('term_id');
+                    });
+                })
+                ->pluck('student_id');
+        }
+
+        // Marks for students no longer in this class => historical sitting.
+        if ($markIds->diff($currentIds)->isNotEmpty()) {
+            $ids = $markIds->merge($historyIds)->unique()->filter()->values();
+        } else {
+            $ids = $currentIds->merge($markIds)->merge($historyIds)->unique()->filter()->values();
+        }
+
+        if ($ids->isEmpty()) {
+            $ids = $currentIds;
+        }
+
+        if ($streamId) {
+            $historyStreamIds = StudentAcademicHistory::query()
+                ->where('classroom_id', $classroom->id)
+                ->where('stream_id', $streamId)
+                ->when($academicYearId, fn ($q) => $q->where('academic_year_id', $academicYearId))
+                ->when($termId, function ($q) use ($termId) {
+                    $q->where(function ($inner) use ($termId) {
+                        $inner->where('term_id', $termId)->orWhereNull('term_id');
+                    });
+                })
+                ->pluck('student_id');
+
+            $ids = Student::query()
+                ->whereIn('id', $ids)
+                ->where(function ($q) use ($classroom, $streamId, $historyStreamIds) {
+                    $q->where(function ($cur) use ($classroom, $streamId) {
+                        $cur->where('classroom_id', $classroom->id)
+                            ->where('stream_id', $streamId);
+                    })->orWhereIn('id', $historyStreamIds);
+                })
+                ->pluck('id');
+        }
+
         return Student::query()
             ->with('stream')
-            ->where('classroom_id', $classroom->id)
-            ->when($streamId, fn ($q) => $q->where('stream_id', $streamId))
+            ->whereIn('id', $ids)
             ->orderBy('first_name')
             ->orderBy('middle_name')
             ->orderBy('last_name')

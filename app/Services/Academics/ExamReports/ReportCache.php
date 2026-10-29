@@ -12,12 +12,9 @@ class ReportCache
 {
     public function rememberExamClassSheet(Exam $exam, Classroom $classroom, ?int $streamId, \Closure $build): array
     {
+        // Stamp all marks on the paper (including promoted students who left the class).
         $stamp = ExamMark::query()
             ->where('exam_id', $exam->id)
-            ->whereHas('student', function ($q) use ($classroom, $streamId) {
-                $q->where('classroom_id', $classroom->id);
-                if ($streamId) $q->where('stream_id', $streamId);
-            })
             ->max('updated_at');
 
         $key = implode(':', [
@@ -30,7 +27,7 @@ class ReportCache
             'stream',
             $streamId ?: 0,
             'schema',
-            2,
+            3,
             'v',
             $stamp ? strtotime((string) $stamp) : 0,
         ]);
@@ -49,12 +46,6 @@ class ReportCache
             ? null
             : ExamMark::query()
                 ->whereIn('exam_id', $paperIds)
-                ->whereHas('student', function ($q) use ($classroom, $streamId) {
-                    $q->where('classroom_id', $classroom->id);
-                    if ($streamId) {
-                        $q->where('stream_id', $streamId);
-                    }
-                })
                 ->max('updated_at');
 
         $key = implode(':', [
@@ -67,7 +58,7 @@ class ReportCache
             'stream',
             $streamId ?: 0,
             'schema',
-            2,
+            3,
             'v',
             $stamp ? strtotime((string) $stamp) : 0,
         ]);
@@ -78,12 +69,10 @@ class ReportCache
     public function rememberTermClassSheet(int $academicYearId, int $termId, Classroom $classroom, ?int $streamId, \Closure $build): array
     {
         $stamp = ExamMark::query()
-            ->whereHas('exam', function ($q) use ($academicYearId, $termId) {
-                $q->where('academic_year_id', $academicYearId)->where('term_id', $termId);
-            })
-            ->whereHas('student', function ($q) use ($classroom, $streamId) {
-                $q->where('classroom_id', $classroom->id);
-                if ($streamId) $q->where('stream_id', $streamId);
+            ->whereHas('exam', function ($q) use ($academicYearId, $termId, $classroom) {
+                $q->where('academic_year_id', $academicYearId)
+                    ->where('term_id', $termId)
+                    ->where('classroom_id', $classroom->id);
             })
             ->max('updated_at');
 
@@ -98,7 +87,7 @@ class ReportCache
             'stream',
             $streamId ?: 0,
             'schema',
-            2,
+            3,
             'v',
             $stamp ? strtotime((string) $stamp) : 0,
         ]);
