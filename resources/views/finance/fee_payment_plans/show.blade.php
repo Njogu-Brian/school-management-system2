@@ -64,13 +64,22 @@
                         <div>
                             <div class="text-muted small">Student</div>
                             <div class="fw-semibold">
-                                <a href="{{ route('students.show', $feePaymentPlan->student) }}">{{ $feePaymentPlan->student->full_name }}</a>
+                                @if($feePaymentPlan->student)
+                                    <a href="{{ route('students.show', $feePaymentPlan->student) }}">{{ $feePaymentPlan->student->full_name }}</a>
+                                @else
+                                    <span class="text-danger">Unknown / deleted student</span>
+                                    @if($feePaymentPlan->student_id)
+                                        <span class="text-muted small">(ID {{ $feePaymentPlan->student_id }})</span>
+                                    @endif
+                                @endif
                             </div>
+                            @if($feePaymentPlan->student)
                             <div class="mt-2">
                                 <a href="{{ route('finance.accountant-dashboard.student-history', $feePaymentPlan->student) }}" class="btn btn-sm btn-outline-primary">
                                     <i class="bi bi-clock-history"></i> Payment History
                                 </a>
                             </div>
+                            @endif
                         </div>
                         <div class="text-end">
                             <div class="text-muted small">Status</div>

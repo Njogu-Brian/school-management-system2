@@ -34,7 +34,8 @@ class FeePaymentPlan extends Model
 
     public function student()
     {
-        return $this->belongsTo(Student::class);
+        // Payment plans outlive active enrollment; include archived/alumni students.
+        return $this->belongsTo(Student::class)->withoutGlobalScopes();
     }
 
     public function invoice()

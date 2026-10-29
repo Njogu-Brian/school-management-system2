@@ -428,7 +428,14 @@ public function store(Request $request)
 
     public function show(FeePaymentPlan $feePaymentPlan)
     {
-        $feePaymentPlan->load(['student', 'invoice', 'installments', 'creator', 'invoices.student']);
+        $feePaymentPlan->load([
+            'student',
+            'invoice',
+            'installments',
+            'creator',
+            'invoices.student' => fn ($q) => $q->withoutGlobalScopes(),
+        ]);
+
         return view('finance.fee_payment_plans.show', compact('feePaymentPlan'));
     }
 
