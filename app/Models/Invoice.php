@@ -61,7 +61,7 @@ class Invoice extends Model
 
     public function classroom(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\Academics\Classroom::class, 'classroom_id');
+        return $this->belongsTo(\App\Models\Academics\Classroom::class, 'classroom_id')->withoutGlobalScope('offered');
     }
 
     public function stream(): BelongsTo

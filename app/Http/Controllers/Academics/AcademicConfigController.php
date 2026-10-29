@@ -8,6 +8,7 @@ use App\Models\Term;
 use App\Models\SchoolDay;
 use App\Models\Event;
 use App\Services\FeeStructureYearCopyService;
+use App\Support\NameCase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -118,6 +119,10 @@ class AcademicConfigController extends Controller
 
     public function storeTerm(Request $request)
     {
+        $request->merge([
+            'name' => NameCase::sentence($request->input('name')),
+        ]);
+
         $request->validate([
             'name' => 'required|string|max:50',
             'academic_year_id' => 'required|exists:academic_years,id',
@@ -174,6 +179,10 @@ class AcademicConfigController extends Controller
 
     public function updateTerm(Request $request, Term $term)
     {
+        $request->merge([
+            'name' => NameCase::sentence($request->input('name')),
+        ]);
+
         $request->validate([
             'name' => 'required|string|max:50',
             'academic_year_id' => 'required|exists:academic_years,id',

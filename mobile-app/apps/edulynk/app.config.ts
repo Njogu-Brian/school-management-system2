@@ -24,7 +24,7 @@ const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
 const splashBackground = '#000000';
 /** Linked EAS project under @breysoms-team. */
 const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID ?? '54d4662d-a1f2-472d-86de-acfec0eea76d';
-const APP_VERSION = '1.0.2';
+const APP_VERSION = '1.0.3';
 
 const updatesUrl = `https://u.expo.dev/${EAS_PROJECT_ID}`;
 
@@ -60,11 +60,6 @@ const config: ExpoConfig = {
     },
     infoPlist: {
       UIRequiresFullScreen: false,
-      NSLocationWhenInUseUsageDescription:
-        'Edulynk uses your location for staff clock-in and school bus tracking when your school enables them.',
-      NSLocationAlwaysAndWhenInUseUsageDescription:
-        'Edulynk needs background location while a trip is in progress so parents can track the bus.',
-      UIBackgroundModes: ['location'],
       NSFaceIDUsageDescription: 'Unlock Edulynk with Face ID.',
       NSPhotoLibraryUsageDescription: 'Allow Edulynk to update profile photos.',
       NSCameraUsageDescription: 'Allow Edulynk to take a profile photo.',
@@ -73,7 +68,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'com.edulynk.app',
-    versionCode: 3,
+    versionCode: 4,
     softwareKeyboardLayoutMode: 'resize',
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
@@ -85,16 +80,13 @@ const config: ExpoConfig = {
       },
     },
     googleServicesFile: './google-services.json',
-    permissions: [
-      'USE_BIOMETRIC',
-      'USE_FINGERPRINT',
-      'ACCESS_COARSE_LOCATION',
-      'ACCESS_FINE_LOCATION',
-      'ACCESS_BACKGROUND_LOCATION',
-      'FOREGROUND_SERVICE',
-      'FOREGROUND_SERVICE_LOCATION',
-      'POST_NOTIFICATIONS',
+    blockedPermissions: [
+      'android.permission.ACCESS_COARSE_LOCATION',
+      'android.permission.ACCESS_FINE_LOCATION',
+      'android.permission.ACCESS_BACKGROUND_LOCATION',
+      'android.permission.FOREGROUND_SERVICE_LOCATION',
     ],
+    permissions: ['USE_BIOMETRIC', 'USE_FINGERPRINT', 'POST_NOTIFICATIONS'],
   },
   plugins: [
     [
@@ -105,18 +97,9 @@ const config: ExpoConfig = {
     ],
     '../../plugins/withAndroid16KbPageSize',
     '../../plugins/withAndroidTabletSupport',
+    '../../plugins/withStripLocationSharing',
     'expo-local-authentication',
     'expo-updates',
-    [
-      'expo-location',
-      {
-        locationAlwaysAndWhenInUsePermission:
-          'Allow Edulynk to share the bus location while a trip is in progress.',
-        isAndroidBackgroundLocationEnabled: true,
-        isAndroidForegroundServiceEnabled: true,
-      },
-    ],
-    'expo-task-manager',
     [
       'react-native-maps',
       {

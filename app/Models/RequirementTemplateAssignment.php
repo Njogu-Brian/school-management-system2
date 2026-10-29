@@ -45,7 +45,7 @@ class RequirementTemplateAssignment extends Model
 
     public function classroom()
     {
-        return $this->belongsTo(\App\Models\Academics\Classroom::class);
+        return $this->belongsTo(\App\Models\Academics\Classroom::class)->withoutGlobalScope('offered');
     }
 }
 

@@ -2,6 +2,7 @@
 
 namespace App\Models\Academics;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\Student;   // ✅ import Student from App\Models
@@ -20,17 +21,50 @@ class Classroom extends Model
         'next_class_id',
         'is_beginner',
         'is_alumni',
+        'is_archived',
         'level_type',
     ];
 
     protected $casts = [
         'is_beginner' => 'boolean',
         'is_alumni' => 'boolean',
+        'is_archived' => 'boolean',
     ];
+
+    protected static function booted(): void
+    {
+        static::addGlobalScope('offered', function (Builder $builder) {
+            $table = $builder->getModel()->getTable();
+            $builder->where(function ($q) use ($table) {
+                $q->where($table . '.is_archived', false)
+                    ->orWhereNull($table . '.is_archived');
+            });
+        });
+    }
+
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return static::withoutGlobalScope('offered')
+            ->where($field ?? $this->getRouteKeyName(), $value)
+            ->first();
+    }
+
+    public function scopeOffered($query)
+    {
+        return $query->where(function ($q) {
+            $q->where($this->getTable() . '.is_archived', false)
+                ->orWhereNull($this->getTable() . '.is_archived');
+        });
+    }
+
+    public function scopeArchived($query)
+    {
+        return $query->withoutGlobalScope('offered')->where($this->getTable() . '.is_archived', true);
+    }
 
     public function nextClass()
     {
-        return $this->belongsTo(Classroom::class, 'next_class_id');
+        return $this->belongsTo(Classroom::class, 'next_class_id')->withoutGlobalScope('offered');
     }
 
     public function previousClasses()

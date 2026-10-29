@@ -28,7 +28,7 @@ class RequirementTemplate extends Model
 
     public function classroom()
     {
-        return $this->belongsTo(\App\Models\Academics\Classroom::class);
+        return $this->belongsTo(\App\Models\Academics\Classroom::class)->withoutGlobalScope('offered');
     }
 
     public function academicYear()

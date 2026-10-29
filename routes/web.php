@@ -499,6 +499,8 @@ Route::middleware('auth')->group(function () {
         ->group(function () {
 
         // Core setup
+        Route::post('classrooms/{classroom}/archive', [ClassroomController::class, 'archive'])->name('classrooms.archive');
+        Route::post('classrooms/{classroom}/restore', [ClassroomController::class, 'restore'])->name('classrooms.restore');
         Route::resource('classrooms',      ClassroomController::class)->except(['show']);
         Route::resource('streams',         StreamController::class)->except(['show']);
         Route::post('streams/{id}/quick-update', [StreamController::class, 'quickUpdate'])->name('streams.quick-update');

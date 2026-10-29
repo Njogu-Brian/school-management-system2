@@ -281,7 +281,7 @@ class Student extends Model
 
     public function classroom()
     {
-        return $this->belongsTo(Classroom::class);
+        return $this->belongsTo(Classroom::class)->withoutGlobalScope('offered');
     }
     /**
      * Get siblings via family_id (not through pivot table)
