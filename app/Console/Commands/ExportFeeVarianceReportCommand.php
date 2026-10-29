@@ -11,6 +11,9 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class ExportFeeVarianceReportCommand extends Command
 {
+    /** Normal tuition step when moving PP2→Grade 1 or Grade 6→Grade 7. */
+    private const CLASS_STEP_TUITION = 3000.0;
+
     protected $signature = 'finance:export-fee-variance
                             {--from-year=2026}
                             {--from-term=3}
@@ -152,7 +155,8 @@ class ExportFeeVarianceReportCommand extends Command
         $this->info("Wrote {$full}");
         $this->info('Students: '.$studentIds->count());
         $this->info('Sibling families with differences: '.$siblingSheet['family_count']);
-        $this->info('Students skipped (variance matches notes file): '.$unmatchedSheet['matched_count']);
+        $this->info('Students skipped (matches notes and/or +3000 class step): '.$unmatchedSheet['matched_count']);
+        $this->info('Excluded alumni / Grade 9 / no 2027 invoice: '.($unmatchedSheet['excluded_alumni'] ?? 0));
         $this->info('Students on Unmatched vs Notes File: '.$unmatchedSheet['unmatched_count']);
         $this->info(sprintf(
             'School total variance (net of notes): %s',
@@ -215,11 +219,13 @@ class ExportFeeVarianceReportCommand extends Command
         }
 
         $familyKey = $student?->family_id ?: ($student?->archived_family_id ?: null);
+        $className = (string) ($student?->classroom?->name ?? '');
+        $classNorm = strtoupper(trim($className));
 
         $row = [
             $student->admission_number ?? '',
             $name,
-            $student?->classroom?->name ?? '',
+            $className,
             $student?->stream?->name ?? '',
             $status,
             $familyKey ?? '',
@@ -229,12 +235,16 @@ class ExportFeeVarianceReportCommand extends Command
         $toTotal = 0.0;
         $hasDifference = false;
         $variances = [];
+        $hasToInvoice = false;
 
         foreach ($voteheads as $vh) {
             $from = $amounts[$studentId][$fromYear][$fromTerm][$vh->id] ?? ['net' => 0.0, 'credits' => 0.0, 'debits' => 0.0];
             $to = $amounts[$studentId][$toYear][$toTerm][$vh->id] ?? ['net' => 0.0, 'credits' => 0.0, 'debits' => 0.0];
             $fromAmt = (float) $from['net'];
             $toAmt = (float) $to['net'];
+            if (abs($toAmt) >= 0.01 || abs((float) $to['credits']) >= 0.01 || abs((float) $to['debits']) >= 0.01) {
+                $hasToInvoice = true;
+            }
             $var = $toAmt - $fromAmt;
             if (abs($var) >= 0.01) {
                 $hasDifference = true;
@@ -264,9 +274,25 @@ class ExportFeeVarianceReportCommand extends Command
         $row[] = round($toTotal, 2);
         $row[] = round($totalVar, 2);
 
+        // PP2→Grade 1 and Grade 6→Grade 7 tuition structures normally jump by 3,000.
+        $classStepTuition = 0.0;
+        $classStepLabel = '';
+        if ($classNorm === 'GRADE 1') {
+            $classStepTuition = self::CLASS_STEP_TUITION;
+            $classStepLabel = 'PP2→Grade 1 (+'.number_format(self::CLASS_STEP_TUITION, 0).' tuition)';
+        } elseif ($classNorm === 'GRADE 7') {
+            $classStepTuition = self::CLASS_STEP_TUITION;
+            $classStepLabel = 'Grade 6→Grade 7 (+'.number_format(self::CLASS_STEP_TUITION, 0).' tuition)';
+        }
+
         return [
             'student_id' => $studentId,
             'admission_number' => strtoupper(trim((string) ($student->admission_number ?? ''))),
+            'classroom_name' => $className,
+            'is_alumni' => (bool) ($student?->is_alumni),
+            'has_to_invoice' => $hasToInvoice,
+            'class_step_tuition' => $classStepTuition,
+            'class_step_label' => $classStepLabel,
             'family_key' => $familyKey ? (int) $familyKey : null,
             'row' => $row,
             'has_difference' => $hasDifference,
@@ -383,8 +409,12 @@ class ExportFeeVarianceReportCommand extends Command
     }
 
     /**
-     * Students with fee differences that are NOT fully explained by the notes CSV.
-     * Skip anyone whose non-zero votehead variances all match the notes file.
+     * Students with fee differences NOT fully explained by:
+     * - known Term 3 credit/debit notes file, and/or
+     * - normal class-step tuition (+3000 for PP2→Grade 1 or Grade 6→Grade 7).
+     *
+     * Unexplained amounts are residuals AFTER those expected items.
+     * Grade 9 / alumni (no 2027 invoice) are excluded.
      */
     private function buildUnmatchedNotesSheet(
         array $rowMeta,
@@ -393,6 +423,14 @@ class ExportFeeVarianceReportCommand extends Command
         string $fromLabel,
         string $toLabel
     ): array {
+        $tuitionId = null;
+        foreach ($voteheads as $vh) {
+            if (str_contains(strtoupper((string) $vh->name), 'TUITION')) {
+                $tuitionId = (int) $vh->id;
+                break;
+            }
+        }
+
         $headers = [
             'Admission No',
             'Student Name',
@@ -400,31 +438,47 @@ class ExportFeeVarianceReportCommand extends Command
             'Stream',
             'Status',
             'Family ID',
-            'Unexplained Voteheads',
-            'Notes File Expected Total Variance',
+            'Class Step Adjustment',
+            'Unexplained Voteheads (after notes + class step)',
+            'Notes File Expected',
+            'Class Step Expected',
             'Actual Total Variance',
-            'Unexplained Total Residual',
+            'Unexplained Residual (excl. 3000 class step)',
         ];
         foreach ($voteheads as $vh) {
             $short = $this->shortName($vh);
             $headers[] = "{$short} Variance";
             $headers[] = "{$short} Notes Expected";
-            $headers[] = "{$short} Unexplained";
+            $headers[] = "{$short} Class Step Expected";
+            $headers[] = "{$short} Unexplained Residual";
         }
 
         $rows = [];
         $matchedCount = 0;
         $unmatchedCount = 0;
+        $excludedAlumni = 0;
 
         foreach ($rowMeta as $meta) {
+            $classNorm = strtoupper(trim((string) ($meta['classroom_name'] ?? '')));
+            $isAlumni = (bool) ($meta['is_alumni'] ?? false);
+            $hasToInvoice = (bool) ($meta['has_to_invoice'] ?? false);
+
+            // Grade 9 / alumni / no 2027 invoice — not unexpected
+            if ($isAlumni || $classNorm === 'GRADE 9' || ! $hasToInvoice) {
+                $excludedAlumni++;
+                continue;
+            }
+
             if (! ($meta['has_difference'] ?? false)) {
                 continue;
             }
 
             $adm = (string) ($meta['admission_number'] ?? '');
             $expectedByVh = $expectedNotes[$adm] ?? [];
+            $classStepTuition = (float) ($meta['class_step_tuition'] ?? 0);
             $unexplainedParts = [];
-            $expectedTotal = 0.0;
+            $notesExpectedTotal = 0.0;
+            $classStepTotal = 0.0;
             $residualTotal = 0.0;
             $perVh = [];
             $allExplained = true;
@@ -432,17 +486,21 @@ class ExportFeeVarianceReportCommand extends Command
             foreach ($voteheads as $vh) {
                 $vid = (int) $vh->id;
                 $actual = (float) ($meta['variances'][$vid] ?? 0);
-                $expected = (float) ($expectedByVh[$vid] ?? 0);
+                $notesExpected = (float) ($expectedByVh[$vid] ?? 0);
+                $stepExpected = ($tuitionId && $vid === $tuitionId) ? $classStepTuition : 0.0;
+                $expected = $notesExpected + $stepExpected;
                 $residual = $actual - $expected;
-                $expectedTotal += $expected;
+
+                $notesExpectedTotal += $notesExpected;
+                $classStepTotal += $stepExpected;
                 $residualTotal += $residual;
                 $perVh[$vid] = [
                     'actual' => $actual,
-                    'expected' => $expected,
+                    'notes_expected' => $notesExpected,
+                    'step_expected' => $stepExpected,
                     'residual' => $residual,
                 ];
 
-                // Only care about voteheads that actually moved, or have a notes expectation
                 if (abs($actual) < 0.01 && abs($expected) < 0.01) {
                     continue;
                 }
@@ -455,7 +513,7 @@ class ExportFeeVarianceReportCommand extends Command
 
             if ($allExplained) {
                 $matchedCount++;
-                continue; // skip — variance matches notes file
+                continue; // skip — explained by notes and/or normal 3000 class step
             }
 
             $unmatchedCount++;
@@ -467,15 +525,18 @@ class ExportFeeVarianceReportCommand extends Command
                 $base[3] ?? '',
                 $base[4] ?? '',
                 $base[5] ?? '',
+                (string) ($meta['class_step_label'] ?? ''),
                 implode('; ', $unexplainedParts),
-                round($expectedTotal, 2),
+                round($notesExpectedTotal, 2),
+                round($classStepTotal, 2),
                 round((float) ($meta['total_variance'] ?? 0), 2),
                 round($residualTotal, 2),
             ];
             foreach ($voteheads as $vh) {
                 $p = $perVh[(int) $vh->id];
                 $row[] = round($p['actual'], 2);
-                $row[] = round($p['expected'], 2);
+                $row[] = round($p['notes_expected'], 2);
+                $row[] = round($p['step_expected'], 2);
                 $row[] = round($p['residual'], 2);
             }
             $rows[] = $row;
@@ -485,7 +546,7 @@ class ExportFeeVarianceReportCommand extends Command
             ?: strcmp((string) ($a[1] ?? ''), (string) ($b[1] ?? '')));
 
         if ($unmatchedCount === 0) {
-            $rows[] = ['All students with differences match the notes file.', '', '', '', '', '', '', '', '', ''];
+            $rows[] = ['No unexplained differences after notes file + class-step 3000 adjustments.', '', '', '', '', '', '', '', '', '', '', ''];
         }
 
         return [
@@ -493,6 +554,7 @@ class ExportFeeVarianceReportCommand extends Command
             'rows' => $rows,
             'matched_count' => $matchedCount,
             'unmatched_count' => $unmatchedCount,
+            'excluded_alumni' => $excludedAlumni,
         ];
     }
 
