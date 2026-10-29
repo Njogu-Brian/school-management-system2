@@ -89,11 +89,11 @@
     @endcan
 
     <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-      <div class="text-muted small">Select report cards to send via SMS / Email / WhatsApp.</div>
+      <div class="text-muted small">Draft cards are staff-only. Publish to parents when ready; Send Selected notifies families.</div>
       <div class="d-flex gap-2 flex-wrap">
         @can('report_cards.publish')
           @if($publishHasCriteria)
-            <form method="POST" action="{{ route('academics.report_cards.bulk_publish_from_filters_no_notify') }}" onsubmit="return confirm('Publish report cards only (no SMS/Email/WhatsApp)?');" class="d-inline">
+            <form method="POST" action="{{ route('academics.report_cards.bulk_publish_from_filters_no_notify') }}" onsubmit="return confirm('Publish matching report cards to the parent app? (No SMS/Email/WhatsApp)');" class="d-inline">
               @csrf
               <input type="hidden" name="academic_year_id" value="{{ $publishYearId }}">
               <input type="hidden" name="term_id" value="{{ $publishTermId }}">
@@ -104,11 +104,11 @@
                 <input type="hidden" name="stream_id" value="{{ request('stream_id') }}">
               @endif
               <button type="submit" class="btn btn-settings-primary">
-                <i class="bi bi-upload"></i> Publish Matching Reports
+                <i class="bi bi-upload"></i> Publish to Parents
               </button>
             </form>
           @else
-            <span class="text-muted small">Choose Academic Year and Term, then filter to publish.</span>
+            <span class="text-muted small">Choose Academic Year and Term, then filter to publish to parents.</span>
           @endif
         @endcan
         <button type="button" class="btn btn-ghost-strong"

@@ -19,9 +19,25 @@ use App\Services\AttendanceReportService;
 
 class ReportCardBatchService
 {
+    /** @var array<string, array<string, array<int, int|null>>> */
+    protected static array $subjectPositionCache = [];
+
+    /**
+     * Exam statuses that may feed report-card generation/printing.
+     * Published is enough for staff drafts; locked remains valid.
+     * Parent app visibility stays gated by report_cards.published_at (and locked exams separately).
+     *
+     * @return list<string>
+     */
+    public static function eligibleExamStatuses(): array
+    {
+        return ['published', 'locked'];
+    }
+
     /**
      * Generate/update report cards for a whole class & term
-     * by averaging all exams in the term (your existing logic).
+     * by averaging core exams in the term (KNEC CBA / side sittings excluded).
+     * Does not publish to parents — that requires an explicit publish action.
      */
     public function generateForClass($academicYearId, $termId, $classroomId, $streamId = null): void
     {
@@ -33,7 +49,7 @@ class ReportCardBatchService
                 $q->where('academic_year_id', $academicYearId)
                     ->where('term_id', $termId)
                     ->where('classroom_id', $classroomId)
-                    ->where('status', 'locked');
+                    ->whereIn('status', self::eligibleExamStatuses());
 
                 if ($streamId) {
                     $q->where('stream_id', $streamId);
@@ -50,13 +66,13 @@ class ReportCardBatchService
             ->get();
 
         foreach ($students as $student) {
-            $marks = ExamMark::with('exam','subject')
+            $marks = ExamMark::with('exam.examType','subject')
                 ->where('student_id', $student->id)
                 ->whereHas('exam', fn ($q) => $q
                     ->where('academic_year_id', $academicYearId)
                     ->where('term_id', $termId)
                     ->where('classroom_id', $classroomId)
-                    ->where('status', 'locked')
+                    ->whereIn('status', self::eligibleExamStatuses())
                     ->when($streamId, fn ($sq) => $sq->where('stream_id', $streamId)))
                 ->get();
 
@@ -65,8 +81,10 @@ class ReportCardBatchService
             }
 
             // Prefer moderated scores when available; fallback to raw scores.
+            // Side sittings (KNEC CBA) are graded on the card but excluded from averages.
             $scores = $marks
                 ->reject(fn ($m) => (bool) $m->is_absent)
+                ->reject(fn ($m) => self::sittingMeta($m->exam)['is_side'])
                 ->map(fn ($m) => $m->score_moderated ?? $m->score_raw)
                 ->filter(fn ($v) => $v !== null && $v !== '');
 
@@ -159,14 +177,14 @@ class ReportCardBatchService
 
         // Marks for this student within term/year for the report classroom.
         // Exams are often created per subject (e.g. "TERM 1 MIDTERM — GRADE 9 — English"),
-        // so we collapse them into sitting columns: Opener / Midterm / Endterm.
+        // so we collapse them into sitting columns: Open / Midterm / Endterm (+ KNEC CBA on the side).
         $allMarks = ExamMark::with(['exam.examType', 'subject', 'performanceLevel'])
             ->where('student_id', $student->id)
             ->whereHas('exam', fn ($q) => $q
                 ->where('academic_year_id', $yearId)
                 ->where('term_id', $termId)
                 ->where('classroom_id', $report->classroom_id)
-                ->where('status', 'locked')
+                ->whereIn('status', self::eligibleExamStatuses())
                 ->when($report->stream_id, fn ($sq) => $sq->where('stream_id', $report->stream_id)))
             ->get();
 
@@ -178,21 +196,34 @@ class ReportCardBatchService
                     ->where('academic_year_id', $yearId)
                     ->where('term_id', $previousTerm->id)
                     ->where('classroom_id', $report->classroom_id)
-                    ->where('status', 'locked')
+                    ->whereIn('status', self::eligibleExamStatuses())
                     ->when($report->stream_id, fn ($sq) => $sq->where('stream_id', $report->stream_id)))
                 ->get();
         }
 
-        $sittingOrder = ['Opener' => 1, 'Midterm' => 2, 'Endterm' => 3, 'Other' => 4];
-        $sittingHeaders = $allMarks
-            ->map(fn ($m) => self::sittingLabel($m->exam?->name))
+        $sittingKeys = $allMarks
+            ->map(fn ($m) => self::sittingMeta($m->exam)['key'])
             ->unique()
-            ->sortBy(fn ($label) => $sittingOrder[$label] ?? 99)
+            ->sortBy(fn ($key) => self::sittingSortOrder($key))
             ->values()
             ->all();
+        $coreSittingKeys = array_values(array_filter(
+            $sittingKeys,
+            fn ($key) => ! self::isSideSittingKey($key)
+        ));
+        $sideSittingKeys = array_values(array_filter(
+            $sittingKeys,
+            fn ($key) => self::isSideSittingKey($key)
+        ));
 
         $grading = app(ClassroomGradingService::class);
         $classroomId = (int) ($report->classroom_id ?? $student->classroom_id ?? 0);
+        $subjectPositions = self::subjectPositionsForScope(
+            (int) $yearId,
+            (int) $termId,
+            $classroomId,
+            $report->stream_id ? (int) $report->stream_id : null
+        );
 
         $currentSubjectGroups = $allMarks->groupBy(fn ($m) => $m->subject?->name ?? self::subjectFromExamName($m->exam?->name) ?? 'Unknown');
         $referenceSubjectGroups = $referenceTermMarks->groupBy(fn ($m) => $m->subject?->name ?? self::subjectFromExamName($m->exam?->name) ?? 'Unknown');
@@ -202,35 +233,45 @@ class ReportCardBatchService
             ->sort(fn ($a, $b) => strcasecmp((string) $a, (string) $b))
             ->values();
 
-        $currentTermName = $term?->name ?? ('Term '.$termId);
-
         $subjectsRows = [];
         foreach ($subjectNames as $subjectName) {
             $rows = $currentSubjectGroups->get($subjectName, collect());
             $referenceRows = $referenceSubjectGroups->get($subjectName, collect());
-            $bySitting = [];
-            foreach ($sittingHeaders as $sitting) {
-                $m = $rows->first(fn ($r) => self::sittingLabel($r->exam?->name) === $sitting);
-                $score = ($m && ! $m->is_absent) ? ($m->score_moderated ?? $m->score_raw) : null;
-                $grade = $m?->grade_label;
-                if ($m && ($grade === null || $grade === '') && $score !== null && $classroomId > 0) {
-                    $max = (float) ($m->exam?->examType?->default_max_mark ?? $m->exam?->max_marks ?? 100);
-                    $grade = $grading->gradeForRawScore((float) $score, $max, $classroomId)['label'] ?? null;
-                }
-                $bySitting[$sitting] = [
-                    'exam_name' => trim($currentTermName.' '.$sitting),
-                    'score' => $score !== null ? (float) $score : null,
-                    'grade_label' => self::normalizeGradeLabel($grade),
-                    'pl_level' => $m?->pl_level,
-                    'performance_level' => self::normalizeGradeLabel($m?->performanceLevel?->code ?? $m?->pl_level),
-                    'rubrics' => $m?->rubrics,
-                ];
-            }
 
-            $scoresOnly = collect($bySitting)->pluck('score')->filter(fn ($v) => $v !== null)->values();
+            $buildSittingCells = function (array $keys) use ($rows, $grading, $classroomId): array {
+                $cells = [];
+                foreach ($keys as $sittingKey) {
+                    $m = $rows->first(fn ($r) => self::sittingMeta($r->exam)['key'] === $sittingKey);
+                    $meta = self::sittingMeta($m?->exam, $sittingKey);
+                    $score = ($m && ! $m->is_absent) ? ($m->score_moderated ?? $m->score_raw) : null;
+                    $grade = $m?->grade_label;
+                    if ($m && ($grade === null || $grade === '') && $score !== null && $classroomId > 0) {
+                        $max = (float) ($m->exam?->examType?->default_max_mark ?? $m->exam?->max_marks ?? 100);
+                        $grade = $grading->gradeForRawScore((float) $score, $max, $classroomId)['label'] ?? null;
+                    }
+                    $cells[] = [
+                        'sitting_key' => $sittingKey,
+                        'exam_name' => $meta['column_label'],
+                        'score' => $score !== null ? (float) $score : null,
+                        'grade_label' => self::normalizeGradeLabel($grade),
+                        'pl_level' => $m?->pl_level,
+                        'performance_level' => self::normalizeGradeLabel($m?->performanceLevel?->code ?? $m?->pl_level),
+                        'rubrics' => $m?->rubrics,
+                        'include_in_average' => ! $meta['is_side'],
+                        'is_side' => $meta['is_side'],
+                    ];
+                }
+
+                return $cells;
+            };
+
+            $coreExams = $buildSittingCells($coreSittingKeys);
+            $sideExams = $buildSittingCells($sideSittingKeys);
+
+            $scoresOnly = collect($coreExams)->pluck('score')->filter(fn ($v) => $v !== null)->values();
             $avg = $scoresOnly->count() ? round((float) $scoresOnly->avg(), 2) : null;
 
-            $gradeLabel = collect($bySitting)->pluck('grade_label')->filter()->last();
+            $gradeLabel = collect($coreExams)->pluck('grade_label')->filter()->last();
             if (($gradeLabel === null || $gradeLabel === '') && $avg !== null && $classroomId > 0) {
                 $gradeLabel = $grading->gradeForPercentage($avg, $classroomId)['label'] ?? null;
             }
@@ -240,11 +281,13 @@ class ReportCardBatchService
 
             $referenceScores = $referenceRows
                 ->reject(fn ($m) => (bool) $m->is_absent)
+                ->reject(fn ($m) => self::sittingMeta($m->exam)['is_side'])
                 ->map(fn ($m) => $m->score_moderated ?? $m->score_raw)
                 ->filter(fn ($v) => $v !== null && $v !== '')
                 ->values();
             $referenceAverage = $referenceScores->count() ? round((float) $referenceScores->avg(), 2) : null;
             $referenceGrade = $referenceRows
+                ->reject(fn ($m) => self::sittingMeta($m->exam)['is_side'])
                 ->pluck('grade_label')
                 ->filter()
                 ->last();
@@ -254,16 +297,23 @@ class ReportCardBatchService
 
             $subjectsRows[] = [
                 'subject_name' => $subjectName,
-                'exams' => array_values($bySitting),
+                // Core sittings only — rendered before Term Avg / Position.
+                'exams' => $coreExams,
+                // Side sittings (KNEC CBA) — rendered after average/position; not in average.
+                'side_exams' => $sideExams,
                 'reference_term_avg' => $referenceAverage,
                 'reference_grade_label' => self::normalizeGradeLabel($referenceGrade),
                 'term_avg' => $avg,
                 'grade_label' => self::normalizeGradeLabel($gradeLabel),
+                'subject_position' => $subjectPositions[$subjectName][(int) $student->id] ?? null,
                 'teacher_remark' => $remark,
             ];
         }
 
-        $examNames = $sittingHeaders;
+        $examNames = array_map(
+            fn ($key) => self::sittingMeta(null, $key)['column_label'],
+            array_merge($coreSittingKeys, $sideSittingKeys)
+        );
         $termTrend = self::academicYearTrend(
             $student->id,
             $yearId,
@@ -431,7 +481,11 @@ class ReportCardBatchService
                 'year'  => $report->academicYear?->year ?? '',
                 'term'  => $report->term?->name ?? '',
                 'exams' => $examNames,
+                'core_exam_keys' => $coreSittingKeys,
+                'side_exam_keys' => $sideSittingKeys,
+                'show_position' => true,
                 'reference_term' => $previousTerm?->name,
+                'visible_to_parents' => (bool) $report->published_at,
             ],
             'overview' => [
                 'current_term' => [
@@ -485,22 +539,139 @@ class ReportCardBatchService
     /**
      * Collapse per-subject exam titles into a sitting label for report-card columns.
      * e.g. "TERM 1 MIDTERM — GRADE 9 — English" => "Midterm"
+     *
+     * @deprecated Prefer sittingMeta(); kept for callers that only have a name string.
      */
     protected static function sittingLabel(?string $examName): string
     {
-        $name = strtolower((string) $examName);
+        return self::sittingMeta(null, null, $examName)['key'];
+    }
 
-        if (str_contains($name, 'opener')) {
-            return 'Opener';
-        }
-        if (str_contains($name, 'mid')) {
-            return 'Midterm';
-        }
-        if (str_contains($name, 'end')) {
-            return 'Endterm';
+    /**
+     * Classify an exam into a report-card sitting column.
+     *
+     * @return array{key:string,column_label:string,is_side:bool,order:int}
+     */
+    protected static function sittingMeta($exam = null, ?string $forcedKey = null, ?string $examName = null): array
+    {
+        if ($forcedKey !== null && $forcedKey !== '') {
+            return self::sittingDefinition($forcedKey);
         }
 
-        return 'Other';
+        $typeName = strtolower((string) ($exam?->examType?->name ?? ''));
+        $typeCode = strtolower((string) ($exam?->examType?->code ?? ''));
+        $name = strtolower((string) ($exam?->name ?? $examName ?? ''));
+        $hay = trim($typeName.' '.$typeCode.' '.$name);
+
+        // KNEC CBA / Next CBA / KNEC SBA — graded on the side, excluded from term average.
+        if (
+            str_contains($hay, 'knec')
+            || str_contains($hay, 'next cba')
+            || str_contains($hay, 'next cb')
+            || preg_match('/\b(cba|sba)\b/', $hay)
+        ) {
+            return self::sittingDefinition('KnecCba');
+        }
+
+        if (str_contains($hay, 'opener') || preg_match('/\bopn\b/', $hay) || str_contains($typeCode, 'open')) {
+            return self::sittingDefinition('Opener');
+        }
+        if (str_contains($hay, 'mid') || preg_match('/\bmid\b/', $hay)) {
+            return self::sittingDefinition('Midterm');
+        }
+        if (str_contains($hay, 'end') || preg_match('/\bend\b/', $hay)) {
+            return self::sittingDefinition('Endterm');
+        }
+
+        return self::sittingDefinition('Other');
+    }
+
+    /**
+     * @return array{key:string,column_label:string,is_side:bool,order:int}
+     */
+    protected static function sittingDefinition(string $key): array
+    {
+        return match ($key) {
+            'Opener' => ['key' => 'Opener', 'column_label' => 'Open', 'is_side' => false, 'order' => 1],
+            'Midterm' => ['key' => 'Midterm', 'column_label' => 'Midterm', 'is_side' => false, 'order' => 2],
+            'Endterm' => ['key' => 'Endterm', 'column_label' => 'Endterm', 'is_side' => false, 'order' => 3],
+            'KnecCba' => ['key' => 'KnecCba', 'column_label' => 'KNEC CBA', 'is_side' => true, 'order' => 90],
+            default => ['key' => 'Other', 'column_label' => 'Other', 'is_side' => false, 'order' => 50],
+        };
+    }
+
+    protected static function sittingSortOrder(string $key): int
+    {
+        return self::sittingDefinition($key)['order'];
+    }
+
+    protected static function isSideSittingKey(string $key): bool
+    {
+        return (bool) self::sittingDefinition($key)['is_side'];
+    }
+
+    /**
+     * Per-subject class positions from core sitting averages (side sittings excluded).
+     *
+     * @return array<string, array<int, int|null>> subject => [student_id => position]
+     */
+    protected static function subjectPositionsForScope(
+        int $yearId,
+        int $termId,
+        int $classroomId,
+        ?int $streamId = null
+    ): array {
+        if ($classroomId <= 0) {
+            return [];
+        }
+
+        $cacheKey = implode(':', [$yearId, $termId, $classroomId, $streamId ?? 0]);
+        if (isset(self::$subjectPositionCache[$cacheKey])) {
+            return self::$subjectPositionCache[$cacheKey];
+        }
+
+        $marks = ExamMark::with(['exam.examType', 'subject'])
+            ->whereHas('exam', fn ($q) => $q
+                ->where('academic_year_id', $yearId)
+                ->where('term_id', $termId)
+                ->where('classroom_id', $classroomId)
+                ->whereIn('status', self::eligibleExamStatuses())
+                ->when($streamId, fn ($sq) => $sq->where('stream_id', $streamId)))
+            ->get();
+
+        $averagesBySubject = [];
+        foreach ($marks->groupBy(fn ($m) => $m->subject?->name ?? self::subjectFromExamName($m->exam?->name) ?? 'Unknown') as $subjectName => $subjectMarks) {
+            foreach ($subjectMarks->groupBy('student_id') as $studentId => $studentMarks) {
+                $scores = $studentMarks
+                    ->reject(fn ($m) => (bool) $m->is_absent)
+                    ->reject(fn ($m) => self::sittingMeta($m->exam)['is_side'])
+                    ->map(fn ($m) => $m->score_moderated ?? $m->score_raw)
+                    ->filter(fn ($v) => $v !== null && $v !== '')
+                    ->values();
+                if ($scores->isEmpty()) {
+                    continue;
+                }
+                $averagesBySubject[$subjectName][(int) $studentId] = round((float) $scores->avg(), 2);
+            }
+        }
+
+        $positions = [];
+        foreach ($averagesBySubject as $subjectName => $studentAverages) {
+            arsort($studentAverages);
+            $rank = 0;
+            $seen = 0;
+            $previous = null;
+            foreach ($studentAverages as $studentId => $avg) {
+                $seen++;
+                if ($previous === null || abs($avg - $previous) > 0.00001) {
+                    $rank = $seen;
+                    $previous = $avg;
+                }
+                $positions[$subjectName][(int) $studentId] = $rank;
+            }
+        }
+
+        return self::$subjectPositionCache[$cacheKey] = $positions;
     }
 
     /**
@@ -575,7 +746,7 @@ class ReportCardBatchService
             ->whereHas('exam', fn ($q) => $q
                 ->where('academic_year_id', $yearId)
                 ->where('classroom_id', $classroomId)
-                ->where('status', 'locked')
+                ->whereIn('status', self::eligibleExamStatuses())
                 ->when($streamId, fn ($sq) => $sq->where('stream_id', $streamId)))
             ->get();
 
@@ -598,19 +769,20 @@ class ReportCardBatchService
             ->values();
 
         $termOrder = $terms->pluck('id')->flip();
-        $sittingOrder = ['Opener' => 1, 'Midterm' => 2, 'Endterm' => 3, 'Other' => 4];
 
         $points = $marks
+            ->reject(fn ($mark) => self::sittingMeta($mark->exam)['is_side'])
             ->groupBy(function ($mark) {
                 $termId = $mark->exam?->term_id ?? 0;
-                $sitting = self::sittingLabel($mark->exam?->name);
+                $sitting = self::sittingMeta($mark->exam)['key'];
 
                 return $termId.'|'.$sitting;
             })
-            ->map(function (Collection $group, string $key) use ($termOrder, $sittingOrder) {
+            ->map(function (Collection $group, string $key) use ($termOrder) {
                 [$termId, $sitting] = explode('|', $key, 2);
                 $first = $group->first();
                 $term = $first?->exam?->term;
+                $meta = self::sittingDefinition($sitting);
                 $scores = $group
                     ->reject(fn ($m) => (bool) $m->is_absent)
                     ->map(fn ($m) => $m->score_moderated ?? $m->score_raw)
@@ -621,10 +793,10 @@ class ReportCardBatchService
                     'term_id' => (int) $termId,
                     'term_name' => $term?->name ?? ('Term '.$termId),
                     'sitting' => $sitting,
-                    'label' => trim(($term?->name ?? ('Term '.$termId)).' '.$sitting),
+                    'label' => trim(($term?->name ?? ('Term '.$termId)).' '.$meta['column_label']),
                     'value' => $scores->count() ? round((float) $scores->avg(), 2) : null,
                     'sort_term' => $termOrder->get((int) $termId, 999),
-                    'sort_sitting' => $sittingOrder[$sitting] ?? 99,
+                    'sort_sitting' => $meta['order'],
                 ];
             })
             ->filter(fn ($row) => $row['value'] !== null)

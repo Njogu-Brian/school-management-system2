@@ -175,7 +175,7 @@ class AssessmentReadFacade
             $query->where('subject_id', (int) $filters['subject_id']);
         }
 
-        $query->whereHas('exam', function ($q) use ($filters, $restrictToPublishedForGuardians) {
+        $query->whereHas('exam', function ($q) use ($filters, $restrictToPublishedForGuardians, $student) {
             if (! empty($filters['academic_year_id'])) {
                 $q->where('academic_year_id', (int) $filters['academic_year_id']);
             }
@@ -183,8 +183,17 @@ class AssessmentReadFacade
                 $q->where('term_id', (int) $filters['term_id']);
             }
             if ($restrictToPublishedForGuardians) {
-                // Locked exams are pushed to the parent app.
-                $q->where('status', 'locked');
+                // Locked exams only become visible in the parent app after the
+                // matching report card for that year+term is published to parents.
+                $q->where('status', 'locked')
+                    ->whereExists(function ($rq) use ($student) {
+                        $rq->selectRaw('1')
+                            ->from('report_cards')
+                            ->whereColumn('report_cards.academic_year_id', 'exams.academic_year_id')
+                            ->whereColumn('report_cards.term_id', 'exams.term_id')
+                            ->where('report_cards.student_id', $student->id)
+                            ->whereNotNull('report_cards.published_at');
+                    });
             }
             $this->applyDateRangeOnExam($q, $filters);
         });

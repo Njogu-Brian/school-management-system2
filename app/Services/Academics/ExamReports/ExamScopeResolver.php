@@ -89,6 +89,13 @@ final class ExamScopeResolver
         if ($hay === '' || $hay === '0') {
             return 0;
         }
+        if (
+            str_contains($hay, 'knec')
+            || str_contains($hay, 'next cba')
+            || preg_match('/\b(cba|sba)\b/', $hay)
+        ) {
+            return 90;
+        }
         if (str_contains($hay, 'open') || preg_match('/\bopn\b/', $hay)) {
             return 1;
         }

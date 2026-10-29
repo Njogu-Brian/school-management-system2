@@ -31,7 +31,12 @@
         </table>
     </div>
 
-    @php $examHeaders = collect($dto['subjects'])->first()['exams'] ?? []; @endphp
+    @php
+        $firstSubject = collect($dto['subjects'] ?? [])->first() ?? [];
+        $examHeaders = $firstSubject['exams'] ?? [];
+        $sideExamHeaders = $firstSubject['side_exams'] ?? [];
+        $showPosition = (bool) data_get($dto, 'context.show_position', true);
+    @endphp
     <table class="table mb-3">
         <thead>
             <tr>
@@ -39,8 +44,14 @@
                 @foreach($examHeaders as $eh)
                     <th>{{ $eh['exam_name'] }}</th>
                 @endforeach
-                <th>Term Avg</th>
+                <th>Average</th>
                 <th>Grade</th>
+                @if($showPosition)
+                    <th>Position</th>
+                @endif
+                @foreach($sideExamHeaders as $eh)
+                    <th>{{ $eh['exam_name'] }}</th>
+                @endforeach
             </tr>
         </thead>
         <tbody>
@@ -52,9 +63,15 @@
                 @endforeach
                 <td class="center"><strong>{{ $row['term_avg'] !== null ? number_format($row['term_avg'],2) : '—' }}</strong></td>
                 <td class="center">{{ $row['grade_label'] ?? '' }}</td>
+                @if($showPosition)
+                    <td class="center">{{ $row['subject_position'] ?? '—' }}</td>
+                @endif
+                @foreach(($row['side_exams'] ?? []) as $ex)
+                    <td class="center">{{ $ex['score'] !== null ? number_format($ex['score'],2) : '—' }}</td>
+                @endforeach
             </tr>
         @empty
-            <tr><td colspan="{{ 2 + count($examHeaders) }}" class="center">No subject marks.</td></tr>
+            <tr><td colspan="{{ 2 + count($examHeaders) + ($showPosition ? 1 : 0) + count($sideExamHeaders) }}" class="center">No subject marks.</td></tr>
         @endforelse
         </tbody>
     </table>

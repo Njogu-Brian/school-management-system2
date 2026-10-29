@@ -35,6 +35,34 @@
       .status-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
       .status-actions form { margin: 0; }
       .lifecycle-note { font-size: .85rem; }
+      .exam-bulk-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .75rem 1rem;
+        padding: .85rem 1rem;
+        border: 1px solid #e4ebf3;
+        border-radius: .75rem;
+        background: #f8fafc;
+      }
+      .exam-bulk-bar .bulk-count { font-size: .9rem; color: #5b6b7c; min-width: 7rem; }
+      .exam-bulk-bar .bulk-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
+      .exam-group { position: relative; }
+      .exam-group.is-selected {
+        outline: 2px solid #6f42c1;
+        outline-offset: 1px;
+      }
+      .exam-group-select {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        margin: 0;
+        font-size: .8rem;
+        color: #5b6b7c;
+        cursor: pointer;
+        user-select: none;
+      }
+      .exam-group-select input { margin: 0; cursor: pointer; }
     </style>
 @endpush
 
@@ -156,6 +184,38 @@
     @if($exams->isEmpty())
       <div class="settings-card"><div class="card-body text-muted">No exams match these filters.</div></div>
     @else
+      @if($canManageStatus)
+        <div class="exam-bulk-bar mb-3" id="exam-bulk-bar" data-bulk-url="{{ route('academics.exams.bulk-update') }}">
+          <label class="exam-group-select mb-0">
+            <input type="checkbox" id="exam-select-all" aria-label="Select all visible groups">
+            <span>Select all on this page</span>
+          </label>
+          <span class="bulk-count" id="exam-bulk-count">0 groups selected</span>
+          <div class="bulk-actions">
+            @foreach([
+              'marking' => ['Open for marking', 'btn-ghost-strong'],
+              'published' => ['Publish', 'btn-ghost-strong'],
+              'locked' => ['Lock', 'btn-settings-primary'],
+              'draft' => ['Back to draft', 'btn-ghost-strong'],
+            ] as $status => [$label, $btnClass])
+              <button type="button"
+                class="btn btn-sm {{ $btnClass }} exam-bulk-status"
+                data-status="{{ $status }}"
+                data-label="{{ $label }}"
+                disabled>
+                {{ $label }}
+              </button>
+            @endforeach
+          </div>
+        </div>
+
+        <form id="exam-bulk-status-form" method="POST" action="{{ route('academics.exams.bulk-update') }}" class="d-none">
+          @csrf
+          <input type="hidden" name="bulk_status" id="exam-bulk-status-input" value="">
+          <div id="exam-bulk-ids"></div>
+        </form>
+      @endif
+
       <div class="exam-board">
         @foreach($exams as $group)
           @php
@@ -168,10 +228,16 @@
             };
             $statusLabel = $group['uniform'] ? ucfirst($group['uniform']) : 'Mixed';
           @endphp
-          <article class="settings-card exam-group">
+          <article class="settings-card exam-group" data-exam-ids='@json($group['ids'])'>
             <div class="card-body">
               <div class="d-flex justify-content-between align-items-start gap-2">
                 <div class="min-w-0">
+                  @if($canManageStatus)
+                    <label class="exam-group-select mb-2">
+                      <input type="checkbox" class="exam-group-check" aria-label="Select {{ $group['title'] }}">
+                      <span>Select group</span>
+                    </label>
+                  @endif
                   <h3 class="h6 mb-1">{{ $group['title'] }}</h3>
                   <div class="small text-muted">
                     {{ $group['term'] ?? 'Term' }}@if($group['year']) · {{ $group['year'] }}@endif
@@ -237,3 +303,96 @@
   </div>
 </div>
 @endsection
+
+@if(!empty($canManageStatus) && !($exams?->isEmpty() ?? true))
+@push('scripts')
+<script>
+(function () {
+  const selectAll = document.getElementById('exam-select-all');
+  const checks = Array.from(document.querySelectorAll('.exam-group-check'));
+  const countEl = document.getElementById('exam-bulk-count');
+  const bulkButtons = Array.from(document.querySelectorAll('.exam-bulk-status'));
+  const form = document.getElementById('exam-bulk-status-form');
+  const statusInput = document.getElementById('exam-bulk-status-input');
+  const idsBox = document.getElementById('exam-bulk-ids');
+
+  if (!selectAll || !form || !checks.length) return;
+
+  function selectedCards() {
+    return checks
+      .filter((c) => c.checked)
+      .map((c) => c.closest('.exam-group'))
+      .filter(Boolean);
+  }
+
+  function collectExamIds(cards) {
+    const ids = [];
+    cards.forEach((card) => {
+      let raw = card.getAttribute('data-exam-ids') || '[]';
+      let parsed = [];
+      try { parsed = JSON.parse(raw); } catch (e) { parsed = []; }
+      (Array.isArray(parsed) ? parsed : []).forEach((id) => {
+        const n = parseInt(id, 10);
+        if (!Number.isNaN(n) && !ids.includes(n)) ids.push(n);
+      });
+    });
+    return ids;
+  }
+
+  function refresh() {
+    const cards = selectedCards();
+    const n = cards.length;
+    checks.forEach((c) => {
+      const card = c.closest('.exam-group');
+      if (card) card.classList.toggle('is-selected', c.checked);
+    });
+    countEl.textContent = n === 1 ? '1 group selected' : n + ' groups selected';
+    selectAll.checked = n > 0 && n === checks.length;
+    selectAll.indeterminate = n > 0 && n < checks.length;
+    bulkButtons.forEach((btn) => { btn.disabled = n === 0; });
+  }
+
+  selectAll.addEventListener('change', () => {
+    checks.forEach((c) => { c.checked = selectAll.checked; });
+    refresh();
+  });
+
+  checks.forEach((c) => c.addEventListener('change', refresh));
+
+  bulkButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const cards = selectedCards();
+      const ids = collectExamIds(cards);
+      if (!ids.length) return;
+
+      const status = btn.getAttribute('data-status');
+      const label = btn.getAttribute('data-label') || status;
+      const groupWord = cards.length === 1 ? 'group' : 'groups';
+      const paperWord = ids.length === 1 ? 'paper' : 'papers';
+
+      let message = 'Set status to "' + label + '" for ' + cards.length + ' ' + groupWord + ' (' + ids.length + ' ' + paperWord + ')?';
+      if (status === 'locked') {
+        message = 'Lock ' + cards.length + ' ' + groupWord + ' (' + ids.length + ' ' + paperWord + ')? Parents and report cards will include them.';
+      } else if (status === 'draft') {
+        message = 'Return ' + cards.length + ' ' + groupWord + ' (' + ids.length + ' ' + paperWord + ') to draft? Teachers will not be able to enter marks.';
+      }
+      if (!window.confirm(message)) return;
+
+      statusInput.value = status;
+      idsBox.innerHTML = '';
+      ids.forEach((id) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'exam_ids[]';
+        input.value = String(id);
+        idsBox.appendChild(input);
+      });
+      form.submit();
+    });
+  });
+
+  refresh();
+})();
+</script>
+@endpush
+@endif

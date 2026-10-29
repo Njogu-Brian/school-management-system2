@@ -16,7 +16,9 @@
     </div>
 
     <div class="alert alert-soft alert-info border-0">
-      This creates/updates report cards for the selected class & term by averaging all exams in the term.
+      Uses <strong>published</strong> or <strong>locked</strong> exam results. Generated cards stay staff-only so you can print them first.
+      Parents only see report cards after you publish them (checkbox below, or <em>Publish to Parents</em> on the report cards list).
+      KNEC CBA / Next CBA appears as its own graded column and is not included in the term average.
     </div>
 
     <form method="post" action="{{ route('academics.report_cards.generate') }}" class="settings-card">
@@ -50,11 +52,12 @@
             </select>
           </div>
         </div>
-        <div class="col-12">
+        <div class="col-12 mt-3">
           <div class="form-check">
             <input class="form-check-input" type="checkbox" name="publish_and_notify" value="1" id="publishAndNotify">
-            <label class="form-check-label fw-semibold" for="publishAndNotify">Publish and notify parents after generation</label>
+            <label class="form-check-label fw-semibold" for="publishAndNotify">Publish to parents &amp; send family links after generation</label>
           </div>
+          <div class="form-text ms-4">Leave unchecked to generate and print internally. Parents will not see report cards in the app until you publish.</div>
           <div id="publishChannelsWrap" class="mt-2 ps-4" style="display:none;">
             <label class="form-label small text-muted mb-1">Notification channels</label>
             <div class="d-flex flex-wrap gap-3">
