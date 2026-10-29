@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
 use App\Models\OptionalFee;
 use App\Models\PaymentAllocation;
 use Barryvdh\DomPDF\Facade\Pdf;
-use App\Services\Pdf\ChunkedDompdfExporter;
+use App\Services\Finance\InvoiceBulkPdfExporter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -646,21 +646,11 @@ class InvoiceController extends Controller
     }
 
     /**
-     * Class → stream → first name (for bulk PDF/CSV).
+     * Class → stream (streams = separate batches) → first → middle → last (for bulk PDF/CSV).
      */
     private function sortInvoicesForExport(Collection $invoices): Collection
     {
-        return $invoices->sortBy(function (Invoice $invoice) {
-            $s = $invoice->student;
-            if (!$s) {
-                return '~~~|~~~|~~~';
-            }
-            $class = strtolower(trim(optional($s->classroom)->name ?? '~~~'));
-            $stream = strtolower(trim(optional($s->stream)->name ?? ''));
-            $first = strtolower(trim($s->first_name ?? ''));
-
-            return sprintf('%s|%s|%s', $class, $stream, $first);
-        })->values();
+        return app(InvoiceBulkPdfExporter::class)->sortInvoicesForExport($invoices);
     }
 
     public function exportCsv(Request $request): StreamedResponse
@@ -893,73 +883,10 @@ class InvoiceController extends Controller
         return $out;
     }
 
-    public function printBulk(Request $request, ChunkedDompdfExporter $pdfExporter)
+    public function printBulk(Request $request, InvoiceBulkPdfExporter $exporter)
     {
-        $invoices = $this->sortInvoicesForExport(
-            $this->filteredInvoicesQuery($request)->with([
-                'student.classroom',
-                'student.stream',
-                'student.family',
-                'items.votehead',
-                'items.allocations.payment.paymentMethod',
-                'term',
-                'academicYear',
-            ])->get()
-        );
-        if ($invoices->isEmpty()) {
-            return back()->with('error', 'No invoices found for the selected criteria.');
-        }
-
-        $filters = $request->only(['year', 'term', 'votehead_id', 'class_id', 'stream_id', 'student_id']);
-        $branding = $this->branding();
-        $printedBy = optional(auth()->user())->name ?? 'System';
-        $printedAt = now();
-        $invoiceHeader = \App\Models\Setting::get('invoice_header', '');
-        $invoiceFooterTemplate = \App\Models\Setting::get('invoice_footer', '');
-
-        $paymentRowsByInvoice = $this->invoicePaymentRowsForPdfBatch($invoices);
-        $priorOverlays = app(InvoicePdfPriorBalanceService::class)->overlayForInvoices($invoices);
-
-        $invoiceBundles = $invoices->map(function (Invoice $invoice) use ($paymentRowsByInvoice, $priorOverlays) {
-            $invoice->fillTotalsFromLoadedRelations();
-            $overlay = $priorOverlays[$invoice->id] ?? [
-                'lines' => [],
-                'total' => 0.0,
-                'pdf_balance_due' => round((float) $invoice->balance, 2),
-            ];
-
-            return [
-                'invoice' => $invoice,
-                'payment_rows' => $paymentRowsByInvoice[$invoice->id] ?? [],
-                'prior_balance_lines' => $overlay['lines'],
-                'prior_balance_total' => $overlay['total'],
-                'pdf_balance_due' => $overlay['pdf_balance_due'],
-            ];
-        })->values();
-
         try {
-            return $pdfExporter->stream($invoiceBundles, function (Collection $chunk) use (
-                $filters,
-                $branding,
-                $printedBy,
-                $printedAt,
-                $invoiceHeader,
-                $invoiceFooterTemplate,
-                $pdfExporter
-            ) {
-                return $pdfExporter->renderView('finance.invoices.pdf.bulk', [
-                    'invoiceBundles' => $chunk,
-                    'filters' => $filters,
-                    'branding' => $branding,
-                    'printedBy' => $printedBy,
-                    'printedAt' => $printedAt,
-                    'invoiceHeader' => $invoiceHeader,
-                    'invoiceFooterTemplate' => $invoiceFooterTemplate,
-                ], 'A4', 'portrait');
-            }, [
-                'filename' => 'invoices-'.now()->format('Ymd-His').'.pdf',
-                'chunk_size' => 10,
-            ]);
+            return $exporter->respondFromRequest($request, auth()->id() ? (int) auth()->id() : null);
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
