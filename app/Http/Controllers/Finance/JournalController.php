@@ -3,6 +3,10 @@
 namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
+use App\Models\Invoice;
+use App\Models\InvoiceItem;
+use App\Models\JournalBulkImport;
+use App\Models\JournalBulkImportRow;
 use App\Models\Votehead;
 use App\Models\Student;
 use App\Services\JournalService;
@@ -195,9 +199,42 @@ class JournalController extends Controller
         }
     }
 
-     public function bulkForm()
+    public function bulkForm()
     {
-        return view('finance.credit_debit_adjustments.bulk');
+        $preview = null;
+        $importId = session('journal_bulk_import_id');
+        if ($importId) {
+            $import = JournalBulkImport::with('rows')->find($importId);
+            if ($import) {
+                $preview = $this->previewPayloadFromImport($import);
+            } else {
+                session()->forget('journal_bulk_import_id');
+            }
+        }
+
+        return view('finance.credit_debit_adjustments.bulk', [
+            'preview' => $preview,
+            'recentImports' => JournalBulkImport::with('uploader')
+                ->latest()
+                ->limit(5)
+                ->get(),
+        ]);
+    }
+
+    public function bulkHistory()
+    {
+        $imports = JournalBulkImport::with('uploader')
+            ->latest()
+            ->paginate(20);
+
+        return view('finance.credit_debit_adjustments.bulk_history', compact('imports'));
+    }
+
+    public function bulkHistoryShow(JournalBulkImport $import)
+    {
+        $import->load(['uploader', 'rows.journal']);
+
+        return view('finance.credit_debit_adjustments.bulk_history_show', compact('import'));
     }
 
     public function template()
@@ -230,6 +267,9 @@ class JournalController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
+    /**
+     * Parse upload into a preview (does not apply adjustments yet).
+     */
     public function bulkImport(Request $request)
     {
         $request->validate([
@@ -245,32 +285,39 @@ class JournalController extends Controller
         $headerRow = array_shift($sheet);
         $headers = [];
         foreach ($headerRow as $index => $header) {
-            $headers[$index] = Str::of((string)$header)->lower()->snake()->toString();
+            $headers[$index] = Str::of((string) $header)->lower()->snake()->toString();
         }
 
-        $success = 0;
-        $failed  = 0;
-        $rowsOut = [];
+        $previewRows = [];
+        $valid = 0;
+        $invalid = 0;
+
+        // Track running item balances within this file so sequential rows for the same
+        // student+votehead+year+term show a correct projected "new total".
+        $running = [];
+        $runningBal = [];
 
         foreach ($sheet as $idx => $row) {
-            // Map row data to headers
             $rowArr = [];
             foreach ($headers as $colIndex => $headerName) {
                 $value = $row[$colIndex] ?? null;
                 $rowArr[$headerName] = is_string($value) ? trim($value) : $value;
             }
 
-            $line = $idx + 2; // 1-based + heading row
+            // Skip fully empty trailing rows
+            if (collect($rowArr)->filter(fn ($v) => $v !== null && $v !== '')->isEmpty()) {
+                continue;
+            }
 
-            // Pull columns with tolerant names
-            $adm   = $rowArr['admission_number'] ?? null;
-            $vh    = $rowArr['votehead_name'] ?? null;
-            $eff   = $rowArr['effective_date'] ?? null;
-            $type  = $rowArr['type'] ?? null; // Cr / Dr / credit / debit
-            $year  = (int)($rowArr['year'] ?? 0);
-            $term  = (int)($rowArr['term'] ?? 0);
-            $reason= $rowArr['reason'] ?? null;
-            $amt   = $rowArr['amount'] ?? null;
+            $line = $idx + 2;
+            $adm = $rowArr['admission_number'] ?? null;
+            $vhName = $rowArr['votehead_name'] ?? null;
+            $eff = $rowArr['effective_date'] ?? null;
+            $type = $rowArr['type'] ?? null;
+            $year = (int) ($rowArr['year'] ?? 0);
+            $term = (int) ($rowArr['term'] ?? 0);
+            $reason = $rowArr['reason'] ?? null;
+            $amt = $rowArr['amount'] ?? null;
 
             if (is_numeric($amt)) {
                 $amt = abs((float) $amt);
@@ -278,74 +325,348 @@ class JournalController extends Controller
                 $amt = null;
             }
 
+            $preview = [
+                'uid' => (string) Str::uuid(),
+                'line' => $line,
+                'status' => 'invalid',
+                'message' => '',
+                'admission_number' => (string) ($adm ?? ''),
+                'student_id' => null,
+                'student_name' => '',
+                'votehead_id' => null,
+                'votehead_name' => (string) ($vhName ?? ''),
+                'effective_date' => '',
+                'type' => '',
+                'type_label' => (string) ($type ?? ''),
+                'year' => $year,
+                'term' => $term,
+                'reason' => (string) ($reason ?? ''),
+                'amount' => $amt ?? 0,
+                'before_amount' => null,
+                'new_amount' => null,
+                'invoice_id' => null,
+                'invoice_balance_before' => null,
+                'invoice_balance_after' => null,
+            ];
+
             $err = [];
-            if ($eff) {
+            if ($eff !== null && $eff !== '') {
                 try {
                     $eff = $this->parseFlexibleDate($eff);
+                    $preview['effective_date'] = $eff;
                 } catch (\InvalidArgumentException $e) {
                     $err[] = $e->getMessage();
                     $eff = null;
                 }
+            } else {
+                $eff = null;
             }
 
-            if (!$adm)   $err[] = 'admission_number missing';
-            if (!$vh)    $err[] = 'votehead_name missing';
-            if (!$type)  $err[] = 'type missing';
-            if (!$year)  $err[] = 'year missing';
-            if (!in_array($term, [1,2,3], true)) $err[] = 'term must be 1,2 or 3';
-            if (!$reason)$err[] = 'reason missing';
-            if ($amt === null || $amt <= 0) $err[] = 'amount must be > 0';
+            if (!$adm) {
+                $err[] = 'admission_number missing';
+            }
+            if (!$vhName) {
+                $err[] = 'votehead_name missing';
+            }
+            if (!$type) {
+                $err[] = 'type missing';
+            }
+            if (!$year) {
+                $err[] = 'year missing';
+            }
+            if (!in_array($term, [1, 2, 3], true)) {
+                $err[] = 'term must be 1,2 or 3';
+            }
+            if (!$reason) {
+                $err[] = 'reason missing';
+            }
+            if ($amt === null || $amt <= 0) {
+                $err[] = 'amount must be > 0';
+            }
 
-            // Resolve references
-            $student = $adm ? $this->findStudentByAdmission($adm) : null;
-            if (!$student) $err[] = "student not found for admission_number '{$adm}'";
+            $student = $adm ? $this->findStudentByAdmission((string) $adm) : null;
+            if ($adm && !$student) {
+                $err[] = "student not found for admission_number '{$adm}'";
+            }
 
-            $votehead = $vh ? $this->findVoteheadByName($vh) : null;
-            if (!$votehead) $err[] = "votehead not found for '{$vh}'";
+            $votehead = $vhName ? $this->findVoteheadByName((string) $vhName) : null;
+            if ($vhName && !$votehead) {
+                $err[] = "votehead not found for '{$vhName}'";
+            }
 
-            // Normalize type
             $typeNorm = null;
             if ($type) {
-                $t = mb_strtolower($type);
-                if (in_array($t, ['dr','debit']))  $typeNorm = 'debit';
-                if (in_array($t, ['cr','credit'])) $typeNorm = 'credit';
+                $t = mb_strtolower((string) $type);
+                if (in_array($t, ['dr', 'debit'], true)) {
+                    $typeNorm = 'debit';
+                }
+                if (in_array($t, ['cr', 'credit'], true)) {
+                    $typeNorm = 'credit';
+                }
             }
-            if (!$typeNorm) $err[] = "type '{$type}' must be Cr/Dr or credit/debit";
+            if (!$typeNorm) {
+                $err[] = "type '{$type}' must be Cr/Dr or credit/debit";
+            }
 
             if ($err) {
-                $failed++;
-                $rowsOut[] = ['line' => $line, 'status' => 'Failed', 'message' => implode('; ', $err)];
+                $preview['status'] = 'invalid';
+                $preview['message'] = implode('; ', $err);
+                $invalid++;
+                $previewRows[] = $preview;
+                continue;
+            }
+
+            $preview['student_id'] = $student->id;
+            $preview['student_name'] = $student->full_name;
+            $preview['votehead_id'] = $votehead->id;
+            $preview['votehead_name'] = $votehead->name;
+            $preview['type'] = $typeNorm;
+            $preview['type_label'] = $typeNorm === 'credit' ? 'Cr' : 'Dr';
+            $preview['amount'] = (float) $amt;
+            $preview['effective_date'] = $eff ?: null;
+
+            $invoice = Invoice::where('student_id', $student->id)
+                ->where('year', $year)
+                ->where('term', $term)
+                ->first();
+
+            if (!$invoice) {
+                $preview['status'] = 'invalid';
+                $preview['message'] = "No invoice for Year {$year}, Term {$term}";
+                $invalid++;
+                $previewRows[] = $preview;
+                continue;
+            }
+
+            $preview['invoice_id'] = $invoice->id;
+
+            $runKey = "{$student->id}:{$votehead->id}:{$year}:{$term}";
+            if (!array_key_exists($runKey, $running)) {
+                $item = InvoiceItem::where('invoice_id', $invoice->id)
+                    ->where('votehead_id', $votehead->id)
+                    ->first();
+                $running[$runKey] = (float) ($item?->amount ?? 0);
+                $runningBal[$runKey] = (float) ($invoice->balance ?? 0);
+            }
+
+            $before = $running[$runKey];
+            $delta = $typeNorm === 'debit' ? (float) $amt : -(float) $amt;
+            $new = $before + $delta;
+            $balBefore = $runningBal[$runKey];
+            $balAfter = $balBefore + $delta;
+
+            $running[$runKey] = $new;
+            $runningBal[$runKey] = $balAfter;
+
+            $preview['before_amount'] = round($before, 2);
+            $preview['new_amount'] = round($new, 2);
+            $preview['invoice_balance_before'] = round($balBefore, 2);
+            $preview['invoice_balance_after'] = round($balAfter, 2);
+            $preview['status'] = 'pending';
+            $preview['message'] = 'Ready for approval';
+            $valid++;
+            $previewRows[] = $preview;
+        }
+
+        // Abandon any previous unfinished preview for this user session
+        if ($oldId = session('journal_bulk_import_id')) {
+            $old = JournalBulkImport::find($oldId);
+            if ($old && $old->approved_rows === 0 && in_array($old->status, ['preview', 'abandoned'], true)) {
+                $old->update(['status' => 'abandoned']);
+            }
+        }
+
+        $import = JournalBulkImport::create([
+            'batch_code' => JournalBulkImport::nextBatchCode(),
+            'original_filename' => $request->file('file')->getClientOriginalName(),
+            'uploaded_by' => auth()->id(),
+            'status' => 'preview',
+            'total_rows' => count($previewRows),
+            'pending_rows' => $valid,
+            'approved_rows' => 0,
+            'failed_rows' => 0,
+            'invalid_rows' => $invalid,
+        ]);
+
+        foreach ($previewRows as $row) {
+            JournalBulkImportRow::create([
+                'journal_bulk_import_id' => $import->id,
+                'uid' => $row['uid'],
+                'line' => $row['line'],
+                'admission_number' => $row['admission_number'] ?: null,
+                'student_id' => $row['student_id'],
+                'student_name' => $row['student_name'] ?: null,
+                'votehead_id' => $row['votehead_id'],
+                'votehead_name' => $row['votehead_name'] ?: null,
+                'effective_date' => $row['effective_date'] ?: null,
+                'type' => $row['type'] ?: null,
+                'type_label' => $row['type_label'] ?: null,
+                'year' => $row['year'] ?: null,
+                'term' => $row['term'] ?: null,
+                'reason' => $row['reason'] ?: null,
+                'amount' => $row['amount'] ?? 0,
+                'before_amount' => $row['before_amount'],
+                'new_amount' => $row['new_amount'],
+                'invoice_balance_before' => $row['invoice_balance_before'],
+                'invoice_balance_after' => $row['invoice_balance_after'],
+                'invoice_id' => $row['invoice_id'],
+                'status' => $row['status'],
+                'message' => $row['message'],
+            ]);
+        }
+
+        session(['journal_bulk_import_id' => $import->id]);
+        session()->forget('journal_bulk_preview');
+
+        return redirect()
+            ->route('finance.journals.bulk.form')
+            ->with('success', "Preview {$import->batch_code} ready: {$valid} valid, {$invalid} invalid. Review and approve below.");
+    }
+
+    /**
+     * Approve selected (or all pending) preview rows.
+     */
+    public function bulkApprove(Request $request)
+    {
+        $import = JournalBulkImport::with('rows')->find(session('journal_bulk_import_id'));
+        if (!$import || $import->rows->isEmpty()) {
+            return redirect()
+                ->route('finance.journals.bulk.form')
+                ->with('error', 'No preview to approve. Upload a file first.');
+        }
+
+        $mode = $request->input('mode', 'selected'); // selected | all
+        $uids = collect($request->input('uids', []))->filter()->values()->all();
+
+        if ($mode === 'selected' && empty($uids)) {
+            return back()->with('error', 'Select at least one row to approve.');
+        }
+
+        $approved = 0;
+        $failed = 0;
+
+        foreach ($import->rows as $dbRow) {
+            if ($dbRow->status !== 'pending') {
+                continue;
+            }
+            if ($mode === 'selected' && !in_array($dbRow->uid, $uids, true)) {
                 continue;
             }
 
             try {
-                JournalService::createAndApply([
-                    'student_id'    => $student->id,
-                    'votehead_id'   => $votehead->id,
-                    'year'          => $year,
-                    'term'          => $term,
-                    'type'          => $typeNorm,
-                    'amount'        => (float)$amt,
-                    'reason'        => $reason,
-                    'effective_date'=> $eff ?: null,
+                $invoice = Invoice::find($dbRow->invoice_id);
+                if (!$invoice) {
+                    throw new \RuntimeException('Invoice no longer exists');
+                }
+
+                $item = InvoiceItem::where('invoice_id', $invoice->id)
+                    ->where('votehead_id', $dbRow->votehead_id)
+                    ->first();
+                $before = (float) ($item?->amount ?? 0);
+                $delta = ($dbRow->type === 'debit') ? (float) $dbRow->amount : -(float) $dbRow->amount;
+                $balBefore = (float) ($invoice->balance ?? 0);
+
+                $j = JournalService::createAndApply([
+                    'student_id' => $dbRow->student_id,
+                    'votehead_id' => $dbRow->votehead_id,
+                    'year' => $dbRow->year,
+                    'term' => $dbRow->term,
+                    'type' => $dbRow->type,
+                    'amount' => (float) $dbRow->amount,
+                    'reason' => $dbRow->reason,
+                    'effective_date' => $dbRow->effective_date?->format('Y-m-d'),
                 ]);
 
-                $success++;
-                $rowsOut[] = ['line' => $line, 'status' => 'OK', 'message' => 'Applied'];
+                $meta = $j->meta ?? [];
+                $meta['bulk_import_id'] = $import->id;
+                $meta['bulk_batch_code'] = $import->batch_code;
+                $j->update(['meta' => $meta]);
+
+                $invoice->refresh();
+                $dbRow->update([
+                    'before_amount' => round($before, 2),
+                    'new_amount' => round($before + $delta, 2),
+                    'invoice_balance_before' => round($balBefore, 2),
+                    'invoice_balance_after' => round((float) $invoice->balance, 2),
+                    'journal_id' => $j->id,
+                    'status' => 'approved',
+                    'message' => 'Applied as ' . $j->journal_number,
+                ]);
+                $approved++;
             } catch (\Throwable $e) {
+                $dbRow->update([
+                    'status' => 'failed',
+                    'message' => $e->getMessage(),
+                ]);
                 $failed++;
-                $rowsOut[] = ['line' => $line, 'status' => 'Failed', 'message' => $e->getMessage()];
             }
         }
 
-        return back()->with([
-            'bulk_summary' => [
-                'success' => $success,
-                'failed'  => $failed,
-                'total'   => $success + $failed,
-                'rows'    => $rowsOut,
-            ],
-        ]);
+        $import->refreshCounts();
+
+        $msg = "Approved {$approved} adjustment(s) for {$import->batch_code}.";
+        if ($failed > 0) {
+            $msg .= " {$failed} failed.";
+        }
+
+        return redirect()
+            ->route('finance.journals.bulk.form')
+            ->with($failed > 0 && $approved === 0 ? 'error' : 'success', $msg);
+    }
+
+    public function bulkClearPreview()
+    {
+        $importId = session('journal_bulk_import_id');
+        if ($importId) {
+            $import = JournalBulkImport::find($importId);
+            if ($import && $import->approved_rows === 0) {
+                $import->update(['status' => 'abandoned']);
+            }
+        }
+
+        session()->forget(['journal_bulk_import_id', 'journal_bulk_preview']);
+
+        return redirect()
+            ->route('finance.journals.bulk.form')
+            ->with('success', 'Preview cleared.');
+    }
+
+    private function previewPayloadFromImport(JournalBulkImport $import): array
+    {
+        return [
+            'batch_code' => $import->batch_code,
+            'import_id' => $import->id,
+            'created_at' => optional($import->created_at)->toDateTimeString(),
+            'valid' => $import->pending_rows + $import->approved_rows + $import->failed_rows,
+            'invalid' => $import->invalid_rows,
+            'pending' => $import->pending_rows,
+            'approved' => $import->approved_rows,
+            'failed' => $import->failed_rows,
+            'total' => $import->total_rows,
+            'rows' => $import->rows->map(fn (JournalBulkImportRow $r) => [
+                'uid' => $r->uid,
+                'line' => $r->line,
+                'status' => $r->status,
+                'message' => $r->message,
+                'admission_number' => $r->admission_number,
+                'student_id' => $r->student_id,
+                'student_name' => $r->student_name,
+                'votehead_id' => $r->votehead_id,
+                'votehead_name' => $r->votehead_name,
+                'effective_date' => $r->effective_date?->format('Y-m-d'),
+                'type' => $r->type,
+                'type_label' => $r->type_label,
+                'year' => $r->year,
+                'term' => $r->term,
+                'reason' => $r->reason,
+                'amount' => (float) $r->amount,
+                'before_amount' => $r->before_amount !== null ? (float) $r->before_amount : null,
+                'new_amount' => $r->new_amount !== null ? (float) $r->new_amount : null,
+                'invoice_id' => $r->invoice_id,
+                'invoice_balance_before' => $r->invoice_balance_before !== null ? (float) $r->invoice_balance_before : null,
+                'invoice_balance_after' => $r->invoice_balance_after !== null ? (float) $r->invoice_balance_after : null,
+            ])->all(),
+        ];
     }
 
     private function parseFlexibleDate(mixed $value): string

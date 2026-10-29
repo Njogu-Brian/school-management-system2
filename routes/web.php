@@ -1974,6 +1974,10 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         // Journals (bulk)
         Route::get('journals/bulk',      [JournalController::class, 'bulkForm'])->name('journals.bulk.form');
         Route::post('journals/bulk',     [JournalController::class, 'bulkImport'])->name('journals.bulk.import');
+        Route::post('journals/bulk/approve', [JournalController::class, 'bulkApprove'])->name('journals.bulk.approve');
+        Route::post('journals/bulk/clear',   [JournalController::class, 'bulkClearPreview'])->name('journals.bulk.clear');
+        Route::get('journals/bulk/history', [JournalController::class, 'bulkHistory'])->name('journals.bulk.history');
+        Route::get('journals/bulk/history/{import}', [JournalController::class, 'bulkHistoryShow'])->name('journals.bulk.history.show');
         Route::get('journals/template',  [JournalController::class, 'template'])->name('journals.bulk.template');
 
         // Invoice line editing
