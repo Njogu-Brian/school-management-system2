@@ -64,6 +64,19 @@
             value="{{ old('event_date', isset($item->event_date) ? $item->event_date->format('Y-m-d') : '') }}">
     </div>
 
+    <div class="col-md-12" id="voteheadWrap">
+        <label class="finance-form-label" for="votehead_id">Votehead</label>
+        <select name="votehead_id" id="votehead_id" class="finance-form-select">
+            <option value="">Create a votehead from this name</option>
+            @foreach($voteheads as $votehead)
+                <option value="{{ $votehead->id }}" {{ (string) old('votehead_id', $item->votehead_id ?? '') === (string) $votehead->id ? 'selected' : '' }}>
+                    {{ $votehead->name }}
+                </option>
+            @endforeach
+        </select>
+        <small class="text-muted">Leave this blank for a trip or fun day. A separate fee line is created so the money is not mixed into school fees.</small>
+    </div>
+
     <div class="col-md-12">
         <label class="finance-form-label" for="description">Notes</label>
         <textarea name="description" id="description" class="finance-form-control" rows="2">{{ old('description', $item->description ?? '') }}</textarea>
@@ -83,7 +96,7 @@
             <input class="form-check-input" type="checkbox" name="charge_class" id="charge_class" value="1" {{ old('charge_class') ? 'checked' : '' }}>
             <label class="form-check-label" for="charge_class">Charge every student in the selected classes now</label>
         </div>
-        <small class="text-muted">Adds a one-off line on each student's invoice for this term. It is not added to the votehead list.</small>
+        <small class="text-muted">Adds the amount to each student's invoice for this term. You can also do this later from the activity page. Splitting a payment charges that child even if you skip this.</small>
     </div>
 </div>
 
@@ -97,6 +110,7 @@
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const kind = document.getElementById('kind');
+        const voteheadWrap = document.getElementById('voteheadWrap');
         const chargeWrap = document.getElementById('chargeWrap');
         const classMark = document.getElementById('classRequiredMark');
         const classHelp = document.getElementById('classHelp');
@@ -104,6 +118,7 @@
 
         function syncKind() {
             const swimming = kind.value === 'swimming';
+            voteheadWrap.style.display = swimming ? 'none' : '';
             chargeWrap.style.display = swimming ? 'none' : '';
             classMark.style.display = swimming ? 'none' : '';
             classrooms.required = !swimming;

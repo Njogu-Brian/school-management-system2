@@ -235,18 +235,14 @@
             <span class="text-muted">Line items are shown for history. This invoice cannot be edited.</span>
             @else
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                <span class="text-muted"><i class="bi bi-plus-circle"></i> Add a line. Matching voteheads appear as you type so you can reuse one. A name that does not match stays on this invoice only and is not added to the votehead list.</span>
-                <form action="{{ route('finance.invoices.custom-items.store', $invoice) }}" method="POST" class="d-flex align-items-center gap-2 position-relative" id="custom-line-form">
+                <span class="text-muted"><i class="bi bi-plus-circle"></i> Add a custom line item (for example Uniform, Activity Fee, etc). It updates invoice totals, allocations and student statements.</span>
+                <form action="{{ route('finance.invoices.custom-items.store', $invoice) }}" method="POST" class="d-flex align-items-center gap-2">
                     @csrf
-                    <label class="form-label mb-0" for="custom-votehead-input">Votehead</label>
-                    <div class="position-relative">
-                        <input type="text" name="votehead_name" id="custom-votehead-input" class="form-control form-control-sm" style="width: 220px;" maxlength="255" placeholder="Type to search" autocomplete="off">
-                        <input type="hidden" name="votehead_id" id="custom-votehead-id" value="">
-                        <div id="custom-votehead-menu" class="list-group position-absolute shadow-sm d-none" style="z-index: 20; top: 100%; left: 0; min-width: 220px; max-height: 220px; overflow: auto;"></div>
-                    </div>
+                    <label class="form-label mb-0">Votehead</label>
+                    <input type="text" name="votehead_name" class="form-control form-control-sm" style="width: 180px;" maxlength="255" required placeholder="e.g. Uniform">
                     <label class="form-label mb-0">Amount (Ksh)</label>
                     <input type="number" name="amount" class="form-control form-control-sm" style="width: 120px;" step="0.01" min="0" required placeholder="0.00">
-                    <button type="submit" class="btn btn-sm btn-finance btn-finance-primary"><i class="bi bi-plus-lg"></i> Add Line</button>
+                    <button type="submit" class="btn btn-sm btn-finance btn-finance-primary"><i class="bi bi-plus-lg"></i> Add Custom Item</button>
                 </form>
             </div>
             @endif
@@ -1022,61 +1018,6 @@ document.addEventListener('keypress', function(e) {
 });
 
 console.log('[Invoice Edit] Inline editing initialized');
-</script>
-<script>
-(function () {
-    const voteheads = @json($voteheads ?? []);
-    const input = document.getElementById('custom-votehead-input');
-    const hidden = document.getElementById('custom-votehead-id');
-    const menu = document.getElementById('custom-votehead-menu');
-    if (!input || !hidden || !menu) return;
-
-    function keyOf(value) {
-        return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
-    }
-
-    function hide() {
-        menu.classList.add('d-none');
-        menu.innerHTML = '';
-    }
-
-    function render() {
-        const query = input.value.trim();
-        const compact = keyOf(query);
-        hidden.value = '';
-        if (compact.length < 1) {
-            hide();
-            return;
-        }
-        const matches = voteheads.filter(function (votehead) {
-            const name = String(votehead.name || '');
-            return name.toLowerCase().indexOf(query.toLowerCase()) !== -1 || keyOf(name).indexOf(compact) !== -1;
-        }).slice(0, 8);
-        if (!matches.length) {
-            hide();
-            return;
-        }
-        menu.innerHTML = matches.map(function (votehead) {
-            return '<button type="button" class="list-group-item list-group-item-action py-1 px-2" data-id="' + votehead.id + '">' + votehead.name + '</button>';
-        }).join('');
-        menu.classList.remove('d-none');
-    }
-
-    input.addEventListener('input', render);
-    input.addEventListener('focus', render);
-    menu.addEventListener('click', function (event) {
-        const button = event.target.closest('button[data-id]');
-        if (!button) return;
-        const votehead = voteheads.find(function (row) { return String(row.id) === button.getAttribute('data-id'); });
-        if (!votehead) return;
-        input.value = votehead.name;
-        hidden.value = String(votehead.id);
-        hide();
-    });
-    document.addEventListener('click', function (event) {
-        if (!event.target.closest('#custom-line-form')) hide();
-    });
-})();
 </script>
 @endpush
 @endsection

@@ -14,22 +14,14 @@ class ClassroomController extends Controller
     {
         $this->middleware('permission:classrooms.view')->only(['index', 'show']);
         $this->middleware('permission:classrooms.create')->only(['create', 'store']);
-        $this->middleware('permission:classrooms.edit')->only(['edit', 'update', 'archive', 'restore']);
+        $this->middleware('permission:classrooms.edit')->only(['edit', 'update']);
         $this->middleware('permission:classrooms.delete')->only(['destroy']);
     }
 
     public function index(Request $request)
     {
-        $showArchived = $request->boolean('archived');
-        $query = Classroom::withoutGlobalScope('offered')
-            ->with(['teachers.staff', 'streams', 'primaryStreams', 'nextClass', 'previousClasses'])
-            ->withCount('students')
-            ->when($showArchived, fn ($q) => $q->where('is_archived', true))
-            ->when(!$showArchived, function ($q) {
-                $q->where(function ($inner) {
-                    $inner->where('is_archived', false)->orWhereNull('is_archived');
-                });
-            });
+        $query = Classroom::with(['teachers.staff', 'streams', 'primaryStreams', 'nextClass', 'previousClasses'])
+            ->withCount('students');
 
         // Teachers can only see their assigned classes
         if (Auth::user()->hasRole('Teacher')) {
@@ -50,25 +42,7 @@ class ClassroomController extends Controller
         }
 
         $classrooms = $query->orderBy('name')->get();
-        return view('academics.classrooms.index', compact('classrooms', 'showArchived'));
-    }
-
-    public function archive($id)
-    {
-        $classroom = Classroom::withoutGlobalScope('offered')->findOrFail($id);
-        $classroom->update(['is_archived' => true]);
-
-        return redirect()->route('academics.classrooms.index')
-            ->with('success', $classroom->name . ' has been archived. It stays on existing student records and is hidden from class lists.');
-    }
-
-    public function restore($id)
-    {
-        $classroom = Classroom::withoutGlobalScope('offered')->findOrFail($id);
-        $classroom->update(['is_archived' => false]);
-
-        return redirect()->route('academics.classrooms.index', ['archived' => 1])
-            ->with('success', $classroom->name . ' has been restored.');
+        return view('academics.classrooms.index', compact('classrooms'));
     }
 
     public function create()
@@ -121,7 +95,7 @@ class ClassroomController extends Controller
 
     public function edit($id)
     {
-        $classroom = Classroom::withoutGlobalScope('offered')->with('teachers.staff')->findOrFail($id);
+        $classroom = Classroom::with('teachers.staff')->findOrFail($id);
         $teachers = User::with('staff')
             ->whereHas('roles', fn($q) => $q->where('name', 'teacher'))
             ->excludeArchivedStaff()
@@ -154,7 +128,7 @@ class ClassroomController extends Controller
             'teacher_ids.*' => 'exists:users,id',
         ]);
 
-        $classroom = Classroom::withoutGlobalScope('offered')->findOrFail($id);
+        $classroom = Classroom::findOrFail($id);
         $classroom->update([
             'name' => $request->name,
             'next_class_id' => $request->next_class_id,
@@ -172,7 +146,7 @@ class ClassroomController extends Controller
 
     public function destroy($id)
     {
-        $classroom = Classroom::withoutGlobalScope('offered')->findOrFail($id);
+        $classroom = Classroom::findOrFail($id);
 
         // Check if classroom has students
         if ($classroom->students()->count() > 0) {

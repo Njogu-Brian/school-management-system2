@@ -42,7 +42,7 @@ class ReportCard extends Model
     public function student() { return $this->belongsTo(\App\Models\Student::class); }
     public function academicYear() { return $this->belongsTo(\App\Models\AcademicYear::class); }
     public function term() { return $this->belongsTo(\App\Models\Term::class); }
-    public function classroom() { return $this->belongsTo(\App\Models\Academics\Classroom::class)->withoutGlobalScope('offered'); }
+    public function classroom() { return $this->belongsTo(\App\Models\Academics\Classroom::class); }
     public function stream() { return $this->belongsTo(\App\Models\Academics\Stream::class); }
     public function publisher() { return $this->belongsTo(\App\Models\Staff::class,'published_by'); }
 

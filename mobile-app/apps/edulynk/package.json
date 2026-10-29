@@ -46,10 +46,12 @@
     "expo-image-picker": "~58.0.4",
     "expo-linear-gradient": "~58.0.1",
     "expo-local-authentication": "~58.0.0",
+    "expo-location": "~58.0.4",
     "expo-notifications": "~58.0.4",
     "expo-secure-store": "~58.0.0",
     "expo-sharing": "~58.0.7",
     "expo-status-bar": "~58.0.1",
+    "expo-task-manager": "^58.0.9",
     "expo-updates": "~58.0.6",
     "expo-web-browser": "~58.0.1",
     "react": "19.3.0",
@@ -73,7 +75,6 @@
   },
   "expo": {
     "autolinking": {
-      "exclude": ["expo-location", "expo-task-manager"],
       "searchPaths": [
         "../../node_modules",
         "node_modules"

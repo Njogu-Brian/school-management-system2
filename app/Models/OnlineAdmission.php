@@ -67,12 +67,12 @@ class OnlineAdmission extends Model
 
     public function preferredClassroom()
     {
-        return $this->belongsTo(\App\Models\Academics\Classroom::class, 'preferred_classroom_id')->withoutGlobalScope('offered');
+        return $this->belongsTo(\App\Models\Academics\Classroom::class, 'preferred_classroom_id');
     }
 
     public function classroom()
     {
-        return $this->belongsTo(\App\Models\Academics\Classroom::class)->withoutGlobalScope('offered');
+        return $this->belongsTo(\App\Models\Academics\Classroom::class);
     }
 
     public function stream()

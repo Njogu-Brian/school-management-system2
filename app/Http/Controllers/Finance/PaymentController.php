@@ -76,6 +76,23 @@ class PaymentController extends Controller
             $query->where('payment_method_id', $request->payment_method_id);
         }
 
+        if ($request->filled('year')) {
+            $year = (int) $request->year;
+            $query->where(function ($q) use ($year) {
+                $q->whereYear('payment_date', $year)
+                    ->orWhereHas('invoice', fn ($iq) => $iq->where('year', $year))
+                    ->orWhereHas('allocations.invoiceItem.invoice', fn ($iq) => $iq->where('year', $year));
+            });
+        }
+
+        if ($request->filled('term')) {
+            $term = (int) $request->term;
+            $query->where(function ($q) use ($term) {
+                $q->whereHas('invoice', fn ($iq) => $iq->where('term', $term))
+                    ->orWhereHas('allocations.invoiceItem.invoice', fn ($iq) => $iq->where('term', $term));
+            });
+        }
+
         if ($request->filled('from_date')) {
             $query->whereDate('payment_date', '>=', $request->from_date);
         }
@@ -133,8 +150,17 @@ class PaymentController extends Controller
         $classrooms = \App\Models\Academics\Classroom::orderBy('name')->get();
         $streams = \App\Models\Academics\Stream::orderBy('name')->get();
         $paymentMethods = \App\Models\PaymentMethod::where('is_active', true)->orderBy('name')->get();
-        
-        return view('finance.payments.index', compact('payments', 'classrooms', 'streams', 'paymentMethods'));
+        $academicYears = \App\Support\AcademicContext::years();
+        $termsByYear = \App\Support\AcademicContext::termsByYearNumber();
+
+        return view('finance.payments.index', compact(
+            'payments',
+            'classrooms',
+            'streams',
+            'paymentMethods',
+            'academicYears',
+            'termsByYear'
+        ));
     }
 
     public function create(Request $request)

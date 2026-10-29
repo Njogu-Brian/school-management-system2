@@ -96,9 +96,7 @@ class UndoGrade8FalseAlumniCommand extends Command
                     ->where('is_current', true)
                     ->update(['is_current' => false]);
 
-                app(FamilyArchiveService::class)->onStudentRestored(
-                    Student::withAlumni()->whereKey($student->id)->first()
-                );
+                app(FamilyArchiveService::class)->onStudentRestored($student->fresh());
                 $fixed++;
             }
         });

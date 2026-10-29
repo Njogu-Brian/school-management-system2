@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Finance;
 use App\Http\Controllers\Controller;
 use App\Models\Votehead;
 use App\Services\VoteheadImportService;
-use App\Support\NameCase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Response;
 use Maatwebsite\Excel\Facades\Excel;
@@ -25,10 +24,6 @@ class VoteheadController extends Controller
 
     public function store(Request $request)
     {
-        $request->merge([
-            'name' => NameCase::sentence($request->input('name')),
-        ]);
-
         $request->validate([
             'name' => 'required|unique:voteheads,name',
             'description' => 'nullable|string',
@@ -51,10 +46,6 @@ class VoteheadController extends Controller
 
     public function update(Request $request, Votehead $votehead)
     {
-        $request->merge([
-            'name' => NameCase::sentence($request->input('name')),
-        ]);
-
         $request->validate([
             'name' => 'required|unique:voteheads,name,' . $votehead->id,
             'description' => 'nullable|string',

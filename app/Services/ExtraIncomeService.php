@@ -25,6 +25,10 @@ class ExtraIncomeService
             throw new \RuntimeException('Choose at least one class before charging students.');
         }
 
+        if (!$item->votehead_id) {
+            throw new \RuntimeException('This activity has no votehead to bill against.');
+        }
+
         $students = Student::query()
             ->whereIn('classroom_id', $classroomIds)
             ->where('archive', 0)
@@ -48,11 +52,13 @@ class ExtraIncomeService
             throw new \RuntimeException('Swimming extra income is credited to the swimming wallet, not an invoice.');
         }
 
-        if ($item->votehead_id) {
-            $votehead = Votehead::find($item->votehead_id);
-            if ($votehead && $this->voteheadCreditsSwimmingWallet($votehead)) {
-                throw new \RuntimeException("{$item->name} uses a swimming votehead. Set the type to Swimming so the split credits the swimming wallet.");
-            }
+        if (!$item->votehead_id) {
+            throw new \RuntimeException("{$item->name} has no votehead.");
+        }
+
+        $votehead = Votehead::find($item->votehead_id);
+        if ($votehead && $this->voteheadCreditsSwimmingWallet($votehead)) {
+            throw new \RuntimeException("{$item->name} uses a swimming votehead. Set the type to Swimming so the split credits the swimming wallet.");
         }
 
         if ($item->hasClassRestriction() && !$item->allowsClassroom((int) $student->classroom_id)) {
@@ -65,53 +71,42 @@ class ExtraIncomeService
             throw new \RuntimeException("{$item->name} has no amount to charge.");
         }
 
-        $optionalAmount = $target;
-        if ($item->votehead_id) {
-            $optional = OptionalFee::query()
-                ->where('student_id', $student->id)
-                ->where('votehead_id', $item->votehead_id)
-                ->where('year', $item->year)
-                ->where('term', $item->term)
-                ->first();
+        $optional = OptionalFee::query()
+            ->where('student_id', $student->id)
+            ->where('votehead_id', $item->votehead_id)
+            ->where('year', $item->year)
+            ->where('term', $item->term)
+            ->first();
 
-            $optionalAmount = round(max($target, (float) ($optional->amount ?? 0)), 2);
+        $optionalAmount = round(max($target, (float) ($optional->amount ?? 0)), 2);
 
-            if ($optional) {
-                $optional->update([
-                    'academic_year_id' => $item->academic_year_id,
-                    'amount' => $optionalAmount,
-                    'status' => 'billed',
-                    'assigned_by' => Auth::id(),
-                    'assigned_at' => $optional->assigned_at ?? now(),
-                ]);
-            } else {
-                OptionalFee::create([
-                    'student_id' => $student->id,
-                    'votehead_id' => $item->votehead_id,
-                    'term' => $item->term,
-                    'year' => $item->year,
-                    'academic_year_id' => $item->academic_year_id,
-                    'amount' => $optionalAmount,
-                    'status' => 'billed',
-                    'assigned_by' => Auth::id(),
-                    'assigned_at' => now(),
-                ]);
-            }
+        if ($optional) {
+            $optional->update([
+                'academic_year_id' => $item->academic_year_id,
+                'amount' => $optionalAmount,
+                'status' => 'billed',
+                'assigned_by' => Auth::id(),
+                'assigned_at' => $optional->assigned_at ?? now(),
+            ]);
+        } else {
+            OptionalFee::create([
+                'student_id' => $student->id,
+                'votehead_id' => $item->votehead_id,
+                'term' => $item->term,
+                'year' => $item->year,
+                'academic_year_id' => $item->academic_year_id,
+                'amount' => $optionalAmount,
+                'status' => 'billed',
+                'assigned_by' => Auth::id(),
+                'assigned_at' => now(),
+            ]);
         }
 
         $invoice = InvoiceService::ensure($student->id, (int) $item->year, (int) $item->term);
 
         $line = InvoiceItem::query()
             ->where('invoice_id', $invoice->id)
-            ->where(function ($q) use ($item) {
-                $q->where(function ($inner) use ($item) {
-                    $inner->where('source', 'extra_income')
-                        ->whereRaw('LOWER(COALESCE(custom_votehead_name, "")) = ?', [mb_strtolower($item->name)]);
-                });
-                if ($item->votehead_id) {
-                    $q->orWhere('votehead_id', $item->votehead_id);
-                }
-            })
+            ->where('votehead_id', $item->votehead_id)
             ->first();
 
         if ($line) {
@@ -128,7 +123,7 @@ class ExtraIncomeService
         } else {
             $line = InvoiceItem::create([
                 'invoice_id' => $invoice->id,
-                'votehead_id' => null,
+                'votehead_id' => $item->votehead_id,
                 'custom_votehead_name' => $item->name,
                 'amount' => $optionalAmount,
                 'discount_amount' => 0,
@@ -149,19 +144,38 @@ class ExtraIncomeService
                 'amount' => $raised,
                 'original_amount' => $raised,
             ]);
-            if ($item->votehead_id) {
-                OptionalFee::query()
-                    ->where('student_id', $student->id)
-                    ->where('votehead_id', $item->votehead_id)
-                    ->where('year', $item->year)
-                    ->where('term', $item->term)
-                    ->update(['amount' => $raised]);
-            }
+            OptionalFee::query()
+                ->where('student_id', $student->id)
+                ->where('votehead_id', $item->votehead_id)
+                ->where('year', $item->year)
+                ->where('term', $item->term)
+                ->update(['amount' => $raised]);
             InvoiceService::recalc($invoice->fresh());
             $line = $line->fresh();
         }
 
         return $line;
+    }
+
+    public function ensureVotehead(ExtraIncomeItem $item): Votehead
+    {
+        if ($item->votehead_id && $item->votehead) {
+            return $item->votehead;
+        }
+
+        $votehead = Votehead::create([
+            'name' => $item->name,
+            'description' => $item->description ?: $item->kindLabel() . ' extra income',
+            'is_mandatory' => false,
+            'is_optional' => true,
+            'is_active' => true,
+            'is_activity_fee' => true,
+            'charge_type' => 'per_student',
+        ]);
+
+        $item->update(['votehead_id' => $votehead->id]);
+
+        return $votehead;
     }
 
     protected function voteheadCreditsSwimmingWallet(Votehead $votehead): bool

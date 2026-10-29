@@ -200,6 +200,10 @@ class ActivityFeeSplitService
      */
     protected function findExistingOpenCharge(ExtraIncomeItem $item, Student $student): ?InvoiceItem
     {
+        if (!$item->votehead_id) {
+            return null;
+        }
+
         $invoice = Invoice::query()
             ->where('student_id', $student->id)
             ->where('year', $item->year)
@@ -216,16 +220,8 @@ class ActivityFeeSplitService
 
         return InvoiceItem::query()
             ->where('invoice_id', $invoice->id)
+            ->where('votehead_id', $item->votehead_id)
             ->where('status', 'active')
-            ->where(function ($q) use ($item) {
-                $q->where(function ($inner) use ($item) {
-                    $inner->where('source', 'extra_income')
-                        ->whereRaw('LOWER(COALESCE(custom_votehead_name, "")) = ?', [mb_strtolower($item->name)]);
-                });
-                if ($item->votehead_id) {
-                    $q->orWhere('votehead_id', $item->votehead_id);
-                }
-            })
             ->first();
     }
 

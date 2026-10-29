@@ -13,6 +13,37 @@ class AcademicContext
         return AcademicYear::orderByDesc('year')->get();
     }
 
+    /**
+     * Terms keyed by calendar/academic year number for filter dropdowns.
+     *
+     * @return array<string, list<array{id:int,name:string,number:int}>>
+     */
+    public static function termsByYearNumber(): array
+    {
+        return Term::query()
+            ->with('academicYear:id,year')
+            ->orderBy('opening_date')
+            ->orderBy('name')
+            ->get()
+            ->groupBy(fn (Term $term) => (string) ($term->academicYear?->year ?? ''))
+            ->map(function (Collection $terms) {
+                return $terms->map(function (Term $term) {
+                    $num = (int) preg_replace('/\D+/', '', (string) $term->name);
+                    if ($num < 1 || $num > 3) {
+                        $num = 1;
+                    }
+
+                    return [
+                        'id' => (int) $term->id,
+                        'name' => (string) $term->name,
+                        'number' => $num,
+                    ];
+                })->values()->all();
+            })
+            ->filter(fn ($_, $year) => $year !== '')
+            ->all();
+    }
+
     public static function resolveYearId(?int $requested = null): ?int
     {
         if ($requested && $requested > 0) {

@@ -39,7 +39,7 @@ class SwimmingAttendance extends Model
 
     public function classroom(): BelongsTo
     {
-        return $this->belongsTo(Classroom::class)->withoutGlobalScope('offered');
+        return $this->belongsTo(Classroom::class);
     }
 
     public function markedBy(): BelongsTo

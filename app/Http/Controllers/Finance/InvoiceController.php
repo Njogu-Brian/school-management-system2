@@ -58,8 +58,17 @@ class InvoiceController extends Controller
         $classrooms = \App\Models\Academics\Classroom::orderBy('name')->get();
         $streams    = \App\Models\Academics\Stream::orderBy('name')->get();
         $voteheads  = \App\Models\Votehead::orderBy('name')->get();
+        $academicYears = \App\Support\AcademicContext::years();
+        $termsByYear = \App\Support\AcademicContext::termsByYearNumber();
 
-        return view('finance.invoices.index', compact('invoices','classrooms','streams','voteheads'));
+        return view('finance.invoices.index', compact(
+            'invoices',
+            'classrooms',
+            'streams',
+            'voteheads',
+            'academicYears',
+            'termsByYear'
+        ));
     }
 
     public function bulkDelete(Request $request)

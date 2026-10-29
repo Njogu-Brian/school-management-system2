@@ -70,14 +70,10 @@
     <div class="settings-card">
       <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div>
-          <h5 class="mb-0"><i class="bi bi-list-ul"></i> {{ !empty($showArchived) ? 'Archived Classrooms' : 'Classrooms' }}</h5>
-          <p class="text-muted small mb-0">Archived classes stay on old records and drop out of class lists.</p>
+          <h5 class="mb-0"><i class="bi bi-list-ul"></i> All Classrooms</h5>
+          <p class="text-muted small mb-0">Types, streams, teachers, and promotion mapping.</p>
         </div>
-        <div class="d-flex gap-2 align-items-center">
-          <a href="{{ route('academics.classrooms.index') }}" class="btn btn-sm {{ empty($showArchived) ? 'btn-settings-primary' : 'btn-ghost-strong' }}">Active</a>
-          <a href="{{ route('academics.classrooms.index', ['archived' => 1]) }}" class="btn btn-sm {{ !empty($showArchived) ? 'btn-settings-primary' : 'btn-ghost-strong' }}">Archived</a>
-          <span class="input-chip">{{ $classrooms->count() }} total</span>
-        </div>
+        <span class="input-chip">{{ $classrooms->count() }} total</span>
       </div>
       <div class="card-body p-0">
         <div class="table-responsive">
@@ -96,12 +92,7 @@
             <tbody>
               @foreach ($classrooms as $classroom)
               <tr>
-                <td class="fw-semibold">
-                  {{ $classroom->name }}
-                  @if($classroom->is_archived)
-                    <span class="pill-badge pill-warning">Archived</span>
-                  @endif
-                </td>
+                <td class="fw-semibold">{{ $classroom->name }}</td>
                 <td>
                   @if($classroom->is_beginner)
                     <span class="pill-badge pill-info">Beginner</span>
@@ -171,21 +162,6 @@
                     <a href="{{ route('academics.classrooms.edit', $classroom->id) }}" class="btn btn-sm btn-ghost-strong" title="Edit">
                       <i class="bi bi-pencil"></i>
                     </a>
-                    @if($classroom->is_archived)
-                      <form action="{{ route('academics.classrooms.restore', $classroom) }}" method="POST" class="d-inline" onsubmit="return confirm('Restore {{ $classroom->name }} to the class lists?');">
-                        @csrf
-                        <button type="submit" class="btn btn-sm btn-ghost-strong text-success" title="Restore">
-                          <i class="bi bi-arrow-counterclockwise"></i>
-                        </button>
-                      </form>
-                    @else
-                      <form action="{{ route('academics.classrooms.archive', $classroom) }}" method="POST" class="d-inline" onsubmit="return confirm('Archive {{ $classroom->name }}? Students already in this class keep it. It will no longer appear when choosing a class.');">
-                        @csrf
-                        <button type="submit" class="btn btn-sm btn-ghost-strong text-warning" title="Archive">
-                          <i class="bi bi-archive"></i>
-                        </button>
-                      </form>
-                    @endif
                     @if($classroom->students->count() > 0 && ($classroom->nextClass || $classroom->is_alumni))
                       <a href="{{ route('academics.promotions.show', $classroom) }}" class="btn btn-sm btn-ghost-strong text-info" title="Promote Students">
                         <i class="bi bi-arrow-up-circle"></i>

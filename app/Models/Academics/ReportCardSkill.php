@@ -36,7 +36,7 @@ class ReportCardSkill extends Model
 
     public function classroom()
     {
-        return $this->belongsTo(\App\Models\Academics\Classroom::class)->withoutGlobalScope('offered');
+        return $this->belongsTo(\App\Models\Academics\Classroom::class);
     }
 
     public function scopeActive($query)

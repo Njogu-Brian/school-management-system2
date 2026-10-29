@@ -47,7 +47,7 @@ class StudentAcademicHistory extends Model
 
     public function classroom()
     {
-        return $this->belongsTo(\App\Models\Academics\Classroom::class)->withoutGlobalScope('offered');
+        return $this->belongsTo(\App\Models\Academics\Classroom::class);
     }
 
     public function stream()
@@ -57,7 +57,7 @@ class StudentAcademicHistory extends Model
 
     public function nextClassroom()
     {
-        return $this->belongsTo(\App\Models\Academics\Classroom::class, 'next_classroom_id')->withoutGlobalScope('offered');
+        return $this->belongsTo(\App\Models\Academics\Classroom::class, 'next_classroom_id');
     }
 
     public function nextStream()

@@ -13,22 +13,12 @@
     <!-- Filters -->
     <div class="finance-filter-card finance-animate">
         <form method="GET" action="{{ route('finance.invoices.index') }}" class="row g-3">
-            <div class="col-md-6 col-lg-2">
-                <label class="finance-form-label">Year</label>
-                <input type="number" 
-                       class="finance-form-control" 
-                       name="year" 
-                       value="{{ request('year', now()->year) }}">
-            </div>
-            <div class="col-md-6 col-lg-2">
-                <label class="finance-form-label">Term</label>
-                <select name="term" class="finance-form-select">
-                    <option value="">All Terms</option>
-                    @for($i=1;$i<=3;$i++)
-                        <option value="{{ $i }}" {{ request('term') == $i ? 'selected':'' }}>Term {{ $i }}</option>
-                    @endfor
-                </select>
-            </div>
+            @include('finance.partials.year_term_filters', [
+                'academicYears' => $academicYears ?? collect(),
+                'termsByYear' => $termsByYear ?? [],
+                'yearSelectId' => 'invoiceFilterYear',
+                'termSelectId' => 'invoiceFilterTerm',
+            ])
             <div class="col-md-6 col-lg-2">
                 <label class="finance-form-label">Votehead</label>
                 <select name="votehead_id" class="finance-form-select">
@@ -106,14 +96,14 @@
                 Rows are sorted by class, then stream, then first name. Includes full name, admission number, class, stream, totals.
                 <strong>PDF (bulk)</strong> uses the same filters and order: A4, one invoice per page, class headings, line-level paid/balance, payments list, and current balance due.
             </p>
-            @if(request()->filled('term'))
-                <a href="{{ route('finance.invoices.export_csv', array_merge(request()->only(['year','term','votehead_id','class_id','stream_id','student_id','status']), ['year' => request('year', now()->year)])) }}"
+            @if(request()->filled('year') && request()->filled('term'))
+                <a href="{{ route('finance.invoices.export_csv', request()->only(['year','term','votehead_id','class_id','stream_id','student_id','status'])) }}"
                    class="btn btn-finance btn-finance-outline">
                     <i class="bi bi-file-earmark-spreadsheet"></i> Download CSV (current filters)
                 </a>
             @else
-                <button type="button" class="btn btn-finance btn-finance-outline" disabled title="Choose a specific term in the filters above">
-                    <i class="bi bi-file-earmark-spreadsheet"></i> Download CSV (select a term first)
+                <button type="button" class="btn btn-finance btn-finance-outline" disabled title="Choose a year and term in the filters above">
+                    <i class="bi bi-file-earmark-spreadsheet"></i> Download CSV (select year and term first)
                 </button>
             @endif
         </div>

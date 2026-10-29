@@ -10,6 +10,7 @@ use App\Models\ExtraIncomeItem;
 use App\Models\InvoiceItem;
 use App\Models\OptionalFee;
 use App\Models\Student;
+use App\Models\Votehead;
 use App\Services\ExtraIncomeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -60,6 +61,10 @@ class ExtraIncomeController extends Controller
         $item = ExtraIncomeItem::create($data);
         $item->syncClassrooms($classroomIds);
 
+        if (!$item->isSwimming() && !$item->votehead_id) {
+            $this->extraIncome->ensureVotehead($item);
+        }
+
         if ($chargeClass && !$item->isSwimming()) {
             try {
                 $count = $this->extraIncome->chargeClass($item->fresh(['classroom', 'classrooms', 'votehead']));
@@ -101,29 +106,19 @@ class ExtraIncomeController extends Controller
                 ->get();
         }
 
-        if ($students->isNotEmpty()) {
+        if ($extraIncome->votehead_id && $students->isNotEmpty()) {
             $ids = $students->pluck('id');
-            $optionalFees = $extraIncome->votehead_id
-                ? OptionalFee::query()
-                    ->where('votehead_id', $extraIncome->votehead_id)
-                    ->where('year', $extraIncome->year)
-                    ->where('term', $extraIncome->term)
-                    ->whereIn('student_id', $ids)
-                    ->get()
-                    ->keyBy('student_id')
-                : collect();
+            $optionalFees = OptionalFee::query()
+                ->where('votehead_id', $extraIncome->votehead_id)
+                ->where('year', $extraIncome->year)
+                ->where('term', $extraIncome->term)
+                ->whereIn('student_id', $ids)
+                ->get()
+                ->keyBy('student_id');
 
             $invoiceItems = InvoiceItem::query()
+                ->where('votehead_id', $extraIncome->votehead_id)
                 ->where('status', 'active')
-                ->where(function ($q) use ($extraIncome) {
-                    $q->where(function ($inner) use ($extraIncome) {
-                        $inner->where('source', 'extra_income')
-                            ->whereRaw('LOWER(COALESCE(custom_votehead_name, "")) = ?', [mb_strtolower($extraIncome->name)]);
-                    });
-                    if ($extraIncome->votehead_id) {
-                        $q->orWhere('votehead_id', $extraIncome->votehead_id);
-                    }
-                })
                 ->whereHas('invoice', function ($q) use ($extraIncome, $ids) {
                     $q->where('year', $extraIncome->year)
                         ->where('term', $extraIncome->term)
@@ -168,6 +163,10 @@ class ExtraIncomeController extends Controller
 
         $extraIncome->update($data);
         $extraIncome->syncClassrooms($classroomIds);
+
+        if (!$extraIncome->isSwimming() && !$extraIncome->votehead_id) {
+            $this->extraIncome->ensureVotehead($extraIncome);
+        }
 
         if ($chargeClass && !$extraIncome->isSwimming()) {
             try {
@@ -245,6 +244,11 @@ class ExtraIncomeController extends Controller
             'years' => $years,
             'currentYearId' => $currentYear?->id,
             'currentTerm' => $currentTerm,
+            'voteheads' => Votehead::query()
+                ->where('is_active', true)
+                ->where('is_mandatory', false)
+                ->orderBy('name')
+                ->get(),
         ];
     }
 
@@ -280,6 +284,19 @@ class ExtraIncomeController extends Controller
                 'array',
             ],
             'classroom_ids.*' => 'integer|exists:classrooms,id',
+            'votehead_id' => [
+                'nullable',
+                'exists:voteheads,id',
+                function ($attribute, $value, $fail) use ($kind) {
+                    if (!$value || $kind === ExtraIncomeItem::KIND_SWIMMING) {
+                        return;
+                    }
+                    $votehead = Votehead::find($value);
+                    if ($votehead && $votehead->is_mandatory) {
+                        $fail('Choose an optional activity votehead, or leave it blank to create one for this activity.');
+                    }
+                },
+            ],
             'academic_year_id' => 'required|exists:academic_years,id',
             'term' => 'required|integer|in:1,2,3',
             'amount' => 'required|numeric|min:0.01',
@@ -301,7 +318,9 @@ class ExtraIncomeController extends Controller
                 'name' => $data['name'],
                 'kind' => $data['kind'],
                 'classroom_id' => $classroomIds[0] ?? null,
-                'votehead_id' => null,
+                'votehead_id' => $data['kind'] === ExtraIncomeItem::KIND_SWIMMING
+                    ? null
+                    : ($data['votehead_id'] ?? $existing?->votehead_id),
                 'academic_year_id' => $year->id,
                 'year' => (int) $year->year,
                 'term' => (int) $data['term'],

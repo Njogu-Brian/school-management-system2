@@ -312,10 +312,10 @@ export const DriverTripDetailScreen: React.FC = () => {
   const canStart = !inProgress && !completed;
 
   const handleStart = () => {
-    confirmAction('Start trip', 'Begin this trip?', 'Start trip', async () => {
+    confirmAction('Start trip', 'Begin this trip and enable live location sharing?', 'Start trip', async () => {
       try {
         await start.mutateAsync();
-        showSuccess('Trip started', 'Open the active trip screen for the roster and boarding.');
+        showSuccess('Trip started', 'You can open the active trip screen to share GPS.');
         void tripQuery.refetch();
         navigation.navigate('ActiveTrip', { tripId });
       } catch (err) {

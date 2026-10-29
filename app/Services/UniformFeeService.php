@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Votehead;
-use App\Support\NameCase;
 use Illuminate\Support\Facades\DB;
 
 class UniformFeeService
@@ -106,83 +105,6 @@ class UniformFeeService
     }
 
     /**
-     * Letters and digits only, so "Fun Day" and "funday" match.
-     */
-    public static function normalizeVoteheadKey(string $name): string
-    {
-        return preg_replace('/[^a-z0-9]+/', '', mb_strtolower($name)) ?? '';
-    }
-
-    public static function matchingVotehead(string $name): ?Votehead
-    {
-        $key = self::normalizeVoteheadKey($name);
-        if ($key === '') {
-            return null;
-        }
-
-        $matches = Votehead::query()
-            ->where('is_active', true)
-            ->get()
-            ->filter(fn (Votehead $votehead) => self::normalizeVoteheadKey((string) $votehead->name) === $key)
-            ->values();
-
-        return $matches->count() === 1 ? $matches->first() : null;
-    }
-
-    /**
-     * Put an existing catalogue votehead on this invoice. Does not create a votehead.
-     * If the line is already there, the amount is added to it.
-     */
-    public static function addExistingVoteheadItem(Invoice $invoice, Votehead $votehead, float $amount): InvoiceItem
-    {
-        if ($amount < 0) {
-            throw new \InvalidArgumentException('Amount must be zero or positive.');
-        }
-
-        return DB::transaction(function () use ($invoice, $votehead, $amount) {
-            $item = InvoiceItem::withTrashed()
-                ->where('invoice_id', $invoice->id)
-                ->where('votehead_id', $votehead->id)
-                ->first();
-
-            if ($item && method_exists($item, 'trashed') && $item->trashed()) {
-                $item->restore();
-                $item->update([
-                    'amount' => $amount,
-                    'original_amount' => $item->original_amount ?? $amount,
-                    'status' => 'active',
-                    'custom_votehead_name' => null,
-                    'discount_amount' => $item->discount_amount ?? 0,
-                ]);
-            } elseif ($item) {
-                $item->update([
-                    'amount' => round((float) $item->amount + $amount, 2),
-                    'status' => 'active',
-                    'custom_votehead_name' => null,
-                ]);
-            } else {
-                $item = InvoiceItem::create([
-                    'invoice_id' => $invoice->id,
-                    'votehead_id' => $votehead->id,
-                    'custom_votehead_name' => null,
-                    'amount' => $amount,
-                    'original_amount' => $amount,
-                    'discount_amount' => 0,
-                    'status' => 'active',
-                    'source' => self::SOURCE_CUSTOM,
-                ]);
-            }
-
-            app()->instance('auto_allocating', true);
-            InvoiceService::recalc($invoice);
-            InvoiceService::allocateUnallocatedPaymentsForStudent($invoice->student_id);
-            app()->instance('auto_allocating', false);
-
-            return $item->fresh(['votehead']);
-        });
-    }
-
-    /**
      * Add or update a custom line item on an invoice.
      */
     public static function addCustomItem(Invoice $invoice, string $voteheadName, float $amount): InvoiceItem
@@ -192,14 +114,9 @@ class UniformFeeService
         }
 
         return DB::transaction(function () use ($invoice, $voteheadName, $amount) {
-            $name = NameCase::sentence(trim((string) $voteheadName)) ?? '';
+            $name = trim((string) $voteheadName);
             if ($name === '') {
                 throw new \InvalidArgumentException('Votehead name is required.');
-            }
-
-            $existingVotehead = self::matchingVotehead($name);
-            if ($existingVotehead) {
-                return self::addExistingVoteheadItem($invoice, $existingVotehead, $amount);
             }
 
             // Custom invoice lines must NOT create new Votehead records.

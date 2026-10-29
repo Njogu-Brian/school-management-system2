@@ -17,6 +17,7 @@ import {
   useTheme,
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
+import * as Location from 'expo-location';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -83,17 +84,12 @@ export const TripStudentsScreen: React.FC<Props> = ({ route, navigation }) => {
   const markStopHere = async (studentId: number, studentName: string) => {
     setMarkingStudentId(studentId);
     try {
-      const location = await import('expo-location').catch(() => null);
-      if (!location?.requestForegroundPermissionsAsync) {
-        showError('Location is off', 'GPS stop marking is turned off in this app.');
-        return;
-      }
-      const { status } = await location.requestForegroundPermissionsAsync();
+      const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         showError('Location needed', 'Allow location to mark this child’s stop.');
         return;
       }
-      const loc = await location.getCurrentPositionAsync({ accuracy: location.Accuracy.High });
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       await markStop.mutateAsync({
         student_id: studentId,
         latitude: loc.coords.latitude,

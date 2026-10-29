@@ -17,5 +17,5 @@ class ExamSchedule extends Model
 
     public function exam(){ return $this->belongsTo(Exam::class); }
     public function subject(){ return $this->belongsTo(Subject::class); }
-    public function classroom(){ return $this->belongsTo(Classroom::class)->withoutGlobalScope('offered'); }
+    public function classroom(){ return $this->belongsTo(Classroom::class); }
 }

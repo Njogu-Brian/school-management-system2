@@ -48,7 +48,7 @@ class Assessment extends Model
 
     public function classroom()
     {
-        return $this->belongsTo(Classroom::class)->withoutGlobalScope('offered');
+        return $this->belongsTo(Classroom::class);
     }
 
     public function subject()

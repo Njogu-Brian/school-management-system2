@@ -68,6 +68,12 @@
     <!-- Filters -->
     <div class="finance-filter-card finance-animate shadow-sm rounded-4 border-0">
         <form method="GET" action="{{ route('finance.payments.index') }}" class="row g-3" id="paymentsFilterForm">
+            @include('finance.partials.year_term_filters', [
+                'academicYears' => $academicYears ?? collect(),
+                'termsByYear' => $termsByYear ?? [],
+                'yearSelectId' => 'paymentFilterYear',
+                'termSelectId' => 'paymentFilterTerm',
+            ])
             <div class="col-md-6 col-lg-2">
                 <label class="finance-form-label">Student</label>
                 @include('partials.student_live_search', [
