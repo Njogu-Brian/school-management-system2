@@ -61,11 +61,13 @@ class DirectoryExportController extends Controller
         'title' => $title . ' Export',
         'subtitle' => $this->exportService->filterSummary($type, $request),
         'headers' => $labels,
-        'rows' => $rows,
         'recordCount' => count($rows),
       ], [
         'filename' => $filenameBase . '.pdf',
         'orientation' => count($fields) > 6 ? 'landscape' : 'portrait',
+        'chunk_items' => $rows,
+        'chunk_data_key' => 'rows',
+        'chunk_size' => 40,
       ]);
     }
 

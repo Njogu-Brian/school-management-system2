@@ -1317,16 +1317,7 @@ class FeeBalanceController extends Controller
         $studentsByStream = $this->groupAndSortStudentsByStream($students);
         $includeAmounts = filter_var($request->query('include_amounts', true), FILTER_VALIDATE_BOOLEAN);
 
-        $pdfService = new PDFExportService();
-        return $pdfService->generatePDF('finance.fee_balances.pdf', [
-            'studentsByStream' => $studentsByStream,
-            'selectedTerm' => $selectedTerm,
-            'logoBase64' => $this->getSchoolLogoBase64(),
-            'includeAmounts' => $includeAmounts,
-        ], [
-            'filename' => 'fee_balance_list_' . now()->format('Y-m-d_His') . '.pdf',
-            'stream' => false,
-        ]);
+        return $this->exportFeeBalancePdf($studentsByStream, $selectedTerm, $includeAmounts, false);
     }
 
     /**
@@ -1342,16 +1333,49 @@ class FeeBalanceController extends Controller
         $studentsByStream = $this->groupAndSortStudentsByStream($students);
         $includeAmounts = filter_var($request->query('include_amounts', true), FILTER_VALIDATE_BOOLEAN);
 
+        return $this->exportFeeBalancePdf($studentsByStream, $selectedTerm, $includeAmounts, true);
+    }
+
+    /**
+     * Chunk by class/stream group so DomPDF never renders the whole school at once.
+     */
+    protected function exportFeeBalancePdf($studentsByStream, $selectedTerm, bool $includeAmounts, bool $stream)
+    {
+        $groups = collect($studentsByStream);
+        $groupKeys = $groups->keys()->values();
+        $logoBase64 = $this->getSchoolLogoBase64();
         $pdfService = new PDFExportService();
-        return $pdfService->generatePDF('finance.fee_balances.pdf', [
-            'studentsByStream' => $studentsByStream,
-            'selectedTerm' => $selectedTerm,
-            'logoBase64' => $this->getSchoolLogoBase64(),
-            'includeAmounts' => $includeAmounts,
-        ], [
-            'filename' => 'fee_balance_list_' . now()->format('Y-m-d_His') . '.pdf',
-            'stream' => true,
-        ]);
+
+        try {
+            return $pdfService->generateChunkedPDF(
+                'finance.fee_balances.pdf',
+                [
+                    'selectedTerm' => $selectedTerm,
+                    'logoBase64' => $logoBase64,
+                    'includeAmounts' => $includeAmounts,
+                ],
+                $groupKeys,
+                [
+                    'filename' => 'fee_balance_list_'.now()->format('Y-m-d_His').'.pdf',
+                    'stream' => $stream,
+                    'chunk_size' => 3,
+                    'chunk_data_key' => 'studentsByStream',
+                    'prepare_chunk' => function (array $data, $chunkKeys) use ($groups) {
+                        $partial = collect();
+                        foreach ($chunkKeys as $key) {
+                            if ($groups->has($key)) {
+                                $partial->put($key, $groups->get($key));
+                            }
+                        }
+                        $data['studentsByStream'] = $partial;
+
+                        return $data;
+                    },
+                ]
+            );
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
     }
 
     /**

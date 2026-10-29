@@ -11,8 +11,9 @@ use App\Models\SalaryHistory;
 use App\Models\StaffAdvance;
 use App\Services\PayrollCalculationService;
 use App\Services\ReceiptService;
-use Barryvdh\DomPDF\Facade\Pdf;
+use App\Services\Pdf\ChunkedDompdfExporter;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -46,19 +47,36 @@ class PayrollRecordController extends Controller
     /**
      * Export the filtered payroll records to a branded PDF report.
      */
-    public function exportPdf(Request $request, ReceiptService $receiptService)
+    public function exportPdf(Request $request, ReceiptService $receiptService, ChunkedDompdfExporter $pdfExporter)
     {
         $records = $this->filteredRecordsQuery($request)->orderBy('created_at', 'desc')->get();
+        $branding = $receiptService->getDocumentBranding();
+        $filtersSummary = $this->filtersSummary($request);
+        $printedBy = optional($request->user())->name ?? 'System';
+        $printedAt = now();
 
-        $pdf = Pdf::loadView('hr.payroll.records.pdf', [
-            'records' => $records,
-            'branding' => $receiptService->getDocumentBranding(),
-            'filtersSummary' => $this->filtersSummary($request),
-            'printedBy' => optional($request->user())->name ?? 'System',
-            'printedAt' => now(),
-        ])->setPaper('a4', 'landscape');
-
-        return $pdf->download('payroll-records-'.now()->format('Ymd_His').'.pdf');
+        try {
+            return $pdfExporter->download($records, function (Collection $chunk) use (
+                $pdfExporter,
+                $branding,
+                $filtersSummary,
+                $printedBy,
+                $printedAt
+            ) {
+                return $pdfExporter->renderView('hr.payroll.records.pdf', [
+                    'records' => $chunk,
+                    'branding' => $branding,
+                    'filtersSummary' => $filtersSummary,
+                    'printedBy' => $printedBy,
+                    'printedAt' => $printedAt,
+                ], 'a4', 'landscape');
+            }, [
+                'filename' => 'payroll-records-'.now()->format('Ymd_His').'.pdf',
+                'chunk_size' => 40,
+            ]);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
     }
 
     /**

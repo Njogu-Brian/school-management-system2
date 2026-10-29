@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use Barryvdh\DomPDF\Facade\Pdf;
+use App\Services\Pdf\ChunkedDompdfExporter;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Log;
@@ -10,7 +12,11 @@ use Illuminate\Support\Facades\Log;
 class PDFExportService
 {
     /**
-     * Generate PDF with school branding
+     * Generate PDF with school branding.
+     *
+     * For multi-row / multi-doc exports, pass options['chunk_items'] (iterable) and the
+     * view must accept a chunk via options['chunk_data_key'] (default: rows).
+     * DomPDF must never receive unbounded collections in one render.
      */
     public function generatePDF($view, $data, $options = [])
     {
@@ -25,12 +31,32 @@ class PDFExportService
                 'generated_by' => auth()->user()?->first_name ?? auth()->user()?->name ?? 'System',
             ]);
 
+            $filename = $options['filename'] ?? 'document_' . time() . '.pdf';
+            $paperSize = $options['paper_size'] ?? 'A4';
+            $orientation = $options['orientation'] ?? 'portrait';
+
+            $chunkItems = $options['chunk_items'] ?? null;
+            if ($chunkItems !== null) {
+                $chunkCollection = $chunkItems instanceof Collection
+                    ? $chunkItems
+                    : Collection::make($chunkItems);
+                $chunkKey = $options['chunk_data_key'] ?? 'rows';
+                if ($chunkCollection->isEmpty()) {
+                    $data[$chunkKey] = [];
+                } else {
+                    return $this->generateChunkedPDF($view, $data, $chunkCollection, array_merge($options, [
+                        'filename' => $filename,
+                        'paper_size' => $paperSize,
+                        'orientation' => $orientation,
+                    ]));
+                }
+            }
+
             // Load PDF view
             $pdf = Pdf::loadView($view, $data);
 
             // Set paper size
-            $paperSize = $options['paper_size'] ?? 'A4';
-            $pdf->setPaper($paperSize, $options['orientation'] ?? 'portrait');
+            $pdf->setPaper($paperSize, $orientation);
 
             // Set PDF options
             $pdf->setOption('enable-local-file-access', true);
@@ -41,9 +67,6 @@ class PDFExportService
             if ($branding['watermark'] ?? false) {
                 // Watermark can be applied via CSS in the view
             }
-
-            // Return PDF for download (default behavior)
-            $filename = $options['filename'] ?? 'document_' . time() . '.pdf';
             
             // Save to storage if requested
             if ($options['save'] ?? false) {
@@ -75,6 +98,47 @@ class PDFExportService
     }
 
     /**
+     * Chunked DomPDF export for large row sets / document lists.
+     *
+     * @param  iterable<int, mixed>  $items
+     */
+    public function generateChunkedPDF(string $view, array $sharedData, iterable $items, array $options = [])
+    {
+        $exporter = app(ChunkedDompdfExporter::class);
+        $chunkKey = $options['chunk_data_key'] ?? 'rows';
+        $paper = $options['paper_size'] ?? 'A4';
+        $orientation = $options['orientation'] ?? 'portrait';
+        $filename = $options['filename'] ?? 'document_'.time().'.pdf';
+        $disposition = !empty($options['stream']) ? 'inline' : 'attachment';
+
+        $render = function (Collection $chunk) use ($exporter, $view, $sharedData, $chunkKey, $paper, $orientation, $options) {
+            $data = $sharedData;
+            $data[$chunkKey] = $chunk->values()->all();
+            if (isset($options['prepare_chunk']) && is_callable($options['prepare_chunk'])) {
+                $data = $options['prepare_chunk']($data, $chunk);
+            }
+
+            return $exporter->renderView($view, $data, $paper, $orientation);
+        };
+
+        if ($disposition === 'inline') {
+            return $exporter->stream($items, $render, [
+                'filename' => $filename,
+                'chunk_size' => $options['chunk_size'] ?? null,
+                'sync_max' => $options['sync_max'] ?? null,
+                'hard_max' => $options['hard_max'] ?? null,
+            ]);
+        }
+
+        return $exporter->download($items, $render, [
+            'filename' => $filename,
+            'chunk_size' => $options['chunk_size'] ?? null,
+            'sync_max' => $options['sync_max'] ?? null,
+            'hard_max' => $options['hard_max'] ?? null,
+        ]);
+    }
+
+    /**
      * Generate PDF for download
      */
     public function downloadPDF($view, $data, $filename, $options = [])
@@ -103,7 +167,8 @@ class PDFExportService
     }
 
     /**
-     * Generate bulk PDFs (for report cards, etc.)
+     * Generate bulk PDFs (for report cards, etc.) — one DomPDF render per item, optional ZIP.
+     * Prefer ChunkedDompdfExporter when the user needs a single merged PDF.
      */
     public function generateBulkPDFs($items, $view, $dataCallback, $options = [])
     {
@@ -132,6 +197,10 @@ class PDFExportService
                     'item' => $item,
                     'error' => $e->getMessage(),
                 ];
+            }
+
+            if (function_exists('gc_collect_cycles')) {
+                gc_collect_cycles();
             }
         }
 

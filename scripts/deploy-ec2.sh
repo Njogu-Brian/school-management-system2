@@ -20,6 +20,20 @@ rm -rf mobile-app
 rm -rf website/node_modules
 echo "✓ Code updated"
 
+# Step 1b: PDF merge tooling (chunked DomPDF exports)
+echo ""
+echo "[1b/8] Ensuring qpdf is installed for PDF merges..."
+if ! command -v qpdf &>/dev/null; then
+  if command -v apt-get &>/dev/null; then
+    sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq qpdf || true
+  fi
+fi
+if command -v qpdf &>/dev/null; then
+  echo "✓ qpdf $(qpdf --version 2>/dev/null | head -n1)"
+else
+  echo "⚠ qpdf not found — chunked PDF exports will fall back to FPDI or ZIP"
+fi
+
 # Step 2: Composer
 echo ""
 echo "[2/8] Installing dependencies..."

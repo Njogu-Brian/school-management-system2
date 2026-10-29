@@ -4,7 +4,8 @@ namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
 use App\Models\Expense;
-use Barryvdh\DomPDF\Facade\Pdf;
+use App\Services\Pdf\ChunkedDompdfExporter;
+use Illuminate\Support\Collection;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\View\View;
@@ -63,11 +64,22 @@ class ExpenseReportController extends Controller
         }, $filename);
     }
 
-    public function exportPdf(Request $request)
+    public function exportPdf(Request $request, ChunkedDompdfExporter $pdfExporter)
     {
         $expenses = $this->filteredExpenses($request)->get();
-        $pdf = Pdf::loadView('finance.reports.expenses_pdf', compact('expenses'));
-        return $pdf->download('expense-report-' . now()->format('YmdHis') . '.pdf');
+
+        try {
+            return $pdfExporter->download($expenses, function (Collection $chunk) use ($pdfExporter) {
+                return $pdfExporter->renderView('finance.reports.expenses_pdf', [
+                    'expenses' => $chunk,
+                ]);
+            }, [
+                'filename' => 'expense-report-'.now()->format('YmdHis').'.pdf',
+                'chunk_size' => 50,
+            ]);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
     }
 
     protected function filteredExpenses(Request $request)

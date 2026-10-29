@@ -23,8 +23,9 @@ use App\Services\Academics\ExamReports\ExamScopeResolver;
 use App\Services\Academics\ExamReports\ReportCache;
 use App\Services\Academics\ExamReports\SchoolWideTeacherRankingService;
 use App\Services\Academics\ExamReports\TermScopeResolver;
-use Barryvdh\DomPDF\Facade\Pdf;
+use App\Services\Pdf\ChunkedDompdfExporter;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -150,16 +151,30 @@ class ExamReportsController extends Controller
             abort(422, 'Nothing to export. Check filters or ensure mark data exists.');
         }
 
-        $pdf = Pdf::loadView('academics.exam_reports.class_sheet_pdf', [
-            'bundles' => $pdfBundles,
-            'sheetFlow' => $request->input('sheet_flow'),
-            'generatedAt' => now(),
-            'generatedBy' => $user?->name ?? 'System',
-        ])->setPaper('a4', 'landscape');
+        $sheetFlow = $request->input('sheet_flow');
+        $generatedAt = now();
+        $generatedBy = $user?->name ?? 'System';
+        $filename = 'class-mark-sheets-'.$sheetFlow.'-'.now()->format('Y-m-d-His').'.pdf';
 
-        $filename = 'class-mark-sheets-'.$request->input('sheet_flow').'-'.now()->format('Y-m-d-His').'.pdf';
-
-        return $pdf->download($filename);
+        try {
+            return app(ChunkedDompdfExporter::class)->download(
+                $pdfBundles,
+                function (Collection $chunk) use ($sheetFlow, $generatedAt, $generatedBy) {
+                    return app(ChunkedDompdfExporter::class)->renderView('academics.exam_reports.class_sheet_pdf', [
+                        'bundles' => $chunk->values()->all(),
+                        'sheetFlow' => $sheetFlow,
+                        'generatedAt' => $generatedAt,
+                        'generatedBy' => $generatedBy,
+                    ], 'a4', 'landscape');
+                },
+                [
+                    'filename' => $filename,
+                    'chunk_size' => 1,
+                ]
+            );
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
     }
 
     private function validateClassSheetRequest(Request $request): void

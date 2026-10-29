@@ -63,12 +63,14 @@ class EnrollmentReportController extends Controller
       'title' => 'Enrollment by Class',
       'subtitle' => $payload['subtitle'],
       'headers' => $payload['headings'],
-      'rows' => $payload['rows'],
       'totals' => $payload['totalsRow'],
       'recordCount' => count($payload['report']['rows']),
     ], [
       'filename' => 'enrollment_by_class_'.now()->format('Ymd_His').'.pdf',
       'orientation' => 'portrait',
+      'chunk_items' => $payload['rows'],
+      'chunk_data_key' => 'rows',
+      'chunk_size' => 40,
     ]);
   }
 

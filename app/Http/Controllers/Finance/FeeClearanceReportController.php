@@ -149,15 +149,37 @@ class FeeClearanceReportController extends Controller
             ])
             ->groupBy(fn ($r) => ($r['classroom'] ?? 'N/A') . ' | ' . ($r['stream'] ?? 'General'));
 
+        $groups = collect($grouped);
+        $groupKeys = $groups->keys()->values();
         $pdfService = new PDFExportService();
-        return $pdfService->generatePDF('finance.fee_clearance.pdf_by_class', [
-            'term' => $term,
-            'groups' => $grouped,
-        ], [
-            'filename' => 'fee_clearance_status_by_class_' . $term->id . '_' . now()->format('Y-m-d_His') . '.pdf',
-            'stream' => false,
-            'orientation' => 'portrait',
-        ]);
+
+        try {
+            return $pdfService->generateChunkedPDF(
+                'finance.fee_clearance.pdf_by_class',
+                ['term' => $term],
+                $groupKeys,
+                [
+                    'filename' => 'fee_clearance_status_by_class_'.$term->id.'_'.now()->format('Y-m-d_His').'.pdf',
+                    'stream' => false,
+                    'orientation' => 'portrait',
+                    'chunk_size' => 4,
+                    'chunk_data_key' => 'groups',
+                    'prepare_chunk' => function (array $data, $chunkKeys) use ($groups) {
+                        $partial = collect();
+                        foreach ($chunkKeys as $key) {
+                            if ($groups->has($key)) {
+                                $partial->put($key, $groups->get($key));
+                            }
+                        }
+                        $data['groups'] = $partial;
+
+                        return $data;
+                    },
+                ]
+            );
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
     }
 
     public function recompute(Request $request)

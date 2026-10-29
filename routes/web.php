@@ -691,7 +691,9 @@ Route::middleware('auth')->group(function () {
         // Generate batch reports
         Route::get('report_cards/generate',  [ReportCardController::class,'generateForm'])->name('report_cards.generate.form');
         Route::post('report_cards/generate', [ReportCardController::class,'generate'])->name('report_cards.generate');
-        Route::get('report_cards/bulk-print', [ReportCardController::class, 'bulkPrint'])->name('report_cards.bulk_print');
+        Route::get('report_cards/bulk-print', [ReportCardController::class, 'bulkPrint'])
+            ->middleware('long_pdf_export')
+            ->name('report_cards.bulk_print');
 
         // Report Cards
         Route::resource('report_cards', ReportCardController::class)
@@ -965,7 +967,9 @@ Route::middleware('auth')->group(function () {
                 
                 // Payroll Records
                 Route::get('/records/export-excel', [\App\Http\Controllers\Hr\PayrollRecordController::class, 'exportExcel'])->name('records.export-excel');
-                Route::get('/records/export-pdf', [\App\Http\Controllers\Hr\PayrollRecordController::class, 'exportPdf'])->name('records.export-pdf');
+                Route::get('/records/export-pdf', [\App\Http\Controllers\Hr\PayrollRecordController::class, 'exportPdf'])
+                    ->middleware('long_pdf_export')
+                    ->name('records.export-pdf');
                 Route::resource('records', \App\Http\Controllers\Hr\PayrollRecordController::class);
                 Route::post('/records/{id}/cancel', [\App\Http\Controllers\Hr\PayrollRecordController::class, 'cancel'])->name('records.cancel');
                 Route::get('/records/{id}/payslip', [\App\Http\Controllers\Hr\PayslipController::class, 'show'])->name('records.payslip');
@@ -1249,7 +1253,8 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     Route::get('/students/enrollment-report/export-excel', [\App\Http\Controllers\Students\EnrollmentReportController::class, 'exportExcel'])
         ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher|Deputy Senior Teacher')->name('students.enrollment-report.export-excel');
     Route::get('/students/enrollment-report/export-pdf', [\App\Http\Controllers\Students\EnrollmentReportController::class, 'exportPdf'])
-        ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher|Deputy Senior Teacher')->name('students.enrollment-report.export-pdf');
+        ->middleware(['role:Super Admin|Admin|Secretary|Senior Teacher|Deputy Senior Teacher', 'long_pdf_export'])
+        ->name('students.enrollment-report.export-pdf');
 
     // Export filtered list (must be before students resource — otherwise {student}=export)
     Route::match(['get', 'post'], '/students/export', [\App\Http\Controllers\DirectoryExportController::class, 'exportStudents'])
@@ -1516,8 +1521,12 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('fee-balances/{student}/fiscal-task', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'updateFiscalTask'])->name('fee-balances.fiscal-task');
         Route::post('fee-balances/family/{family}/fiscal-task', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'updateFamilyFiscalTask'])->name('fee-balances.family-fiscal-task');
         Route::get('fee-balances/export', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'export'])->name('fee-balances.export');
-        Route::get('fee-balances/export-pdf', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'exportPdf'])->name('fee-balances.export-pdf');
-        Route::get('fee-balances/print', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'printPdf'])->name('fee-balances.print');
+        Route::get('fee-balances/export-pdf', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'exportPdf'])
+            ->middleware('long_pdf_export')
+            ->name('fee-balances.export-pdf');
+        Route::get('fee-balances/print', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'printPdf'])
+            ->middleware('long_pdf_export')
+            ->name('fee-balances.print');
     });
 
     Route::prefix('finance')->name('finance.')->middleware('role:Super Admin|Admin|Secretary|Accountant|Finance Officer|Director')->group(function () {
@@ -1652,7 +1661,9 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         // Expense Management
         Route::get('expenses/reports', [\App\Http\Controllers\Finance\ExpenseReportController::class, 'index'])->name('expenses.reports.index');
         Route::get('expenses/reports/export-csv', [\App\Http\Controllers\Finance\ExpenseReportController::class, 'exportCsv'])->name('expenses.reports.export-csv');
-        Route::get('expenses/reports/export-pdf', [\App\Http\Controllers\Finance\ExpenseReportController::class, 'exportPdf'])->name('expenses.reports.export-pdf');
+        Route::get('expenses/reports/export-pdf', [\App\Http\Controllers\Finance\ExpenseReportController::class, 'exportPdf'])
+            ->middleware('long_pdf_export')
+            ->name('expenses.reports.export-pdf');
         Route::post('expenses/bulk-update', [\App\Http\Controllers\Finance\ExpenseController::class, 'bulkUpdate'])->name('expenses.bulk-update');
         Route::get('expenses/cash-book-export', [\App\Http\Controllers\Finance\ExpenseController::class, 'cashBookExport'])->name('expenses.cash-book-export');
         Route::resource('expenses', \App\Http\Controllers\Finance\ExpenseController::class);
@@ -1832,7 +1843,9 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         // Fee Clearance (Cleared / Pending) report
         Route::get('fee-clearance', [\App\Http\Controllers\Finance\FeeClearanceReportController::class, 'index'])->name('fee-clearance.index');
         Route::post('fee-clearance/recompute', [\App\Http\Controllers\Finance\FeeClearanceReportController::class, 'recompute'])->name('fee-clearance.recompute');
-        Route::get('fee-clearance/export-pdf', [\App\Http\Controllers\Finance\FeeClearanceReportController::class, 'exportPdfByClass'])->name('fee-clearance.export-pdf');
+        Route::get('fee-clearance/export-pdf', [\App\Http\Controllers\Finance\FeeClearanceReportController::class, 'exportPdfByClass'])
+            ->middleware('long_pdf_export')
+            ->name('fee-clearance.export-pdf');
 
         Route::resource('payment-thresholds', PaymentThresholdController::class)
             ->parameters(['payment-thresholds' => 'payment_threshold'])
@@ -2047,7 +2060,9 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         // Exam Reports & Analysis
         Route::get('exam-reports/class-sheet', [ExamReportsController::class, 'classSheet'])->name('exam-reports.class-sheet');
         Route::get('exam-reports/export/class-sheet.xlsx', [ExamReportsController::class, 'exportClassSheet'])->name('exam-reports.export.class-sheet');
-        Route::get('exam-reports/export/class-sheet.pdf', [ExamReportsController::class, 'exportClassSheetPdf'])->name('exam-reports.export.class-sheet-pdf');
+        Route::get('exam-reports/export/class-sheet.pdf', [ExamReportsController::class, 'exportClassSheetPdf'])
+            ->middleware('long_pdf_export')
+            ->name('exam-reports.export.class-sheet-pdf');
         Route::get('exam-reports/export/term-workbook.xlsx', [ExamReportsController::class, 'exportTermWorkbook'])->name('exam-reports.export.term-workbook');
         Route::get('exam-reports/teacher-performance', [ExamReportsController::class, 'teacherPerformance'])->name('exam-reports.teacher-performance');
         Route::get('exam-reports/subject-performance', [ExamReportsController::class, 'subjectPerformance'])->name('exam-reports.subject-performance');

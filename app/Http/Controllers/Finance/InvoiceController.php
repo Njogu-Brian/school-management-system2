@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\DB;
 use App\Models\OptionalFee;
 use App\Models\PaymentAllocation;
 use Barryvdh\DomPDF\Facade\Pdf;
+use App\Services\Pdf\ChunkedDompdfExporter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -892,7 +893,7 @@ class InvoiceController extends Controller
         return $out;
     }
 
-    public function printBulk(Request $request)
+    public function printBulk(Request $request, ChunkedDompdfExporter $pdfExporter)
     {
         $invoices = $this->sortInvoicesForExport(
             $this->filteredInvoicesQuery($request)->with([
@@ -934,19 +935,34 @@ class InvoiceController extends Controller
                 'prior_balance_total' => $overlay['total'],
                 'pdf_balance_due' => $overlay['pdf_balance_due'],
             ];
-        });
+        })->values();
 
-        $pdf = Pdf::loadView('finance.invoices.pdf.bulk', [
-            'invoiceBundles' => $invoiceBundles,
-            'filters' => $filters,
-            'branding' => $branding,
-            'printedBy' => $printedBy,
-            'printedAt' => $printedAt,
-            'invoiceHeader' => $invoiceHeader,
-            'invoiceFooterTemplate' => $invoiceFooterTemplate,
-        ])->setPaper('A4', 'portrait');
-
-        return $pdf->stream('invoices.pdf');
+        try {
+            return $pdfExporter->stream($invoiceBundles, function (Collection $chunk) use (
+                $filters,
+                $branding,
+                $printedBy,
+                $printedAt,
+                $invoiceHeader,
+                $invoiceFooterTemplate,
+                $pdfExporter
+            ) {
+                return $pdfExporter->renderView('finance.invoices.pdf.bulk', [
+                    'invoiceBundles' => $chunk,
+                    'filters' => $filters,
+                    'branding' => $branding,
+                    'printedBy' => $printedBy,
+                    'printedAt' => $printedAt,
+                    'invoiceHeader' => $invoiceHeader,
+                    'invoiceFooterTemplate' => $invoiceFooterTemplate,
+                ], 'A4', 'portrait');
+            }, [
+                'filename' => 'invoices-'.now()->format('Ymd-His').'.pdf',
+                'chunk_size' => 10,
+            ]);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
     }
 
     public function printSingle(Invoice $invoice)

@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\{Payment, BankAccount, FeePaymentPlan};
+use App\Services\Pdf\ChunkedDompdfExporter;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\DB;
@@ -198,7 +200,10 @@ class ReceiptService
     {
         $data = $this->buildReceiptData($payment);
 
+        $paperSize = $options['paper_size'] ?? 'A4';
+        $orientation = $options['orientation'] ?? 'portrait';
         $sharedReceiptNumber = $payment->shared_receipt_number;
+
         if ($sharedReceiptNumber) {
             $sharedPayments = Payment::where('shared_receipt_number', $sharedReceiptNumber)
                 ->orderBy('id')
@@ -206,24 +211,57 @@ class ReceiptService
 
             $receipts = $sharedPayments->map(function ($sharedPayment) {
                 return $this->buildReceiptData($sharedPayment);
-            })->values()->all();
+            })->values();
 
-            $pdf = Pdf::loadView('finance.receipts.bulk-print-pdf', [
-                'receipts' => $receipts,
-                'school' => $data['school'],
-                'branding' => $data['branding'],
-                'receiptHeader' => $data['receipt_header'],
-                'receiptFooter' => $data['receipt_footer'],
+            $exporter = app(ChunkedDompdfExporter::class);
+            $built = $exporter->build($receipts, function (Collection $chunk) use (
+                $exporter,
+                $data,
+                $paperSize,
+                $orientation
+            ) {
+                return $exporter->renderView('finance.receipts.bulk-print-pdf', [
+                    'receipts' => $chunk->values()->all(),
+                    'school' => $data['school'],
+                    'branding' => $data['branding'],
+                    'receiptHeader' => $data['receipt_header'],
+                    'receiptFooter' => $data['receipt_footer'],
+                ], $paperSize, $orientation);
+            }, [
+                'filename' => 'receipt-'.($data['receipt_number'] ?? $payment->receipt_number),
+                'chunk_size' => 10,
+                'allow_over_sync' => true,
             ]);
-        } else {
-            $pdf = Pdf::loadView('finance.receipts.pdf.template', $data);
+
+            $binary = (string) file_get_contents($built['path']);
+            @unlink($built['path']);
+            if (!empty($built['cleanup_dir'])) {
+                // Remaining chunk files cleaned by shutdown / explicit delete of dir contents
+                $dir = $built['cleanup_dir'];
+                if (is_dir($dir)) {
+                    foreach (scandir($dir) ?: [] as $item) {
+                        if ($item === '.' || $item === '..') {
+                            continue;
+                        }
+                        @unlink($dir.DIRECTORY_SEPARATOR.$item);
+                    }
+                    @rmdir($dir);
+                }
+            }
+
+            if ($options['save'] ?? false) {
+                $filename = 'receipts/receipt_'.($data['receipt_number'] ?? $payment->receipt_number).'_'.time().'.pdf';
+                storage_public()->put($filename, $binary);
+
+                return $filename;
+            }
+
+            return $binary;
         }
-        
-        // Set paper size
-        $paperSize = $options['paper_size'] ?? 'A4';
-        $orientation = $options['orientation'] ?? 'portrait';
+
+        $pdf = Pdf::loadView('finance.receipts.pdf.template', $data);
         $pdf->setPaper($paperSize, $orientation);
-        
+
         // Save to storage if requested
         if ($options['save'] ?? false) {
             $filename = 'receipts/receipt_' . ($data['receipt_number'] ?? $payment->receipt_number) . '_' . time() . '.pdf';

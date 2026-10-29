@@ -16,8 +16,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
+use App\Services\Pdf\ChunkedDompdfExporter;
 use App\Services\TermAssessmentService;
 use App\Services\ReportCardBatchService;
+use Illuminate\Support\Collection;
 use App\Models\Academics\Stream;
 use App\Services\ReportCardPublishService;
 use App\Support\AcademicContext;
@@ -475,7 +477,7 @@ class ReportCardController extends Controller
         return $pdf->download($filename);
     }
 
-    public function bulkPrint(Request $request)
+    public function bulkPrint(Request $request, ChunkedDompdfExporter $pdfExporter)
     {
         $query = $this->buildFilteredReportCardsQuery($request)['query'];
 
@@ -496,25 +498,39 @@ class ReportCardController extends Controller
             return back()->with('error', 'No report cards found matching the selected criteria.');
         }
 
-        if ($reports->count() > 200) {
-            return back()->with('error', 'Too many report cards to print at once (max 200). Narrow your filters or select fewer rows.');
+        $syncMax = (int) config('pdf_export.sync_max_items', 150);
+        if ($reports->count() > $syncMax) {
+            return back()->with('error', "Too many report cards to print at once (max {$syncMax}). Narrow your filters or select fewer rows.");
         }
 
-        $cards = [];
-        foreach ($reports as $report) {
-            $cards[] = [
-                'report_card' => $report,
-                'dto' => ReportCardBatchService::build($report->id),
-            ];
+        // Build DTOs lazily per chunk so we never hold hundreds of report payloads at once.
+        $reportIds = $reports->pluck('id')->values();
+        $reportsById = $reports->keyBy('id');
+
+        try {
+            return $pdfExporter->stream($reportIds, function (Collection $chunkIds) use ($reportsById, $pdfExporter) {
+                $cards = [];
+                foreach ($chunkIds as $reportId) {
+                    $report = $reportsById->get($reportId);
+                    if (!$report) {
+                        continue;
+                    }
+                    $cards[] = [
+                        'report_card' => $report,
+                        'dto' => ReportCardBatchService::build((int) $reportId),
+                    ];
+                }
+
+                return $pdfExporter->renderView('academics.report_cards.bulk-print-pdf', [
+                    'cards' => $cards,
+                ], 'A4', 'portrait');
+            }, [
+                'filename' => 'report-cards-bulk-'.now()->format('Ymd-His').'.pdf',
+                'chunk_size' => 8,
+            ]);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
         }
-
-        $pdf = Pdf::loadView('academics.report_cards.bulk-print-pdf', [
-            'cards' => $cards,
-        ])->setPaper('A4', 'portrait');
-
-        $filename = 'report-cards-bulk-'.now()->format('Ymd-His').'.pdf';
-
-        return $pdf->stream($filename);
     }
 
     public function generateForm()

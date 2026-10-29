@@ -136,14 +136,37 @@ class DailyTransportListController extends Controller
             return $student->assignments->first()?->eveningTrip?->vehicle?->vehicle_number ?? 'Unknown';
         });
 
-        $pdf = Pdf::loadView('transport.daily-list.print', [
-            'studentsByVehicle' => $studentsByVehicle,
-            'date' => $date,
-            'vehicleId' => $vehicleId,
-            'classroomId' => $classroomId
-        ]);
+        $exporter = app(\App\Services\Pdf\ChunkedDompdfExporter::class);
+        $vehicleKeys = $studentsByVehicle->keys()->values();
 
-        return $pdf->stream('transport_list_' . $date . '.pdf');
+        try {
+            return $exporter->stream($vehicleKeys, function ($chunkKeys) use (
+                $exporter,
+                $studentsByVehicle,
+                $date,
+                $vehicleId,
+                $classroomId
+            ) {
+                $partial = collect();
+                foreach ($chunkKeys as $key) {
+                    if ($studentsByVehicle->has($key)) {
+                        $partial->put($key, $studentsByVehicle->get($key));
+                    }
+                }
+
+                return $exporter->renderView('transport.daily-list.print', [
+                    'studentsByVehicle' => $partial,
+                    'date' => $date,
+                    'vehicleId' => $vehicleId,
+                    'classroomId' => $classroomId,
+                ]);
+            }, [
+                'filename' => 'transport_list_'.$date.'.pdf',
+                'chunk_size' => 2,
+            ]);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
     }
 
     /**

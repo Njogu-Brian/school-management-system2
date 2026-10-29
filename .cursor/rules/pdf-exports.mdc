@@ -1,0 +1,37 @@
+---
+description: Ground rules for DomPDF / PDF exports — chunk, merge, never giant HTML trees
+globs: app/**/*Pdf*.php,app/**/*PDF*.php,app/Services/Pdf/**/*.php,app/Http/Controllers/**/*.php,resources/views/**/*pdf*.blade.php,config/pdf_export.php
+alwaysApply: true
+---
+
+# PDF exports (DomPDF)
+
+## Rule
+
+Never render unbounded multi-document or large-table HTML as a single `Pdf::loadView` / `Pdf::loadHTML` call. DomPDF builds a full frame tree in memory and will OOM (seen at 512MB).
+
+## Required pattern
+
+1. **Single document** (one invoice, one receipt, one report card, one payslip) → DomPDF is fine.
+2. **Bulk / list / multi-page school-wide** → use `App\Services\Pdf\ChunkedDompdfExporter` (or `PDFExportService::generateChunkedPDF` / `chunk_items` option).
+3. Flow: **chunk → render → unset/gc → merge** (`qpdf` preferred on server; FPDI best-effort; ZIP last resort).
+4. Apply `long_pdf_export` middleware on sync bulk routes.
+5. Respect `config/pdf_export.php` caps (`chunk_size`, `sync_max_items`, `hard_max_items`). Do not “fix” OOMs by only raising `memory_limit`.
+
+## Bad
+
+```php
+$pdf = Pdf::loadView('…bulk…', ['items' => $allHundreds])->stream();
+```
+
+## Good
+
+```php
+return app(ChunkedDompdfExporter::class)->stream($items, function ($chunk) use ($exporter) {
+    return $exporter->renderView('…bulk…', ['items' => $chunk]);
+}, ['filename' => 'export.pdf', 'chunk_size' => 10]);
+```
+
+## Prefer Excel
+
+Huge tabular finance reports that users will filter in a spreadsheet should stay Excel-first; PDF is optional and must still be chunked.
