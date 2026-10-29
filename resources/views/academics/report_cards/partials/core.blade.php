@@ -3,7 +3,6 @@
   $firstSubject = collect($D['subjects'] ?? [])->first() ?? [];
   $examHeaders = data_get($firstSubject, 'exams', []);
   $sideExamHeaders = data_get($firstSubject, 'side_exams', []);
-  $showPosition = (bool) data_get($D, 'context.show_position', true);
   $referenceTermName = $D['context']['reference_term'] ?? null;
   $cbcLegend = collect(\App\Support\CbcGradePresentation::standardBands())
     ->map(fn ($band) => $band['short'].' = '.$band['label'])
@@ -18,7 +17,7 @@
   $chartValueFont = '9px';
   $chartLabelFont = '8px';
   $chartBarWidthPct = 88;
-  $colSpanEmpty = ($referenceTermName ? 2 : 0) + count($examHeaders) + 2 + ($showPosition ? 1 : 0) + count($sideExamHeaders) + 1;
+  $colSpanEmpty = ($referenceTermName ? 2 : 0) + count($examHeaders) + 2 + count($sideExamHeaders) + 1;
   $chartCount = max(1, collect($D['year_trend']['points'] ?? [])->count());
   $chartItems = collect($D['year_trend']['points'] ?? [])->values()->map(function ($point, $index) use ($brandPrimary, $brandSecondary, $chartPlotHeight, $chartCount) {
     $value = max(0, min(100, (float) ($point['value'] ?? 0)));
@@ -75,9 +74,6 @@
       @endforeach
       <th style="{{ $cellStyle }} text-align:center;">Average</th>
       <th style="{{ $cellStyle }} text-align:center;">Grade</th>
-      @if($showPosition)
-        <th style="{{ $cellStyle }} text-align:center;">Position</th>
-      @endif
       @foreach($sideExamHeaders as $eh)
         <th style="{{ $cellStyle }} text-align:center; background:#eef2ff;">{{ $eh['exam_name'] }}</th>
       @endforeach
@@ -109,9 +105,6 @@
         @endforeach
         <td style="{{ $cellStyle }} text-align:center;"><strong>{{ $row['term_avg'] !== null ? number_format($row['term_avg'],2) : '—' }}</strong></td>
         <td style="{{ $cellStyle }} text-align:center;"><strong>{{ $row['grade_label'] ?? '—' }}</strong></td>
-        @if($showPosition)
-          <td style="{{ $cellStyle }} text-align:center;"><strong>{{ $row['subject_position'] ?? '—' }}</strong></td>
-        @endif
         @foreach(($row['side_exams'] ?? []) as $ex)
           <td style="{{ $cellStyle }} text-align:center; background:#f8faff;">
             @if($ex['score'] !== null)
