@@ -23,14 +23,17 @@
     termSelect.querySelectorAll('option').forEach(function (opt) {
       if (!opt.value) {
         opt.hidden = false;
+        opt.disabled = false;
         return;
       }
       const optYear = opt.getAttribute('data-academic-year-id');
       if (!optYear) {
         opt.hidden = false;
+        opt.disabled = false;
         return;
       }
-      const show = yearId && String(optYear) === String(yearId);
+      // No year ("All Years") → show every term; otherwise match year.
+      const show = !yearId || String(optYear) === String(yearId);
       opt.hidden = !show;
       opt.disabled = !show;
       if (show && opt.value === currentTerm) {
@@ -39,6 +42,10 @@
     });
 
     if (!yearId) {
+      const empty = Array.from(termSelect.options).find(function (opt) { return !opt.value; });
+      if (empty) {
+        termSelect.value = '';
+      }
       return;
     }
     if (!valid) {

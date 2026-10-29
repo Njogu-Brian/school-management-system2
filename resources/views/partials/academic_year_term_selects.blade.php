@@ -7,10 +7,18 @@
   $termName = $termName ?? 'term_id';
   $yearSelectId = $yearSelectId ?? $yearName;
   $termSelectId = $termSelectId ?? $termName;
-  $selectedYearId = $selectedYearId ?? AcademicContext::resolveYearId(null);
-  $selectedTermId = $selectedTermId ?? AcademicContext::resolveTermId($selectedYearId, null);
   $allowEmptyYear = $allowEmptyYear ?? false;
   $allowEmptyTerm = $allowEmptyTerm ?? false;
+  // isset() is false for null — intentional so "All Years/Terms" (null) is not
+  // re-defaulted to the calendar current year/term via ??.
+  if (! isset($selectedYearId)) {
+    $selectedYearId = $allowEmptyYear ? null : AcademicContext::resolveYearId(null);
+  }
+  if (! isset($selectedTermId)) {
+    $selectedTermId = $allowEmptyTerm
+      ? null
+      : AcademicContext::resolveTermId($selectedYearId ? (int) $selectedYearId : null, null);
+  }
   $yearRequired = $yearRequired ?? false;
   $termRequired = $termRequired ?? false;
   $yearCol = $yearCol ?? 'col-md-3';
@@ -26,10 +34,10 @@
   <label class="form-label">{{ $yearLabel }}@if($yearRequired) <span class="text-danger">*</span>@endif</label>
   <select name="{{ $yearName }}" id="{{ $yearSelectId }}" class="form-select academic-year-select" @if($yearRequired) required @endif>
     @if($allowEmptyYear)
-      <option value="">{{ $yearEmptyLabel }}</option>
+      <option value="" @selected($selectedYearId === null || $selectedYearId === '')>{{ $yearEmptyLabel }}</option>
     @endif
     @foreach($years as $y)
-      <option value="{{ $y->id }}" @selected((int) $selectedYearId === (int) $y->id)>{{ $y->year }}</option>
+      <option value="{{ $y->id }}" @selected($selectedYearId !== null && $selectedYearId !== '' && (int) $selectedYearId === (int) $y->id)>{{ $y->year }}</option>
     @endforeach
   </select>
 </div>
@@ -37,12 +45,12 @@
   <label class="form-label">{{ $termLabel }}@if($termRequired) <span class="text-danger">*</span>@endif</label>
   <select name="{{ $termName }}" id="{{ $termSelectId }}" class="form-select academic-term-select" @if($termRequired) required @endif>
     @if($allowEmptyTerm)
-      <option value="">{{ $termEmptyLabel }}</option>
+    <option value="" @selected($selectedTermId === null || $selectedTermId === '')>{{ $termEmptyLabel }}</option>
     @endif
     @foreach($terms as $t)
       <option value="{{ $t->id }}"
               data-academic-year-id="{{ $t->academic_year_id }}"
-              @selected((int) $selectedTermId === (int) $t->id)>
+              @selected($selectedTermId !== null && $selectedTermId !== '' && (int) $selectedTermId === (int) $t->id)>
         @if($showYearPrefixInTerm && $t->academicYear)
           {{ $t->academicYear->year }} · {{ $t->name }}
         @else

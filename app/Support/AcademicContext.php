@@ -65,6 +65,61 @@ class AcademicContext
         return $latest ? (int) $latest : null;
     }
 
+    /**
+     * Default year for list/filter pages.
+     *
+     * During holidays the calendar advances to the next upcoming term (prep).
+     * List pages should still open on the most recently closed term so existing
+     * exams/report cards remain visible until the new term starts.
+     */
+    public static function resolveListYearId(): ?int
+    {
+        if (function_exists('is_school_in_session') && is_school_in_session()) {
+            return self::resolveYearId(null);
+        }
+
+        $lastClosed = self::mostRecentlyClosedTerm();
+        if ($lastClosed?->academic_year_id) {
+            return (int) $lastClosed->academic_year_id;
+        }
+
+        return self::resolveYearId(null);
+    }
+
+    /**
+     * Default term for list/filter pages (see resolveListYearId).
+     */
+    public static function resolveListTermId(?int $yearId): ?int
+    {
+        if (! $yearId) {
+            return null;
+        }
+
+        if (function_exists('is_school_in_session') && is_school_in_session()) {
+            return self::resolveTermId($yearId, null);
+        }
+
+        $lastClosed = self::mostRecentlyClosedTerm($yearId);
+        if ($lastClosed) {
+            return (int) $lastClosed->id;
+        }
+
+        return self::resolveTermId($yearId, null);
+    }
+
+    public static function mostRecentlyClosedTerm(?int $yearId = null): ?Term
+    {
+        $today = now()->toDateString();
+
+        return Term::query()
+            ->when($yearId, fn ($q) => $q->where('academic_year_id', $yearId))
+            ->whereNotNull('closing_date')
+            ->whereDate('closing_date', '<', $today)
+            ->orderByDesc('closing_date')
+            ->orderByDesc('id')
+            ->first();
+    }
+
     public static function termsForYear(?int $yearId): Collection
     {
         if (! $yearId) {
@@ -204,7 +259,58 @@ class AcademicContext
     }
 
     /**
+     * Year/term selects for report filter pages.
+     *
+     * Preserves submitted IDs (no silent remap). First visit (no year param)
+     * uses list defaults so holiday "upcoming" years do not empty the form.
+     *
+     * @return array{
+     *     years: Collection,
+     *     academicYears: Collection,
+     *     terms: Collection,
+     *     selectedYearId: int|null,
+     *     selectedTermId: int|null,
+     *     defaultYearId: int|null,
+     *     defaultTermId: int|null
+     * }
+     */
+    public static function forFilterRequest(
+        bool $hasYearParam,
+        ?int $yearValue,
+        bool $hasTermParam,
+        ?int $termValue,
+    ): array {
+        $years = self::years();
+        $listYearId = self::resolveListYearId();
+
+        if ($hasYearParam) {
+            $yearId = ($yearValue && $yearValue > 0) ? $yearValue : null;
+        } else {
+            $yearId = $listYearId;
+        }
+
+        if ($hasTermParam) {
+            $termId = ($termValue && $termValue > 0) ? $termValue : null;
+        } else {
+            $termId = $yearId ? self::resolveListTermId($yearId) : null;
+        }
+
+        return [
+            'years' => $years,
+            'academicYears' => $years,
+            'terms' => self::allTermsForSelect(),
+            'selectedYearId' => $yearId,
+            'selectedTermId' => $termId,
+            'defaultYearId' => $listYearId,
+            'defaultTermId' => self::resolveListTermId($listYearId),
+        ];
+    }
+
+    /**
      * Resolve year/term filter IDs for list pages (defaults on first visit; empty = all).
+     *
+     * Explicit empty year/term params mean "All Years/Terms" and must not be
+     * re-defaulted by forView() or the shared selects partial.
      *
      * @return array{yearId: int|null, termId: int|null, applyYearFilter: bool, applyTermFilter: bool}
      */
@@ -216,26 +322,31 @@ class AcademicContext
         bool $termFilled,
         ?int $termValue,
     ): array {
-        $defaultYearId = self::resolveYearId(null);
+        $defaultYearId = self::resolveListYearId();
 
         if ($hasYearParam) {
             $yearId = $yearFilled ? $yearValue : null;
             $applyYearFilter = $yearFilled;
         } else {
             $yearId = $defaultYearId;
-            $applyYearFilter = true;
+            $applyYearFilter = (bool) $yearId;
         }
 
         if ($hasTermParam) {
             $termId = $termFilled ? $termValue : null;
             $applyTermFilter = $termFilled;
         } else {
-            $termId = $yearId ? self::resolveTermId($yearId, null) : null;
+            $termId = $yearId ? self::resolveListTermId($yearId) : null;
             $applyTermFilter = (bool) $termId;
         }
 
         if ($termId && $yearId && ! self::termBelongsToYear($termId, $yearId)) {
-            $termId = self::resolveTermId($yearId, null);
+            $termId = $applyTermFilter
+                ? self::resolveListTermId($yearId)
+                : null;
+            if (! $termId) {
+                $applyTermFilter = false;
+            }
         }
 
         return [

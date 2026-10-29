@@ -36,7 +36,20 @@
 
     <div class="settings-card mb-3 no-print">
       <div class="card-body">
-        <form method="GET" id="classSheetForm" class="row g-3 align-items-end">
+        <form method="GET" id="classSheetForm" class="row g-3 align-items-end" data-no-year-term-filter>
+
+          @if($errors->any())
+            <div class="col-12">
+              <div class="alert alert-danger mb-0" role="alert">
+                <div class="fw-semibold mb-1">Could not load results</div>
+                <ul class="mb-0 ps-3">
+                  @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                  @endforeach
+                </ul>
+              </div>
+            </div>
+          @endif
 
           <div class="col-12">
             <label class="form-label d-block mb-2">Report type</label>
@@ -205,10 +218,11 @@
             </div>
             <div class="card-body p-0">
               @if(!empty($bundle['notice']))
-                <div class="p-3">
+                <div class="p-3 {{ !empty($bundle['payload']) ? 'pb-0' : '' }}">
                   <div class="alert alert-warning mb-0">{{ $bundle['notice'] }}</div>
                 </div>
-              @elseif(!empty($bundle['payload']))
+              @endif
+              @if(!empty($bundle['payload']))
                 @php
                   $m = $bundle['payload']['meta'] ?? [];
                   $lhSub = null;
@@ -312,11 +326,14 @@
     termSel.querySelectorAll('option').forEach(function (opt) {
       if (!opt.value) {
         opt.hidden = false;
+        opt.disabled = false;
         return;
       }
       const oy = String(opt.getAttribute('data-academic-year-id') || '');
       const show = y && oy === String(y);
+      // Disable out-of-year terms so a stale selected option cannot submit.
       opt.hidden = !show;
+      opt.disabled = !show;
       if (show && opt.value === currentTerm) valid = true;
     });
     if (!y || !valid) {

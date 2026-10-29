@@ -43,12 +43,18 @@ class ExamReportsController extends Controller
         $examReportsFullAccess = ExamReportsAccess::userHasFullAccess($u);
 
         $sheetFlow = $request->input('sheet_flow', 'by_exam_type');
+        $bundles = [];
+        $loadErrors = null;
 
+        // GET validation must not redirect to the bare URL — that re-defaults to the
+        // calendar "current" year (often next-term prep) and looks like filters reset.
         if ($request->filled('load')) {
-            $this->validateClassSheetRequest($request);
-            $bundles = $this->buildClassSheetBundles($request, $u);
-        } else {
-            $bundles = [];
+            $validator = $this->classSheetValidator($request);
+            if ($validator->fails()) {
+                $loadErrors = $validator->errors();
+            } else {
+                $bundles = $this->buildClassSheetBundles($request, $u);
+            }
         }
 
         $examTypes = ExamType::orderBy('name')->get();
@@ -73,12 +79,14 @@ class ExamReportsController extends Controller
 
         $streamsByClassroom = $this->streamsByClassroomForFilters($allowedClassIds);
 
-        $academic = AcademicContext::forView(
-            requestedYearId: $request->filled('academic_year_id') ? (int) $request->academic_year_id : null,
-            requestedTermId: $request->filled('term_id') ? (int) $request->term_id : null,
+        $academic = AcademicContext::forFilterRequest(
+            hasYearParam: $request->has('academic_year_id'),
+            yearValue: $request->filled('academic_year_id') ? (int) $request->academic_year_id : null,
+            hasTermParam: $request->has('term_id'),
+            termValue: $request->filled('term_id') ? (int) $request->term_id : null,
         );
 
-        return view('academics.exam_reports.class_sheet', array_merge(compact(
+        $view = view('academics.exam_reports.class_sheet', array_merge(compact(
             'sheetFlow',
             'bundles',
             'examTypes',
@@ -92,6 +100,8 @@ class ExamReportsController extends Controller
         ), $academic, [
             'academicYears' => $academic['years'],
         ]));
+
+        return $loadErrors ? $view->withErrors($loadErrors) : $view;
     }
 
     public function exportClassSheet(Request $request)
@@ -179,36 +189,51 @@ class ExamReportsController extends Controller
 
     private function validateClassSheetRequest(Request $request): void
     {
+        $this->classSheetValidator($request)->validate();
+    }
+
+    private function classSheetValidator(Request $request): \Illuminate\Validation\Validator
+    {
         $flow = $request->input('sheet_flow', 'by_exam_type');
+        $termBelongsToYear = function (string $attribute, mixed $value, \Closure $fail) use ($request): void {
+            if (! $request->filled('academic_year_id') || ! $value) {
+                return;
+            }
+            if (! AcademicContext::termBelongsToYear((int) $value, (int) $request->academic_year_id)) {
+                $fail('The selected term does not belong to the selected academic year. Pick the year again, then the matching term.');
+            }
+        };
 
         if ($flow === 'by_exam_type') {
-            Validator::make($request->all(), [
+            return Validator::make($request->all(), [
                 'sheet_flow' => 'required|in:by_exam_type,by_subject,term',
                 'exam_type_id' => 'required|exists:exam_types,id',
                 'classroom_id' => 'required|exists:classrooms,id',
                 'academic_year_id' => 'required|exists:academic_years,id',
-                'term_id' => 'required|exists:terms,id',
+                'term_id' => ['required', 'exists:terms,id', $termBelongsToYear],
                 'stream_id' => 'nullable|exists:streams,id',
-            ])->validate();
-        } elseif ($flow === 'by_subject') {
-            Validator::make($request->all(), [
+            ]);
+        }
+
+        if ($flow === 'by_subject') {
+            return Validator::make($request->all(), [
                 'sheet_flow' => 'required|in:by_exam_type,by_subject,term',
                 'subject_id' => 'required|exists:subjects,id',
                 'academic_year_id' => 'required|exists:academic_years,id',
-                'term_id' => 'required|exists:terms,id',
+                'term_id' => ['required', 'exists:terms,id', $termBelongsToYear],
                 'stream_id' => 'nullable|exists:streams,id',
                 'classroom_ids' => 'required|array|min:1',
                 'classroom_ids.*' => 'exists:classrooms,id',
-            ])->validate();
-        } else {
-            Validator::make($request->all(), [
-                'sheet_flow' => 'required|in:by_exam_type,by_subject,term',
-                'classroom_id' => 'required|exists:classrooms,id',
-                'academic_year_id' => 'required|exists:academic_years,id',
-                'term_id' => 'required|exists:terms,id',
-                'stream_id' => 'nullable|exists:streams,id',
-            ])->validate();
+            ]);
         }
+
+        return Validator::make($request->all(), [
+            'sheet_flow' => 'required|in:by_exam_type,by_subject,term',
+            'classroom_id' => 'required|exists:classrooms,id',
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'term_id' => ['required', 'exists:terms,id', $termBelongsToYear],
+            'stream_id' => 'nullable|exists:streams,id',
+        ]);
     }
 
     /**
@@ -301,6 +326,16 @@ class ExamReportsController extends Controller
         ExamReportsAccess::assertClassroomAccess($user, $classroom->id);
         $ay = (int) $request->academic_year_id;
         $termId = (int) $request->term_id;
+
+        $papers = $this->examScope->papersForTerm($ay, $termId, $classroom->id, $streamId);
+        if ($papers->isEmpty()) {
+            return [[
+                'classroom' => $classroom,
+                'payload' => null,
+                'notice' => 'No exam papers found for this class, academic year, and term. Open Manage Exams for that year/term, or pick a different year and matching term.',
+            ]];
+        }
+
         $payload = $cache->rememberTermClassSheet(
             $ay,
             $termId,
@@ -309,6 +344,13 @@ class ExamReportsController extends Controller
             fn () => $builder->buildForTerm($ay, $termId, $classroom, $streamId)
         );
 
+        $hasScores = collect($payload['rows'] ?? [])->contains(
+            fn ($row) => (int) ($row['subjects_taken'] ?? 0) > 0
+        );
+        $notice = $hasScores
+            ? null
+            : 'Exam papers exist for this class/year/term, but no marks have been entered yet.';
+
         $payload['most_improved'] = (new AnalyticsService())->mostImprovedForTermScope(
             $ay,
             $termId,
@@ -316,7 +358,7 @@ class ExamReportsController extends Controller
             $streamId
         );
 
-        return [['classroom' => $classroom, 'payload' => $payload, 'notice' => null]];
+        return [['classroom' => $classroom, 'payload' => $payload, 'notice' => $notice]];
     }
 
     private function excelSheetTitle(array $payload, string $classLabel): string
@@ -469,9 +511,11 @@ class ExamReportsController extends Controller
         $exams = Exam::with(['academicYear', 'term'])->orderByDesc('created_at')->limit(60)->get();
         $classrooms = ExamReportsAccess::classroomsQueryFor($u)->get();
         $streams = Stream::orderBy('name')->get();
-        $academic = AcademicContext::forView(
-            requestedYearId: $request->filled('academic_year_id') ? (int) $request->academic_year_id : null,
-            requestedTermId: $request->filled('term_id') ? (int) $request->term_id : null,
+        $academic = AcademicContext::forFilterRequest(
+            hasYearParam: $request->has('academic_year_id'),
+            yearValue: $request->filled('academic_year_id') ? (int) $request->academic_year_id : null,
+            hasTermParam: $request->has('term_id'),
+            termValue: $request->filled('term_id') ? (int) $request->term_id : null,
         );
 
         $payload = null;
@@ -511,9 +555,11 @@ class ExamReportsController extends Controller
         $allowedClassIds = $classrooms->pluck('id')->all();
         $filterScopes = $this->buildFilterScopes($allowedClassIds);
 
-        $academic = AcademicContext::forView(
-            requestedYearId: $request && $request->filled('academic_year_id') ? (int) $request->academic_year_id : null,
-            requestedTermId: $request && $request->filled('term_id') ? (int) $request->term_id : null,
+        $academic = AcademicContext::forFilterRequest(
+            hasYearParam: $request ? $request->has('academic_year_id') : false,
+            yearValue: $request && $request->filled('academic_year_id') ? (int) $request->academic_year_id : null,
+            hasTermParam: $request ? $request->has('term_id') : false,
+            termValue: $request && $request->filled('term_id') ? (int) $request->term_id : null,
         );
 
         return array_merge([

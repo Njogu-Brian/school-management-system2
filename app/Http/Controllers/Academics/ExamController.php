@@ -194,9 +194,11 @@ class ExamController extends Controller
         $canManageStatus = $this->managesExamLifecycle($user);
 
         $types = ExamType::orderBy('name')->get();
+        // applyDefaults false: empty year/term ("All …") must stay empty in the UI.
         $academic = AcademicContext::forView(
             requestedYearId: $filterIds['yearId'],
             requestedTermId: $filterIds['termId'],
+            applyDefaults: false,
         );
 
         $examSessions = ExamSession::query()
