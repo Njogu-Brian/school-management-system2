@@ -1689,7 +1689,7 @@ class StudentController extends Controller
             $rowData = array_combine($headers, $row);
 
             // Map IDs
-            $classroomId = Classroom::where('name', $rowData['classroom'] ?? '')->value('id');
+            $classroomId = Classroom::withoutGlobalScope('offered')->where('name', $rowData['classroom'] ?? '')->value('id');
             $streamId    = Stream::where('name', $rowData['stream'] ?? '')->value('id');
             $categoryId  = StudentCategory::where('name', $rowData['category'] ?? '')->value('id');
 
@@ -2612,7 +2612,7 @@ class StudentController extends Controller
 
                 // Academic info
                 if (!empty($rowData['classroom'])) {
-                    $classroom = Classroom::where('name', $rowData['classroom'])->first();
+                    $classroom = Classroom::withoutGlobalScope('offered')->where('name', $rowData['classroom'])->first();
                     if ($classroom) $studentUpdateData['classroom_id'] = $classroom->id;
                 }
                 if (!empty($rowData['stream'])) {

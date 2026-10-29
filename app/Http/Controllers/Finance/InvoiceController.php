@@ -329,7 +329,12 @@ class InvoiceController extends Controller
             ->orderBy('payment_date', 'desc')
             ->get();
 
-        return view('finance.invoices.show', compact('invoice', 'appliedDiscounts', 'paymentsForHistory'));
+        $voteheads = \App\Models\Votehead::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return view('finance.invoices.show', compact('invoice', 'appliedDiscounts', 'paymentsForHistory', 'voteheads'));
     }
 
     public function reverse(Request $request, Invoice $invoice)
@@ -472,16 +477,26 @@ class InvoiceController extends Controller
         }
 
         $request->validate([
-            'votehead_name' => 'required|string|max:255',
+            'votehead_name' => 'nullable|string|max:255',
+            'votehead_id' => 'nullable|integer|exists:voteheads,id',
             'amount' => 'required|numeric|min:0',
         ]);
+        if (!$request->filled('votehead_id') && trim((string) $request->input('votehead_name')) === '') {
+            return back()->with('error', 'Type a line name, or choose an existing votehead.');
+        }
         try {
+            if ($request->filled('votehead_id')) {
+                $votehead = \App\Models\Votehead::query()->findOrFail((int) $request->input('votehead_id'));
+                UniformFeeService::addExistingVoteheadItem($invoice, $votehead, (float) $request->amount);
+                return back()->with('success', $votehead->name . ' was added on this invoice. No new votehead was created.');
+            }
+
             UniformFeeService::addCustomItem(
                 $invoice,
                 (string) $request->input('votehead_name'),
                 (float) $request->amount
             );
-            return back()->with('success', 'Custom item added/updated. It will appear on the invoice, payments and statement.');
+            return back()->with('success', 'Line added. An existing votehead was used when the name already matched one. A new name stays on this invoice only.');
         } catch (\Exception $e) {
             \Log::error('Custom invoice item store failed: ' . $e->getMessage(), ['invoice_id' => $invoice->id]);
             return back()->with('error', 'Failed: ' . $e->getMessage());

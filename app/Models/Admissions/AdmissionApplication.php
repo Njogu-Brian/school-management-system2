@@ -105,7 +105,7 @@ class AdmissionApplication extends Model
 
     public function preferredClassroom(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\Academics\Classroom::class, 'preferred_classroom_id');
+        return $this->belongsTo(\App\Models\Academics\Classroom::class, 'preferred_classroom_id')->withoutGlobalScope('offered');
     }
 
     public function assignedStaff(): BelongsTo
