@@ -898,6 +898,8 @@ class InvoiceController extends Controller
             'student.classroom',
             'student.stream',
             'student.family',
+            'classroom',
+            'stream',
             'items.votehead',
             'items.allocations.payment.paymentMethod',
             'term',

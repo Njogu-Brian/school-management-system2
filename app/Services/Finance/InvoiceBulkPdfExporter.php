@@ -239,6 +239,8 @@ class InvoiceBulkPdfExporter
                 'student.classroom',
                 'student.stream',
                 'student.family',
+                'classroom',
+                'stream',
                 'items.votehead',
                 'items.allocations.payment.paymentMethod',
                 'term',
@@ -275,8 +277,8 @@ class InvoiceBulkPdfExporter
             if (!$s) {
                 return '~~~|~~~|~~~|~~~|~~~';
             }
-            $class = strtolower(trim(optional($s->classroom)->name ?? '~~~'));
-            $stream = strtolower(trim(optional($s->stream)->name ?? ''));
+            $class = strtolower(trim((string) (optional($s->classroom)->name ?? optional($invoice->classroom)->name ?? '~~~')));
+            $stream = strtolower(trim((string) (optional($s->stream)->name ?? optional($invoice->stream)->name ?? '')));
             // Empty stream sorts before named streams within a class, still its own batch key.
             $first = strtolower(trim((string) ($s->first_name ?? '')));
             $middle = strtolower(trim((string) ($s->middle_name ?? '')));
@@ -301,9 +303,9 @@ class InvoiceBulkPdfExporter
     {
         $s = $invoice->student;
         $classId = (string) ($invoice->classroom_id ?? $s?->classroom_id ?? '0');
-        $streamId = (string) ($s?->stream_id ?? '0');
+        $streamId = (string) ($invoice->stream_id ?? $s?->stream_id ?? '0');
         $className = strtolower(trim(optional($s?->classroom)->name ?? optional($invoice->classroom)->name ?? 'unknown'));
-        $streamName = strtolower(trim(optional($s?->stream)->name ?? ''));
+        $streamName = strtolower(trim(optional($invoice->stream)->name ?? optional($s?->stream)->name ?? ''));
 
         // Prefer ids when present so renames don't split batches mid-export.
         return $classId.'|'.$streamId.'|'.$className.'|'.$streamName;
@@ -313,7 +315,7 @@ class InvoiceBulkPdfExporter
     {
         $s = $invoice->student;
         $className = trim((string) (optional($s?->classroom)->name ?? optional($invoice->classroom)->name ?? 'Unknown class'));
-        $streamName = trim((string) (optional($s?->stream)->name ?? ''));
+        $streamName = trim((string) (optional($invoice->stream)->name ?? optional($s?->stream)->name ?? ''));
 
         return $streamName !== '' ? "{$className} - {$streamName}" : $className;
     }

@@ -166,7 +166,7 @@
     <th>Class</th>
     <td>{{ $invoice->classroom->name ?? $s->classroom->name ?? '-' }}</td>
     <th>Stream</th>
-    <td>{{ $invoice->stream->name ?? ($invoice->classroom_id ? '-' : ($s->stream->name ?? '-')) }}</td>
+    <td>{{ $invoice->stream->name ?? $s->stream->name ?? '-' }}</td>
   </tr>
   <tr>
     <th>Period</th>

@@ -167,7 +167,7 @@
     $pdf_balance_due = isset($bundle['pdf_balance_due']) ? (float) $bundle['pdf_balance_due'] : (float) ($invoice->balance ?? 0);
     $s = $invoice->student;
     $className = $invoice->classroom->name ?? $s->classroom->name ?? '—';
-    $streamName = trim((string) ($s->stream->name ?? ''));
+    $streamName = trim((string) ($invoice->stream->name ?? $s->stream->name ?? ''));
     $classStreamKey = strtolower(trim((string) $className)).'|'.strtolower($streamName);
     $bannerLabel = $streamName !== '' ? ('Class: '.$className.' — Stream: '.$streamName) : ('Class: '.$className);
   @endphp

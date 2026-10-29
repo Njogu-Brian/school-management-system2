@@ -81,7 +81,7 @@ class Invoice extends Model
             return '—';
         }
 
-        $stream = $this->stream?->name ?? ($this->classroom_id ? null : $this->student?->stream?->name);
+        $stream = $this->stream?->name ?? $this->student?->stream?->name;
         if ($stream) {
             return $class.' / '.$stream;
         }

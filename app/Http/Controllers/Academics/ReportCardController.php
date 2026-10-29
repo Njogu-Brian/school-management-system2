@@ -16,10 +16,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
-use App\Services\Pdf\ChunkedDompdfExporter;
+use App\Services\Academics\ReportCardBulkPdfExporter;
 use App\Services\TermAssessmentService;
 use App\Services\ReportCardBatchService;
-use Illuminate\Support\Collection;
 use App\Models\Academics\Stream;
 use App\Services\ReportCardPublishService;
 use App\Support\AcademicContext;
@@ -123,7 +122,14 @@ class ReportCardController extends Controller
             $query->where('classroom_id', $request->classroom_id);
         }
         if ($request->filled('stream_id')) {
-            $query->where('stream_id', $request->stream_id);
+            $streamId = (int) $request->stream_id;
+            $query->where(function ($q) use ($streamId) {
+                $q->where('stream_id', $streamId)
+                    ->orWhere(function ($inner) use ($streamId) {
+                        $inner->whereNull('stream_id')
+                            ->whereHas('student', fn ($s) => $s->where('stream_id', $streamId));
+                    });
+            });
         }
         if ($request->filled('search')) {
             $search = trim((string) $request->search);
@@ -477,57 +483,10 @@ class ReportCardController extends Controller
         return $pdf->download($filename);
     }
 
-    public function bulkPrint(Request $request, ChunkedDompdfExporter $pdfExporter)
+    public function bulkPrint(Request $request, ReportCardBulkPdfExporter $exporter)
     {
-        $query = $this->buildFilteredReportCardsQuery($request)['query'];
-
-        if ($request->filled('ids')) {
-            $ids = is_array($request->ids) ? $request->ids : explode(',', (string) $request->ids);
-            $ids = array_values(array_filter(array_map('intval', $ids)));
-            if ($ids !== []) {
-                $query->whereIn('id', $ids);
-            }
-        }
-
-        $reports = $query
-            ->orderBy('classroom_id')
-            ->orderBy('student_id')
-            ->get();
-
-        if ($reports->isEmpty()) {
-            return back()->with('error', 'No report cards found matching the selected criteria.');
-        }
-
-        $syncMax = (int) config('pdf_export.sync_max_items', 150);
-        if ($reports->count() > $syncMax) {
-            return back()->with('error', "Too many report cards to print at once (max {$syncMax}). Narrow your filters or select fewer rows.");
-        }
-
-        // Build DTOs lazily per chunk so we never hold hundreds of report payloads at once.
-        $reportIds = $reports->pluck('id')->values();
-        $reportsById = $reports->keyBy('id');
-
         try {
-            return $pdfExporter->stream($reportIds, function (Collection $chunkIds) use ($reportsById, $pdfExporter) {
-                $cards = [];
-                foreach ($chunkIds as $reportId) {
-                    $report = $reportsById->get($reportId);
-                    if (!$report) {
-                        continue;
-                    }
-                    $cards[] = [
-                        'report_card' => $report,
-                        'dto' => ReportCardBatchService::build((int) $reportId),
-                    ];
-                }
-
-                return $pdfExporter->renderView('academics.report_cards.bulk-print-pdf', [
-                    'cards' => $cards,
-                ], 'A4', 'portrait');
-            }, [
-                'filename' => 'report-cards-bulk-'.now()->format('Ymd-His').'.pdf',
-                'chunk_size' => 8,
-            ]);
+            return $exporter->respondFromRequest($request, Auth::id() ? (int) Auth::id() : null);
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }

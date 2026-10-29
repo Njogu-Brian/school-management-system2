@@ -125,7 +125,7 @@ class ReportCardBatchService
                 ],
                 [
                     'classroom_id'     => $classroomId,
-                    'stream_id'        => $streamId,
+                    'stream_id'        => $streamId ?: ($student->stream_id ?: null),
                     'summary'          => $summary,
                     'overall_performance_level_id' => $cbcData['overall_performance_level_id'],
                     'performance_summary' => $cbcData['performance_summary'],
@@ -233,12 +233,14 @@ class ReportCardBatchService
             ->sort(fn ($a, $b) => strcasecmp((string) $a, (string) $b))
             ->values();
 
+        $termColumnPrefix = self::termColumnPrefix($term?->name, $termId);
+
         $subjectsRows = [];
         foreach ($subjectNames as $subjectName) {
             $rows = $currentSubjectGroups->get($subjectName, collect());
             $referenceRows = $referenceSubjectGroups->get($subjectName, collect());
 
-            $buildSittingCells = function (array $keys) use ($rows, $grading, $classroomId): array {
+            $buildSittingCells = function (array $keys) use ($rows, $grading, $classroomId, $termColumnPrefix): array {
                 $cells = [];
                 foreach ($keys as $sittingKey) {
                     $m = $rows->first(fn ($r) => self::sittingMeta($r->exam)['key'] === $sittingKey);
@@ -251,7 +253,7 @@ class ReportCardBatchService
                     }
                     $cells[] = [
                         'sitting_key' => $sittingKey,
-                        'exam_name' => $meta['column_label'],
+                        'exam_name' => trim($termColumnPrefix.' '.$meta['column_label']),
                         'score' => $score !== null ? (float) $score : null,
                         'grade_label' => self::normalizeGradeLabel($grade),
                         'pl_level' => $m?->pl_level,
@@ -311,7 +313,7 @@ class ReportCardBatchService
         }
 
         $examNames = array_map(
-            fn ($key) => self::sittingMeta(null, $key)['column_label'],
+            fn ($key) => trim($termColumnPrefix.' '.self::sittingMeta(null, $key)['column_label']),
             array_merge($coreSittingKeys, $sideSittingKeys)
         );
         $termTrend = self::academicYearTrend(
@@ -474,8 +476,8 @@ class ReportCardBatchService
             'student' => [
                 'name'              => $student->name ?? trim($student->first_name . ' ' . ($student->middle_name ? $student->middle_name . ' ' : '') . $student->last_name),
                 'admission_number'  => $student->admission_number ?? '',
-                'class'             => $report->classroom?->name ?? '',
-                'stream'            => $report->stream?->name ?? '',
+                'class'             => $report->classroom?->name ?? $student->classroom?->name ?? '',
+                'stream'            => $report->stream?->name ?? $student->stream?->name ?? '',
             ],
             'context' => [
                 'year'  => $report->academicYear?->year ?? '',
@@ -592,12 +594,25 @@ class ReportCardBatchService
     protected static function sittingDefinition(string $key): array
     {
         return match ($key) {
-            'Opener' => ['key' => 'Opener', 'column_label' => 'Open', 'is_side' => false, 'order' => 1],
+            'Opener' => ['key' => 'Opener', 'column_label' => 'Opener', 'is_side' => false, 'order' => 1],
             'Midterm' => ['key' => 'Midterm', 'column_label' => 'Midterm', 'is_side' => false, 'order' => 2],
             'Endterm' => ['key' => 'Endterm', 'column_label' => 'Endterm', 'is_side' => false, 'order' => 3],
             'KnecCba' => ['key' => 'KnecCba', 'column_label' => 'KNEC CBA', 'is_side' => true, 'order' => 90],
             default => ['key' => 'Other', 'column_label' => 'Other', 'is_side' => false, 'order' => 50],
         };
+    }
+
+    /**
+     * Prefix sitting columns with the term, e.g. "TERM 3 Opener".
+     */
+    protected static function termColumnPrefix(?string $termName, mixed $termId = null): string
+    {
+        $name = trim((string) $termName);
+        if ($name === '') {
+            $name = 'Term '.(string) ($termId ?? '');
+        }
+
+        return strtoupper(preg_replace('/\s+/', ' ', $name));
     }
 
     protected static function sittingSortOrder(string $key): int
