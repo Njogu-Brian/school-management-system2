@@ -16,6 +16,7 @@ class ExportFeeVarianceReportCommand extends Command
                             {--from-term=3}
                             {--to-year=2027}
                             {--to-term=1}
+                            {--notes-csv= : CSV of known Term credit/debit notes to exclude matching variances}
                             {--path= : Relative path under storage/app}';
 
     protected $description = 'Excel variance report for Tuition, Transport, and Drinking Water between two year/terms (net of credit/debit notes)';
@@ -36,6 +37,12 @@ class ExportFeeVarianceReportCommand extends Command
 
         $this->info('Voteheads: '.$voteheads->map(fn ($v) => "{$v->id}={$v->name}")->implode(', '));
         $this->info('Amounts = original fee − credit notes + debit notes');
+
+        $notesCsv = (string) ($this->option('notes-csv') ?: '');
+        $expectedNotes = $this->loadExpectedNotesVariance($notesCsv, $voteheads);
+        if ($notesCsv !== '') {
+            $this->info('Known notes loaded for '.count($expectedNotes).' admission/votehead keys');
+        }
 
         $amounts = $this->loadAmounts(
             $voteheads->pluck('id')->all(),
@@ -103,6 +110,14 @@ class ExportFeeVarianceReportCommand extends Command
             $toLabel
         );
 
+        $unmatchedSheet = $this->buildUnmatchedNotesSheet(
+            $rowMeta,
+            $voteheads,
+            $expectedNotes,
+            $fromLabel,
+            $toLabel
+        );
+
         $path = $this->option('path') ?: sprintf(
             'reports/fee_variance_%s_t%s_vs_%s_t%s_%s.xlsx',
             $fromYear,
@@ -123,6 +138,11 @@ class ExportFeeVarianceReportCommand extends Command
                 'headers' => $siblingSheet['headers'],
                 'rows' => $siblingSheet['rows'],
             ],
+            [
+                'title' => 'Unmatched vs Notes File',
+                'headers' => $unmatchedSheet['headers'],
+                'rows' => $unmatchedSheet['rows'],
+            ],
         ]), $path, 'local');
 
         $full = storage_path('app/private/'.$path);
@@ -132,6 +152,8 @@ class ExportFeeVarianceReportCommand extends Command
         $this->info("Wrote {$full}");
         $this->info('Students: '.$studentIds->count());
         $this->info('Sibling families with differences: '.$siblingSheet['family_count']);
+        $this->info('Students skipped (variance matches notes file): '.$unmatchedSheet['matched_count']);
+        $this->info('Students on Unmatched vs Notes File: '.$unmatchedSheet['unmatched_count']);
         $this->info(sprintf(
             'School total variance (net of notes): %s',
             number_format($sumTo - $sumFrom, 2)
@@ -244,6 +266,7 @@ class ExportFeeVarianceReportCommand extends Command
 
         return [
             'student_id' => $studentId,
+            'admission_number' => strtoupper(trim((string) ($student->admission_number ?? ''))),
             'family_key' => $familyKey ? (int) $familyKey : null,
             'row' => $row,
             'has_difference' => $hasDifference,
@@ -251,6 +274,225 @@ class ExportFeeVarianceReportCommand extends Command
             'variances' => $variances,
             'from_total' => $fromTotal,
             'to_total' => $toTotal,
+        ];
+    }
+
+    /**
+     * Expected T1−T3 variance explained by known notes file.
+     * Credit on from-term lowers from-net ⇒ positive expected variance.
+     * Debit on from-term raises from-net ⇒ negative expected variance.
+     *
+     * @return array<string, array<int, float>> admission => votehead_id => expected variance
+     */
+    private function loadExpectedNotesVariance(string $csvPath, $voteheads): array
+    {
+        if ($csvPath === '') {
+            return [];
+        }
+
+        $candidates = [
+            $csvPath,
+            storage_path('app/'.$csvPath),
+            storage_path('app/private/'.$csvPath),
+            base_path($csvPath),
+        ];
+        $resolved = null;
+        foreach ($candidates as $path) {
+            if (is_file($path)) {
+                $resolved = $path;
+                break;
+            }
+        }
+        if (! $resolved) {
+            $this->warn("Notes CSV not found: {$csvPath}");
+
+            return [];
+        }
+
+        $voteheadByName = [];
+        foreach ($voteheads as $vh) {
+            $voteheadByName[strtoupper(trim((string) $vh->name))] = (int) $vh->id;
+            $voteheadByName[strtoupper(trim((string) $vh->code))] = (int) $vh->id;
+        }
+
+        $fh = fopen($resolved, 'r');
+        if (! $fh) {
+            $this->warn("Could not open notes CSV: {$resolved}");
+
+            return [];
+        }
+
+        $header = null;
+        $out = [];
+        while (($data = fgetcsv($fh)) !== false) {
+            if ($header === null) {
+                $header = array_map(fn ($h) => strtolower(trim((string) $h)), $data);
+                continue;
+            }
+            if (count(array_filter($data, fn ($v) => trim((string) $v) !== '')) === 0) {
+                continue;
+            }
+            $row = [];
+            foreach ($header as $i => $key) {
+                $row[$key] = $data[$i] ?? null;
+            }
+
+            $adm = strtoupper(trim((string) ($row['admission_number'] ?? '')));
+            $vhName = strtoupper(trim((string) ($row['votehead_name'] ?? '')));
+            $type = strtoupper(trim((string) ($row['type'] ?? '')));
+            $amount = (float) str_replace([',', ' '], '', (string) ($row['amount'] ?? 0));
+            if ($adm === '' || $vhName === '' || $amount == 0.0) {
+                continue;
+            }
+
+            $voteheadId = $voteheadByName[$vhName] ?? null;
+            if (! $voteheadId) {
+                // soft match: tuition / transport / drinking water
+                foreach ($voteheads as $vh) {
+                    $short = strtoupper($this->shortName($vh));
+                    if (str_contains($vhName, $short) || str_contains($short, $vhName)) {
+                        $voteheadId = (int) $vh->id;
+                        break;
+                    }
+                    if (str_contains($vhName, 'TUITION') && str_contains(strtoupper((string) $vh->name), 'TUITION')) {
+                        $voteheadId = (int) $vh->id;
+                        break;
+                    }
+                }
+            }
+            if (! $voteheadId) {
+                continue;
+            }
+
+            // Cr on from-term ⇒ +amount expected variance; Dr ⇒ -amount
+            $delta = 0.0;
+            if (in_array($type, ['CR', 'CREDIT', 'C'], true)) {
+                $delta = $amount;
+            } elseif (in_array($type, ['DR', 'DEBIT', 'D'], true)) {
+                $delta = -$amount;
+            } else {
+                // default treat as credit if type blank
+                $delta = $amount;
+            }
+
+            $out[$adm][$voteheadId] = ($out[$adm][$voteheadId] ?? 0.0) + $delta;
+        }
+        fclose($fh);
+
+        return $out;
+    }
+
+    /**
+     * Students with fee differences that are NOT fully explained by the notes CSV.
+     * Skip anyone whose non-zero votehead variances all match the notes file.
+     */
+    private function buildUnmatchedNotesSheet(
+        array $rowMeta,
+        $voteheads,
+        array $expectedNotes,
+        string $fromLabel,
+        string $toLabel
+    ): array {
+        $headers = [
+            'Admission No',
+            'Student Name',
+            'Current Class',
+            'Stream',
+            'Status',
+            'Family ID',
+            'Unexplained Voteheads',
+            'Notes File Expected Total Variance',
+            'Actual Total Variance',
+            'Unexplained Total Residual',
+        ];
+        foreach ($voteheads as $vh) {
+            $short = $this->shortName($vh);
+            $headers[] = "{$short} Variance";
+            $headers[] = "{$short} Notes Expected";
+            $headers[] = "{$short} Unexplained";
+        }
+
+        $rows = [];
+        $matchedCount = 0;
+        $unmatchedCount = 0;
+
+        foreach ($rowMeta as $meta) {
+            if (! ($meta['has_difference'] ?? false)) {
+                continue;
+            }
+
+            $adm = (string) ($meta['admission_number'] ?? '');
+            $expectedByVh = $expectedNotes[$adm] ?? [];
+            $unexplainedParts = [];
+            $expectedTotal = 0.0;
+            $residualTotal = 0.0;
+            $perVh = [];
+            $allExplained = true;
+
+            foreach ($voteheads as $vh) {
+                $vid = (int) $vh->id;
+                $actual = (float) ($meta['variances'][$vid] ?? 0);
+                $expected = (float) ($expectedByVh[$vid] ?? 0);
+                $residual = $actual - $expected;
+                $expectedTotal += $expected;
+                $residualTotal += $residual;
+                $perVh[$vid] = [
+                    'actual' => $actual,
+                    'expected' => $expected,
+                    'residual' => $residual,
+                ];
+
+                // Only care about voteheads that actually moved, or have a notes expectation
+                if (abs($actual) < 0.01 && abs($expected) < 0.01) {
+                    continue;
+                }
+
+                if (abs($residual) >= 0.01) {
+                    $allExplained = false;
+                    $unexplainedParts[] = $this->shortName($vh).' ('.number_format($residual, 2).')';
+                }
+            }
+
+            if ($allExplained) {
+                $matchedCount++;
+                continue; // skip — variance matches notes file
+            }
+
+            $unmatchedCount++;
+            $base = $meta['row'];
+            $row = [
+                $base[0] ?? '',
+                $base[1] ?? '',
+                $base[2] ?? '',
+                $base[3] ?? '',
+                $base[4] ?? '',
+                $base[5] ?? '',
+                implode('; ', $unexplainedParts),
+                round($expectedTotal, 2),
+                round((float) ($meta['total_variance'] ?? 0), 2),
+                round($residualTotal, 2),
+            ];
+            foreach ($voteheads as $vh) {
+                $p = $perVh[(int) $vh->id];
+                $row[] = round($p['actual'], 2);
+                $row[] = round($p['expected'], 2);
+                $row[] = round($p['residual'], 2);
+            }
+            $rows[] = $row;
+        }
+
+        usort($rows, fn ($a, $b) => strcmp((string) ($a[2] ?? ''), (string) ($b[2] ?? ''))
+            ?: strcmp((string) ($a[1] ?? ''), (string) ($b[1] ?? '')));
+
+        if ($unmatchedCount === 0) {
+            $rows[] = ['All students with differences match the notes file.', '', '', '', '', '', '', '', '', ''];
+        }
+
+        return [
+            'headers' => $headers,
+            'rows' => $rows,
+            'matched_count' => $matchedCount,
+            'unmatched_count' => $unmatchedCount,
         ];
     }
 
@@ -314,8 +556,9 @@ class ExportFeeVarianceReportCommand extends Command
 
         foreach ($eligible as $familyId => $members) {
             $familyCount++;
-            $familyName = optional($students->first(fn ($s) => (int) ($s->family_id ?: $s->archived_family_id) === (int) $familyId)?->family)->name;
-            $label = 'Family #'.$familyId.($familyName ? ' — '.$familyName : '');
+            $family = $students->first(fn ($s) => (int) ($s->family_id ?: $s->archived_family_id) === (int) $familyId)?->family;
+            $familyName = trim((string) ($family?->guardian_name ?: $family?->father_name ?: $family?->mother_name ?: ''));
+            $label = 'Family #'.$familyId.($familyName !== '' ? ' — '.$familyName : '');
 
             $rows[] = [$label, '', '', '', '', '', ''];
 
