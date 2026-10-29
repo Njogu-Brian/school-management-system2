@@ -10,6 +10,7 @@ use App\Models\Academics\Classroom;
 use App\Models\Academics\Subject;
 use App\Models\Academics\Stream;
 use App\Rules\TermBelongsToAcademicYear;
+use App\Services\Academics\ExamPaperDeduplicator;
 use App\Support\AcademicContext;
 use App\Support\AcademicScope;
 use Illuminate\Http\Request;
@@ -290,6 +291,22 @@ class ExamController extends Controller
         $maxMarks = (float) ($examType->default_max_mark ?? 100);
 
         $streamId = ! empty($v['stream_id']) ? (int) $v['stream_id'] : null;
+        if (! empty($v['classroom_id']) && ! empty($v['subject_id']) && ! empty($v['exam_type_id'])) {
+            $existingId = app(ExamPaperDeduplicator::class)->existingPaperId(
+                (int) $v['exam_type_id'],
+                (int) $v['academic_year_id'],
+                (int) $v['term_id'],
+                (int) $v['classroom_id'],
+                (int) $v['subject_id'],
+                $streamId,
+            );
+            if ($existingId) {
+                return redirect()
+                    ->route('academics.exams.edit', $existingId)
+                    ->with('error', 'An exam paper already exists for this exam type, year, term, class, and subject.');
+            }
+        }
+
         $examSessionId = null;
         if (! empty($v['classroom_id']) && ! empty($v['subject_id']) && ! empty($v['exam_type_id'])) {
             $classroom = Classroom::find($v['classroom_id']);
@@ -706,12 +723,14 @@ class ExamController extends Controller
         $subjectNames = Subject::whereIn('id', array_unique(array_column($pairs, 'subject_id')))->pluck('name', 'id');
 
         $created = 0;
+        $skippedExisting = 0;
         $publishExam   = $request->boolean('publish_exam');
         $publishResult = $request->boolean('publish_result');
         $examType = ExamType::findOrFail((int) $v['exam_type_id']);
         $maxMarks = (float) ($examType->default_max_mark ?? 100);
+        $deduplicator = app(ExamPaperDeduplicator::class);
 
-        DB::transaction(function () use ($v, $pairs, $classNames, $subjectNames, $publishExam, $publishResult, $maxMarks, &$created) {
+        DB::transaction(function () use ($v, $pairs, $classNames, $subjectNames, $publishExam, $publishResult, $maxMarks, $examType, $deduplicator, &$created, &$skippedExisting) {
             $sessionByClassStream = [];
             $streamId = ! empty($v['stream_id']) ? (int) $v['stream_id'] : null;
 
@@ -720,11 +739,23 @@ class ExamController extends Controller
                 $sid = $pair['subject_id'];
                 $classLabel = $classNames[$cid] ?? (string) $cid;
                 $subLabel = $subjectNames[$sid] ?? (string) $sid;
-                $name = $v['name_template'].' — '.$classLabel.' — '.$subLabel;
+                $name = $examType->name.' — '.$classLabel.' — '.$subLabel;
+
+                if ($deduplicator->existingPaperId(
+                    (int) $v['exam_type_id'],
+                    (int) $v['academic_year_id'],
+                    (int) $v['term_id'],
+                    $cid,
+                    $sid,
+                    $streamId,
+                )) {
+                    $skippedExisting++;
+                    continue;
+                }
 
                 $cacheKey = $cid.'_'.($streamId ?? '0');
                 if (! isset($sessionByClassStream[$cacheKey])) {
-                    $sessionName = trim($v['name_template'].' — '.$classLabel);
+                    $sessionName = trim($examType->name.' — '.$classLabel);
                     $session = ExamSession::findOrCreateForScope(
                         (int) $v['exam_type_id'],
                         (int) $v['academic_year_id'],
@@ -765,6 +796,9 @@ class ExamController extends Controller
         });
 
         $message = $created.' exam(s) created. Each is draft — open scheduling and marking when ready.';
+        if ($skippedExisting > 0) {
+            $message .= ' '.$skippedExisting.' existing paper(s) skipped (already created for that class/subject).';
+        }
         if ($skippedPairs > 0) {
             $message .= ' '.$skippedPairs.' class/subject pair(s) skipped (inactive subject or no teacher mapping).';
         }
