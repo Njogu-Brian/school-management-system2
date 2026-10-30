@@ -12,9 +12,11 @@ import {
 } from '@erp/ui';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import React, { useMemo } from 'react';
-import { ActivityIndicator, RefreshControl, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, Linking, RefreshControl, Share, Text, View } from 'react-native';
+import { WebView } from 'react-native-webview';
 import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
+import { showError } from '../../shared/utils/feedback';
 import { formatKes, formatShortDate } from '../utils/format';
 
 export const ParentInvoiceDetailScreen: React.FC = () => {
@@ -23,8 +25,12 @@ export const ParentInvoiceDetailScreen: React.FC = () => {
   const { invoiceId, studentId } = route.params;
   const { colors, palette, spacing, typography } = useTheme();
   const detailQuery = useInvoiceDetail(invoiceId);
+  const [webView, setWebView] = useState(false);
+  const [webLoading, setWebLoading] = useState(true);
 
   const invoice = detailQuery.data;
+  const pdfUrl = invoice?.pdf_url ?? null;
+  const viewUrl = invoice?.view_url ?? null;
 
   const paidPct = useMemo(() => {
     if (!invoice) return 0;
@@ -172,26 +178,65 @@ export const ParentInvoiceDetailScreen: React.FC = () => {
               <FinanceFieldSection title="Line items" rows={itemRows} />
             </View>
           ) : null}
-          {invoice.balance > 0 ? (
-            <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
+          <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
+            {viewUrl ? (
+              <Button label="View invoice" variant="secondary" onPress={() => setWebView(true)} />
+            ) : null}
+            {pdfUrl ? (
               <Button
-                label="Pay with M-Pesa"
-                onPress={() =>
-                  navigation.navigate('MpesaPrompt', {
-                    studentId: invoice.student_id || studentId,
-                    amount: invoice.balance,
-                  })
-                }
-              />
-              <Button
-                label="Pay from wallet"
+                label="Download / open PDF"
                 variant="secondary"
-                onPress={() =>
-                  navigation.navigate('WalletHome', {
-                    payInvoiceId: invoice.id,
-                    studentId: invoice.student_id || studentId,
-                  })
-                }
+                onPress={() => void Linking.openURL(pdfUrl)}
+              />
+            ) : null}
+            {pdfUrl || viewUrl ? (
+              <Button
+                label="Share invoice"
+                variant="ghost"
+                onPress={() => {
+                  const url = pdfUrl || viewUrl;
+                  if (!url) return;
+                  void Share.share({
+                    message: `Invoice ${invoice.invoice_number}\n${url}`,
+                    url,
+                    title: invoice.invoice_number,
+                  }).catch((err) =>
+                    showError('Share failed', err instanceof Error ? err.message : 'Could not share.'),
+                  );
+                }}
+              />
+            ) : null}
+            {invoice.balance > 0 ? (
+              <>
+                <Button
+                  label="Pay with M-Pesa"
+                  onPress={() =>
+                    navigation.navigate('MpesaPrompt', {
+                      studentId: invoice.student_id || studentId,
+                      amount: invoice.balance,
+                    })
+                  }
+                />
+                <Button
+                  label="Pay from wallet"
+                  variant="secondary"
+                  onPress={() =>
+                    navigation.navigate('WalletHome', {
+                      payInvoiceId: invoice.id,
+                      studentId: invoice.student_id || studentId,
+                    })
+                  }
+                />
+              </>
+            ) : null}
+          </View>
+          {webView && viewUrl ? (
+            <View style={{ marginTop: spacing.md, height: 480, borderRadius: 12, overflow: 'hidden' }}>
+              {webLoading ? <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} /> : null}
+              <WebView
+                source={{ uri: viewUrl }}
+                onLoadEnd={() => setWebLoading(false)}
+                startInLoadingState
               />
             </View>
           ) : null}

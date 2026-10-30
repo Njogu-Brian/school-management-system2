@@ -981,6 +981,16 @@ class InvoiceController extends Controller
             $invoice
         );
 
+        $studentOverdue = 0.0;
+        $studentUpcoming = 0.0;
+        if ($invoice->student_id) {
+            $student = $invoice->student ?? \App\Models\Student::withoutGlobalScopes()->find($invoice->student_id);
+            if ($student) {
+                $studentOverdue = max(0.0, (float) \App\Services\StudentBalanceService::getTotalOutstandingBalance($student, true));
+                $studentUpcoming = max(0.0, (float) \App\Services\StudentBalanceService::getUpcomingBalance($student));
+            }
+        }
+
         $pdf = Pdf::loadView('finance.invoices.pdf.single', [
             'invoice' => $invoice,
             'paymentRows' => $paymentRows,
@@ -992,10 +1002,28 @@ class InvoiceController extends Controller
             'printedAt' => $printedAt,
             'invoiceHeader' => $invoiceHeader,
             'invoiceFooter' => $invoiceFooter,
+            'student_overdue_balance' => $studentOverdue,
+            'student_upcoming_balance' => $studentUpcoming,
         ])->setPaper('A4', 'portrait');
 
         $filename = 'invoice-' . str_replace(['/', '\\'], '-', $invoice->invoice_number) . '.pdf';
         return $pdf->stream($filename);
+    }
+
+    /**
+     * Public PDF stream for a published invoice (hashed_id). Used by mobile view/share.
+     */
+    public function publicPdf(string $hash)
+    {
+        $invoice = Invoice::where('hashed_id', $hash)
+            ->whereRaw('LENGTH(hashed_id) = 10')
+            ->firstOrFail();
+
+        if (! $invoice->isPublished() || $invoice->isReversed()) {
+            abort(404);
+        }
+
+        return $this->printSingle($invoice);
     }
 
     /**

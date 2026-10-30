@@ -17,6 +17,7 @@ import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Linking,
   Pressable,
   ScrollView,
   Share,
@@ -150,25 +151,58 @@ export const InvoiceDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
         <FinanceFieldSection title="Voteheads" rows={voteheadRows.length ? voteheadRows : [{ label: 'Items', value: 'None' }]} />
 
-        {invoice.balance > 0 ? (
-          <View style={{ marginTop: spacing.sm, gap: spacing.sm }}>
+        <View style={{ marginTop: spacing.sm, gap: spacing.sm }}>
+          {invoice.view_url ? (
             <Button
-              label="Prompt parent to pay (M-PESA STK)"
-              onPress={() => setPromptOpen(true)}
-            />
-            <Button
-              label="Share payment link with parent"
+              label="View invoice"
               variant="secondary"
-              onPress={() => void sharePaymentLink()}
-              loading={paymentLinkQuery.isFetching}
+              onPress={() => void Linking.openURL(invoice.view_url!)}
             />
-            {paymentLinkQuery.isError ? (
-              <Text style={{ color: colors.error, fontSize: 12, marginTop: spacing.xs }}>
-                {(paymentLinkQuery.error as Error).message}
-              </Text>
-            ) : null}
-          </View>
-        ) : null}
+          ) : null}
+          {invoice.pdf_url ? (
+            <Button
+              label="Download / open PDF"
+              variant="secondary"
+              onPress={() => void Linking.openURL(invoice.pdf_url!)}
+            />
+          ) : null}
+          {invoice.pdf_url || invoice.view_url ? (
+            <Button
+              label="Share invoice PDF"
+              variant="ghost"
+              onPress={() => {
+                const url = invoice.pdf_url || invoice.view_url;
+                if (!url) return;
+                void Share.share({
+                  message: `Invoice ${invoice.invoice_number}\n${url}`,
+                  url,
+                  title: invoice.invoice_number,
+                }).catch((err) =>
+                  showError('Share failed', err instanceof Error ? err.message : 'Could not share.'),
+                );
+              }}
+            />
+          ) : null}
+          {invoice.balance > 0 ? (
+            <>
+              <Button
+                label="Prompt parent to pay (M-PESA STK)"
+                onPress={() => setPromptOpen(true)}
+              />
+              <Button
+                label="Share payment link with parent"
+                variant="secondary"
+                onPress={() => void sharePaymentLink()}
+                loading={paymentLinkQuery.isFetching}
+              />
+              {paymentLinkQuery.isError ? (
+                <Text style={{ color: colors.error, fontSize: 12, marginTop: spacing.xs }}>
+                  {(paymentLinkQuery.error as Error).message}
+                </Text>
+              ) : null}
+            </>
+          ) : null}
+        </View>
 
         {invoice.notes ? (
           <FinanceFieldSection title="Notes" rows={[{ label: 'Notes', value: invoice.notes }]} />

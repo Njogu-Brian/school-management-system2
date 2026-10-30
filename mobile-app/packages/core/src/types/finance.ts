@@ -20,6 +20,10 @@ export interface InvoiceListRecord {
   balance: number;
   status: InvoiceStatus | string;
   due_date: string | null;
+  is_due?: boolean;
+  due_bucket?: 'overdue' | 'upcoming' | string;
+  view_url?: string | null;
+  pdf_url?: string | null;
   issue_date: string;
   created_at: string;
   updated_at: string;
@@ -186,6 +190,8 @@ export interface InvoiceListFilters {
   term_id?: number;
   include_reversed?: boolean;
   has_balance?: boolean;
+  /** overdue | upcoming — open related invoices from fee cards */
+  due_bucket?: 'overdue' | 'upcoming' | string;
   page?: number;
   per_page?: number;
 }

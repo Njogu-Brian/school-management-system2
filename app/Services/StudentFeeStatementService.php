@@ -221,27 +221,37 @@ class StudentFeeStatementService
      */
     public function balanceAfterPayment(Payment $payment): array
     {
-        if ($payment->balance_after !== null && ! $this->snapshotLooksLikeFalseCredit($payment)) {
-            return [
-                'balance_before' => (float) ($payment->balance_before ?? ((float) $payment->balance_after + (float) $payment->amount)),
-                'balance_after' => (float) $payment->balance_after,
-            ];
-        }
-
         $studentId = (int) $payment->student_id;
         if ($studentId <= 0) {
             return ['balance_before' => 0.0, 'balance_after' => 0.0];
         }
 
         $row = app(StudentFeeLedgerService::class)->runningBalancesForStudent($studentId)[(int) $payment->id] ?? null;
-        if ($row) {
-            return $row;
-        }
-
-        return [
+        $computed = $row ?? [
             'balance_before' => (float) $payment->amount,
             'balance_after' => 0.0,
         ];
+
+        // Keep frozen snapshot only when it already matches due/overdue fee balance.
+        // Older freezes that bundled upcoming invoices must be recomputed.
+        if ($payment->balance_after !== null
+            && ! $this->snapshotLooksLikeFalseCredit($payment)
+            && ! $this->snapshotIncludesUpcoming($payment, $computed)) {
+            return [
+                'balance_before' => (float) ($payment->balance_before ?? ((float) $payment->balance_after + (float) $payment->amount)),
+                'balance_after' => (float) $payment->balance_after,
+            ];
+        }
+
+        return $computed;
+    }
+
+    /**
+     * Frozen receipt balance still includes not-yet-due (upcoming) charges.
+     */
+    private function snapshotIncludesUpcoming(Payment $payment, array $computed): bool
+    {
+        return (float) $payment->balance_after > ((float) ($computed['balance_after'] ?? 0) + 0.009);
     }
 
     /**
@@ -273,7 +283,8 @@ class StudentFeeStatementService
                     continue;
                 }
                 $shouldWrite = $payment->balance_after === null
-                    || $this->snapshotLooksLikeFalseCredit($payment);
+                    || $this->snapshotLooksLikeFalseCredit($payment)
+                    || $this->snapshotIncludesUpcoming($payment, $row);
                 if (! $shouldWrite) {
                     continue;
                 }

@@ -212,6 +212,9 @@ Route::get('my-receipts/{token}', [\App\Http\Controllers\Finance\PaymentControll
 Route::get('invoice/{hash}', [\App\Http\Controllers\Finance\InvoiceController::class, 'publicView'])
     ->where('hash', '[A-Za-z0-9]{10}') // Only 10-char hashes, not numeric IDs
     ->name('invoices.public');
+Route::get('invoice/{hash}/pdf', [\App\Http\Controllers\Finance\InvoiceController::class, 'publicPdf'])
+    ->where('hash', '[A-Za-z0-9]{10}')
+    ->name('invoices.public.pdf');
 Route::get('statement/{hash}', [\App\Http\Controllers\Finance\StudentStatementController::class, 'publicView'])
     ->where('hash', '[A-Za-z0-9]{10}') // Only 10-char hashes, not numeric IDs
     ->name('statements.public');
@@ -2209,6 +2212,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('concerns', [\App\Http\Controllers\Operations\ConcernController::class, 'store'])->name('concerns.store');
         Route::get('concerns/{id}', [\App\Http\Controllers\Operations\ConcernController::class, 'show'])->name('concerns.show');
         Route::put('concerns/{id}', [\App\Http\Controllers\Operations\ConcernController::class, 'update'])->name('concerns.update');
+        Route::post('concerns/{id}/messages', [\App\Http\Controllers\Operations\ConcernController::class, 'storeMessage'])->name('concerns.messages.store');
     });
 
     /*

@@ -119,6 +119,8 @@
                         'total_balance_before' => $total_balance_before ?? ($totalBalanceBefore ?? 0),
                         'total_balance_after' => $total_balance_after ?? ($totalBalanceAfter ?? 0),
                         'total_outstanding_balance' => $total_outstanding_balance ?? ($totalOutstandingBalance ?? 0),
+                        'balance_as_at_payment' => $balance_as_at_payment ?? ($total_balance_after ?? $totalBalanceAfter ?? 0),
+                        'upcoming_balance' => $upcoming_balance ?? 0,
                         'total_invoices' => $total_invoices ?? ($totalInvoices ?? 0),
                         'receipt_term_label' => $receipt_term_label ?? null,
                         'term_coverage' => $term_coverage ?? null,

@@ -53,6 +53,7 @@ export const FeeBalancesScreen: React.FC<Props> = ({ navigation }) => {
   const filters = useMemo(
     () => ({
       has_balance: true as const,
+      due_bucket: 'overdue' as const,
       search: debounced || undefined,
       per_page: 50,
     }),

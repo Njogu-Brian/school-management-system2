@@ -210,7 +210,7 @@
                         <a href="{{ route('finance.payments.create', ['student_id' => $invoice->student_id, 'invoice_id' => $invoice->id]) }}" class="btn btn-primary">
                             <i class="bi bi-cash-stack"></i> Record Payment
                         </a>
-                        <a href="{{ route('finance.invoices.print_single', $invoice) }}" class="btn btn-outline-secondary" target="_blank">
+                        <a href="{{ route('finance.invoices.print_single', $invoice) }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">
                             <i class="bi bi-printer"></i> Print Invoice
                         </a>
                     </div>

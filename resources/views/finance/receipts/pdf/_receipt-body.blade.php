@@ -157,7 +157,9 @@
 <div class="total-section">
     @php
         $amountPaid = $total_amount ?? $payment->amount;
-        $studentBalance = (float) ($total_outstanding_balance ?? $total_balance_after ?? 0);
+        // Fee balance = due/overdue only. Upcoming (not yet due) is shown separately and never as balance.
+        $studentBalance = (float) ($balance_as_at_payment ?? $total_balance_after ?? 0);
+        $upcomingBalance = (float) ($upcoming_balance ?? 0);
         $totalInvoices = $total_invoices ?? 0;
         $creditOnAccount = (float) ($payment->unallocated_amount ?? 0);
         // Only real unallocated money is credit. A negative frozen balance from a
@@ -165,6 +167,7 @@
         $hasCredit = $creditOnAccount > 0.009;
         $displayBalance = $hasCredit ? 0.0 : max(0.0, $studentBalance);
         $hasBalanceDue = $displayBalance > 0.009;
+        $hasUpcoming = $upcomingBalance > 0.009;
     @endphp
     <div class="total-row">
         <span>Total Invoices (this receipt):</span>
@@ -183,14 +186,21 @@
         <span style="color: {{ $brandSuccess }};"><strong>(Ksh {{ number_format($creditOnAccount, 2) }})</strong></span>
     </div>
     @endif
+    @if($hasUpcoming)
+    <div class="total-row" style="border-top: 1px solid #ddd; padding-top: 5px; margin-top: 5px;">
+        <span>Upcoming (not yet due):</span>
+        <span><strong>Ksh {{ number_format($upcomingBalance, 2) }}</strong></span>
+    </div>
+    @endif
+    {{-- Fee balance = overdue only. Upcoming never counts; if only upcoming remains, balance is 0. --}}
     @if($hasBalanceDue)
     <div class="total-row grand-total" style="border-top: 1px solid {{ $brandPrimary }}; padding-top: 6px; margin-top: 6px; color: {{ $brandDanger }};">
-        <span style="font-size: 12px; font-weight: bold;">Balance as at this payment:</span>
+        <span style="font-size: 12px; font-weight: bold;">Fee balance (overdue):</span>
         <span style="font-size: 12px; font-weight: bold;">Ksh {{ number_format($displayBalance, 2) }}</span>
     </div>
     @else
     <div class="total-row grand-total" style="border-top: 1px solid {{ $brandPrimary }}; padding-top: 6px; margin-top: 6px; color: {{ $brandSuccess }};">
-        <span style="font-size: 12px; font-weight: bold;">Balance as at this payment:</span>
+        <span style="font-size: 12px; font-weight: bold;">Fee balance (overdue):</span>
         <span style="font-size: 12px; font-weight: bold;">Ksh 0.00</span>
     </div>
     @endif

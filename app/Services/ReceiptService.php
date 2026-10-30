@@ -46,12 +46,15 @@ class ReceiptService
             throw new \RuntimeException('Student record not found for payment #'.$payment->id);
         }
 
-        $ledger = app(StudentFeeLedgerService::class)->snapshot((int) $student->id);
+        $ledger = app(StudentFeeLedgerService::class)->snapshot((int) $student->id, false);
         $asAt = $this->balanceAsAtPayment($payment);
-        // Keep receipt footer aligned with ledger when an older freeze is a false credit.
-        if ((float) $asAt['balance_after'] < -0.009
-            && (float) ($payment->unallocated_amount ?? 0) <= 0.009
-            && (float) ($payment->allocated_amount ?? 0) > 0.009) {
+        // Repair false credits OR freezes that still bundled upcoming (not-yet-due) invoices.
+        $needsRepair = ((float) $asAt['balance_after'] < -0.009
+                && (float) ($payment->unallocated_amount ?? 0) <= 0.009
+                && (float) ($payment->allocated_amount ?? 0) > 0.009)
+            || ($payment->balance_after !== null
+                && (float) $payment->balance_after > ((float) $asAt['balance_after'] + 0.009));
+        if ($needsRepair) {
             $repaired = app(StudentFeeStatementService::class)->balanceAfterPayment($payment->fresh());
             $asAt = $repaired;
             if (\Illuminate\Support\Facades\Schema::hasColumn('payments', 'balance_after')) {
@@ -145,7 +148,11 @@ class ReceiptService
 
         $displayReceiptNumber = $payment->receipt_number;
         $receiptDate = $payment->receipt_date ?? $payment->payment_date;
-        $studentBalance = (float) $asAt['balance_after'];
+        // Fee balance on receipts = due/overdue only. Upcoming never counts.
+        $studentBalance = max(0.0, (float) $asAt['balance_after']);
+        $upcomingBalance = max(0.0, StudentBalanceService::getUpcomingBalance($student));
+        // Pay Now should match what is due now (same due-only rule).
+        $payNowBalance = max(0.0, StudentBalanceService::getTotalOutstandingBalance($student, true));
 
         return [
             'payment' => $payment,
@@ -156,10 +163,11 @@ class ReceiptService
             'student' => $student,
             'allocations' => $receiptItems,
             'total_amount' => $payment->amount,
-            'total_balance_before' => (float) $asAt['balance_before'],
+            'total_balance_before' => max(0.0, (float) $asAt['balance_before']),
             'total_balance_after' => $studentBalance,
-            'total_outstanding_balance' => $studentBalance,
+            'total_outstanding_balance' => $payNowBalance,
             'balance_as_at_payment' => $studentBalance,
+            'upcoming_balance' => $upcomingBalance,
             'total_invoices' => $totalInvoices,
             'receipt_term_label' => $receiptTermLabel,
             'term_coverage' => $termCoverage,

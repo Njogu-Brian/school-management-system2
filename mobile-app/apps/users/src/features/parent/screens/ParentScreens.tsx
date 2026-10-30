@@ -499,17 +499,25 @@ function ChildFeeCard({
     }
   };
 
-  const loadInvoices = async () => {
-    if (showInvoices) {
+  const loadInvoices = async (dueBucket?: 'overdue' | 'upcoming') => {
+    if (showInvoices && !dueBucket) {
       setShowInvoices(false);
       return;
     }
     setLoadingInvoices(true);
     try {
-      const res = await financeApi.listInvoices({ student_id: studentId, per_page: 20 });
+      const res = await financeApi.listInvoices({
+        student_id: studentId,
+        per_page: 50,
+        ...(dueBucket ? { due_bucket: dueBucket, has_balance: true } : {}),
+      });
       if (!res.success || !res.data) throw new Error(res.message || 'Failed to load invoices.');
-      setInvoices(res.data.data ?? []);
+      const rows = res.data.data ?? [];
+      setInvoices(rows);
       setShowInvoices(true);
+      if (dueBucket && rows.length === 1) {
+        navigation.navigate('InvoiceDetail', { studentId, invoiceId: rows[0].id });
+      }
     } catch (err) {
       showError('Invoices failed', err instanceof Error ? err.message : 'Could not load invoices.');
     } finally {
@@ -529,14 +537,9 @@ function ChildFeeCard({
       </Pressable>
 
       <Pressable
-        onPress={() =>
-          navigation.navigate('MpesaPrompt', {
-            studentId,
-            amount: typeof balanceDue === 'number' && balanceDue > 0 ? balanceDue : undefined,
-          })
-        }
+        onPress={() => void loadInvoices('overdue')}
         accessibilityRole="button"
-        accessibilityLabel="View or pay current due"
+        accessibilityLabel="View overdue invoices"
         style={{ marginTop: spacing.md }}
       >
         <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
@@ -546,13 +549,13 @@ function ChildFeeCard({
           {stats.isLoading ? '…' : formatKes(balanceDue)}
         </Text>
         <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 4 }}>
-          Tap to view / pay
+          Tap to open overdue invoices
         </Text>
       </Pressable>
       <Pressable
-        onPress={() => navigation.navigate('StudentStatement', { studentId })}
+        onPress={() => void loadInvoices('upcoming')}
         accessibilityRole="button"
-        accessibilityLabel="View upcoming fees on statement"
+        accessibilityLabel="View upcoming invoices"
         style={{ marginTop: spacing.sm }}
       >
         <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
@@ -562,7 +565,7 @@ function ChildFeeCard({
           {stats.isLoading ? '…' : formatKes(balanceUpcoming)}
         </Text>
         <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 4 }}>
-          Tap to view statement
+          Tap to open upcoming invoices
         </Text>
       </Pressable>
 

@@ -111,9 +111,9 @@ class StudentFeeLedgerService
     /**
      * Running fee balance before/after each fee payment (ledger model).
      *
-     * Charges are the full non-reversed invoice pool. Payments are applied in
-     * payment_date / id order. A backdated payment can therefore clear a later
-     * invoice without freezing a false "credit on account" on the receipt.
+     * Payments are applied FIFO to all invoices. Receipt "fee balance" after each
+     * payment is due/overdue outstanding only as of that payment date — upcoming
+     * (not-yet-due) invoices never count as fee balance.
      *
      * @return array<int, array{balance_before: float, balance_after: float}>
      */
@@ -123,10 +123,20 @@ class StudentFeeLedgerService
             return [];
         }
 
-        $snapshot = $this->snapshot($studentId, false);
-        $charged = round((float) ($snapshot['charged'] ?? 0), 2);
-        $paidSoFar = 0.0;
-        $out = [];
+        $invoices = Invoice::query()
+            ->where('student_id', $studentId)
+            ->notReversed()
+            ->with(['items' => function ($q) {
+                $q->where('status', 'active');
+            }, 'term'])
+            ->orderBy('issued_date')
+            ->orderBy('id')
+            ->get();
+
+        $remaining = [];
+        foreach ($invoices as $invoice) {
+            $remaining[(int) $invoice->id] = $this->invoiceChargeTotal($invoice);
+        }
 
         $payments = Payment::query()
             ->where('student_id', $studentId)
@@ -141,10 +151,29 @@ class StudentFeeLedgerService
             ->filter(fn (Payment $p) => self::isFeePayment($p))
             ->values();
 
+        $out = [];
         foreach ($payments as $payment) {
-            $before = round($charged - $paidSoFar, 2);
-            $paidSoFar = round($paidSoFar + (float) $payment->amount, 2);
-            $after = round($charged - $paidSoFar, 2);
+            $asOf = $payment->payment_date
+                ? $payment->payment_date->toDateString()
+                : now()->toDateString();
+
+            $before = $this->sumDueRemaining($invoices, $remaining, $asOf);
+
+            $left = round((float) $payment->amount, 2);
+            foreach ($invoices as $invoice) {
+                if ($left <= 0.009) {
+                    break;
+                }
+                $id = (int) $invoice->id;
+                if (($remaining[$id] ?? 0) <= 0.009) {
+                    continue;
+                }
+                $take = round(min($left, $remaining[$id]), 2);
+                $remaining[$id] = round($remaining[$id] - $take, 2);
+                $left = round($left - $take, 2);
+            }
+
+            $after = $this->sumDueRemaining($invoices, $remaining, $asOf);
             $out[(int) $payment->id] = [
                 'balance_before' => $before,
                 'balance_after' => $after,
@@ -152,6 +181,23 @@ class StudentFeeLedgerService
         }
 
         return $out;
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Invoice>  $invoices
+     * @param  array<int, float>  $remaining
+     */
+    private function sumDueRemaining($invoices, array $remaining, string $asOfDate): float
+    {
+        $sum = 0.0;
+        foreach ($invoices as $invoice) {
+            if (! $this->invoiceIsDue($invoice, $asOfDate)) {
+                continue;
+            }
+            $sum = round($sum + max(0.0, (float) ($remaining[(int) $invoice->id] ?? 0)), 2);
+        }
+
+        return $sum;
     }
 
     public function forgetCache(?int $studentId = null): void
@@ -326,11 +372,17 @@ class StudentFeeLedgerService
         return max(0.0, round((float) ($invoice->total ?? 0), 2));
     }
 
-    public function invoiceIsDue(Invoice $invoice): bool
+    /**
+     * @param  \DateTimeInterface|string|null  $asOf  Defaults to today
+     */
+    public function invoiceIsDue(Invoice $invoice, $asOf = null): bool
     {
-        $today = now()->toDateString();
+        $asOfDate = $asOf instanceof \DateTimeInterface
+            ? $asOf->format('Y-m-d')
+            : (is_string($asOf) && $asOf !== '' ? substr($asOf, 0, 10) : now()->toDateString());
+
         if ($invoice->due_date) {
-            return $invoice->due_date->toDateString() <= $today;
+            return $invoice->due_date->toDateString() <= $asOfDate;
         }
 
         $term = $invoice->relationLoaded('term') ? $invoice->getRelation('term') : null;
@@ -344,7 +396,11 @@ class StudentFeeLedgerService
             return true;
         }
 
-        return $term->opening_date <= $today;
+        $opening = $term->opening_date instanceof \DateTimeInterface
+            ? $term->opening_date->format('Y-m-d')
+            : (string) $term->opening_date;
+
+        return $opening <= $asOfDate;
     }
 
     private function sumInvoiceTotals(array $invoicesOut): float

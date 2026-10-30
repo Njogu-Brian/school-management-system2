@@ -342,8 +342,9 @@ class InvoiceBulkPdfExporter
     {
         $paymentRowsByInvoice = $this->invoicePaymentRowsForPdfBatch($invoices);
         $priorOverlays = app(InvoicePdfPriorBalanceService::class)->overlayForInvoices($invoices);
+        $studentBalances = [];
 
-        return $invoices->map(function (Invoice $invoice) use ($paymentRowsByInvoice, $priorOverlays) {
+        return $invoices->map(function (Invoice $invoice) use ($paymentRowsByInvoice, $priorOverlays, &$studentBalances) {
             $invoice->fillTotalsFromLoadedRelations();
             $overlay = $priorOverlays[$invoice->id] ?? [
                 'lines' => [],
@@ -351,12 +352,28 @@ class InvoiceBulkPdfExporter
                 'pdf_balance_due' => round((float) $invoice->balance, 2),
             ];
 
+            $sid = (int) $invoice->student_id;
+            if ($sid > 0 && ! isset($studentBalances[$sid])) {
+                $student = $invoice->student
+                    ?? \App\Models\Student::withoutGlobalScopes()->find($sid);
+                $studentBalances[$sid] = [
+                    'overdue' => $student
+                        ? max(0.0, (float) \App\Services\StudentBalanceService::getTotalOutstandingBalance($student, true))
+                        : 0.0,
+                    'upcoming' => $student
+                        ? max(0.0, (float) \App\Services\StudentBalanceService::getUpcomingBalance($student))
+                        : 0.0,
+                ];
+            }
+
             return [
                 'invoice' => $invoice,
                 'payment_rows' => $paymentRowsByInvoice[$invoice->id] ?? [],
                 'prior_balance_lines' => $overlay['lines'],
                 'prior_balance_total' => $overlay['total'],
                 'pdf_balance_due' => $overlay['pdf_balance_due'],
+                'student_overdue_balance' => $studentBalances[$sid]['overdue'] ?? 0.0,
+                'student_upcoming_balance' => $studentBalances[$sid]['upcoming'] ?? 0.0,
             ];
         })->values();
     }

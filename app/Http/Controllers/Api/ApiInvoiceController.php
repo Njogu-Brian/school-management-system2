@@ -35,6 +35,32 @@ class ApiInvoiceController extends Controller
                 // Student model global scope already excludes archive/alumni on whereHas('student').
                 $q->where('balance', '>', 0)->whereHas('student');
             })
+            ->when($request->filled('due_bucket'), function ($q) use ($request) {
+                $bucket = strtolower((string) $request->input('due_bucket'));
+                $today = now()->toDateString();
+                if ($bucket === 'overdue' || $bucket === 'due') {
+                    $q->where('balance', '>', 0)
+                        ->where(function ($inner) use ($today) {
+                            $inner->whereDate('due_date', '<=', $today)
+                                ->orWhere(function ($fallback) use ($today) {
+                                    $fallback->whereNull('due_date')
+                                        ->where(function ($termQ) use ($today) {
+                                            $termQ->whereHas('term', fn ($t) => $t->whereDate('opening_date', '<=', $today))
+                                                ->orWhereDoesntHave('term');
+                                        });
+                                });
+                        });
+                } elseif ($bucket === 'upcoming') {
+                    $q->where('balance', '>', 0)
+                        ->where(function ($inner) use ($today) {
+                            $inner->whereDate('due_date', '>', $today)
+                                ->orWhere(function ($fallback) use ($today) {
+                                    $fallback->whereNull('due_date')
+                                        ->whereHas('term', fn ($t) => $t->whereDate('opening_date', '>', $today));
+                                });
+                        });
+                }
+            })
             ->when($request->filled('search'), function ($q) use ($request) {
                 $search = '%' . addcslashes($request->search, '%_\\') . '%';
                 $q->whereHas('student', fn($s) => $s->where('first_name', 'like', $search)
@@ -147,6 +173,14 @@ class ApiInvoiceController extends Controller
         $total = (float) ($inv->total ?? 0);
         $paid = (float) ($inv->paid_amount ?? 0);
         $balance = $total - $paid;
+        $isDue = app(\App\Services\StudentFeeLedgerService::class)->invoiceIsDue($inv);
+
+        $viewUrl = null;
+        $pdfUrl = null;
+        if ($inv->hashed_id && $inv->isPublished() && ! $inv->isReversed()) {
+            $viewUrl = route('invoices.public', ['hash' => $inv->hashed_id]);
+            $pdfUrl = route('invoices.public.pdf', ['hash' => $inv->hashed_id]);
+        }
 
         return [
             'id' => $inv->id,
@@ -163,6 +197,10 @@ class ApiInvoiceController extends Controller
             'published_at' => $inv->published_at?->toIso8601String(),
             'is_published' => $inv->isPublished(),
             'due_date' => $inv->due_date?->format('Y-m-d'),
+            'is_due' => $isDue,
+            'due_bucket' => $isDue ? 'overdue' : 'upcoming',
+            'view_url' => $viewUrl,
+            'pdf_url' => $pdfUrl,
             'issue_date' => $inv->created_at->format('Y-m-d'),
             'created_at' => $inv->created_at->toIso8601String(),
             'updated_at' => $inv->updated_at->toIso8601String(),

@@ -243,7 +243,8 @@
                                     <a href="{{ route('finance.invoices.print_single', $inv) }}" 
                                        class="btn btn-sm btn-outline-secondary" 
                                        title="Print"
-                                       onclick="window.open('{{ route('finance.invoices.print_single', $inv) }}', 'InvoiceWindow', 'width=800,height=900,scrollbars=yes,resizable=yes,toolbar=no,menubar=no,location=no,status=no'); return false;">
+                                       target="_blank"
+                                       rel="noopener">
                                         <i class="bi bi-printer"></i>
                                     </a>
                                     @if(!$inv->isReversed())
