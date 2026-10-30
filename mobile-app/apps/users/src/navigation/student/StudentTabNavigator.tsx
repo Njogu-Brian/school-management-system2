@@ -4,7 +4,12 @@ import React from 'react';
 import { NotificationsListScreen } from '../../features/notifications/screens/NotificationsListScreen';
 import { SettingsScreen } from '../../features/settings/screens/SettingsScreen';
 import { MyProfileScreen } from '../../features/me/screens/MyProfileScreen';
-import { AnnouncementsListScreen, ConcernsListScreen, RaiseConcernScreen } from '../../features/shared/screens';
+import {
+  AnnouncementsListScreen,
+  ConcernDetailScreen,
+  ConcernsListScreen,
+  RaiseConcernScreen,
+} from '../../features/shared/screens';
 import {
   StudentHomeworkScreen,
   StudentHomeScreen,
@@ -21,6 +26,7 @@ const studentSharedScreens = () => (
   <>
     <Stack.Screen name="Notifications" component={NotificationsListScreen} />
     <Stack.Screen name="ConcernsList" component={ConcernsListScreen} />
+    <Stack.Screen name="ConcernDetail" component={ConcernDetailScreen} />
     <Stack.Screen name="RaiseConcern" component={RaiseConcernScreen} />
     <Stack.Screen name="Settings" component={SettingsScreen} />
     <Stack.Screen name="MyProfile" component={MyProfileScreen} />

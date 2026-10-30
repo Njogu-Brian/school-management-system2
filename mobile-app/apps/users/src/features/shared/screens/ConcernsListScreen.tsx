@@ -11,7 +11,7 @@ import {
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import React from 'react';
-import { Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { formatDateTime } from '../utils/format';
 
 /** Shared across every role — server scopes staff to concerns they are tagged on. */
@@ -19,6 +19,7 @@ export const ConcernsListScreen: React.FC = () => {
   const navigation = useNavigation();
   const { palette, spacing, typography } = useTheme();
   const list = useConcernsList();
+  const nav = navigation as { navigate: (name: string, params?: object) => void };
 
   return (
     <ScreenContainer
@@ -34,7 +35,7 @@ export const ConcernsListScreen: React.FC = () => {
 
       <Button
         label="Raise new concern"
-        onPress={() => (navigation as { navigate: (name: string, params?: object) => void }).navigate('RaiseConcern', { studentId: undefined })}
+        onPress={() => nav.navigate('RaiseConcern', { studentId: undefined })}
         style={{ marginBottom: spacing.md }}
       />
 
@@ -54,24 +55,31 @@ export const ConcernsListScreen: React.FC = () => {
         />
       ) : (
         (list.data ?? []).map((item) => (
-          <SurfaceCard key={item.id} accent={item.status === 'open' ? 'warning' : 'info'}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm }}>
-              <Text style={{ color: palette.textPrimary, fontWeight: '700', flex: 1, textTransform: 'capitalize' }}>
-                {item.category}
+          <Pressable key={item.id} onPress={() => nav.navigate('ConcernDetail', { concernId: item.id })}>
+            <SurfaceCard accent={item.status === 'open' ? 'warning' : 'info'}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm }}>
+                <Text style={{ color: palette.textPrimary, fontWeight: '700', flex: 1, textTransform: 'capitalize' }}>
+                  {item.category}
+                </Text>
+                <StatusBadge label={item.status} tone="info" />
+              </View>
+              <Text style={{ color: palette.textSecondary, marginTop: 4, fontSize: typography.caption.fontSize }}>
+                {item.student_name ?? `Student #${item.student_id}`}
+                {item.class_name ? ` · ${item.class_name}` : ''}
               </Text>
-              <StatusBadge label={item.status} tone="info" />
-            </View>
-            <Text style={{ color: palette.textSecondary, marginTop: 4, fontSize: typography.caption.fontSize }}>
-              {item.student_name ?? `Student #${item.student_id}`}
-              {item.class_name ? ` · ${item.class_name}` : ''}
-            </Text>
-            <Text style={{ color: palette.textPrimary, marginTop: spacing.sm }} numberOfLines={4}>
-              {item.description}
-            </Text>
-            <Text style={{ color: palette.textMuted, marginTop: spacing.xs, fontSize: typography.caption.fontSize }}>
-              {formatDateTime(item.created_at)}
-            </Text>
-          </SurfaceCard>
+              {(item.raised_by_label || item.raised_by?.label) ? (
+                <Text style={{ color: palette.textMuted, marginTop: 2, fontSize: typography.caption.fontSize }}>
+                  Raised by {item.raised_by_label ?? item.raised_by?.label}
+                </Text>
+              ) : null}
+              <Text style={{ color: palette.textPrimary, marginTop: spacing.sm }} numberOfLines={4}>
+                {item.description}
+              </Text>
+              <Text style={{ color: palette.textMuted, marginTop: spacing.xs, fontSize: typography.caption.fontSize }}>
+                {formatDateTime(item.created_at)}
+              </Text>
+            </SurfaceCard>
+          </Pressable>
         ))
       )}
     </ScreenContainer>

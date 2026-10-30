@@ -79,6 +79,14 @@ export const NotificationsListScreen: React.FC = () => {
       navigation.navigate('CoCurricularChild', { studentId });
       return;
     }
+    const concernId = Number(data.concern_id);
+    if (
+      (type === 'student_concern' || item.deep_link?.includes('concerns/')) &&
+      concernId > 0
+    ) {
+      navigation.navigate('ConcernDetail', { concernId });
+      return;
+    }
   };
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }} edges={['top', 'bottom']}>

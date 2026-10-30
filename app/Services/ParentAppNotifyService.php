@@ -7,6 +7,7 @@ use App\Models\Academics\ReportCard;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Student;
+use App\Models\StudentConcern;
 use App\Models\User;
 use App\Notifications\CustomAppMessageNotification;
 use App\Notifications\InvoiceGeneratedNotification;
@@ -232,6 +233,38 @@ class ParentAppNotifyService
                 'type' => 'transport',
                 'student_id' => $student->id,
                 'deep_link' => "royalkingsusers://children/{$student->id}/transport",
+            ]
+        );
+    }
+
+    /**
+     * Notify the parent who raised a concern that school staff replied.
+     */
+    public function notifyConcernReply(StudentConcern $concern, string $preview): void
+    {
+        $concern->loadMissing(['raisedBy', 'student']);
+        $raiser = $concern->raisedBy;
+        if (! $raiser instanceof User) {
+            return;
+        }
+
+        $student = $concern->student;
+        $name = $student ? $this->childName($student) : 'your child';
+        $body = \Illuminate\Support\Str::limit(trim($preview), 120);
+        $title = 'Reply to your concern';
+        $message = $body !== ''
+            ? "School replied about {$name}: {$body}"
+            : "The school replied to your concern about {$name}.";
+
+        $this->notifyUsers(
+            collect([$raiser]),
+            $title,
+            $message,
+            [
+                'type' => 'student_concern',
+                'concern_id' => $concern->id,
+                'student_id' => $concern->student_id,
+                'deep_link' => "royalkingsusers://concerns/{$concern->id}",
             ]
         );
     }

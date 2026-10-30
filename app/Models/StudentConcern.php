@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class StudentConcern extends Model
 {
@@ -45,5 +46,10 @@ class StudentConcern extends Model
     {
         return $this->belongsToMany(Staff::class, 'student_concern_staff')
             ->withTimestamps();
+    }
+
+    public function messages(): HasMany
+    {
+        return $this->hasMany(StudentConcernMessage::class)->orderBy('created_at');
     }
 }

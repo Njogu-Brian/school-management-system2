@@ -438,6 +438,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::post('/concerns', [\App\Http\Controllers\Api\ApiConcernController::class, 'store']);
     Route::get('/concerns/{id}', [\App\Http\Controllers\Api\ApiConcernController::class, 'show']);
     Route::put('/concerns/{id}', [\App\Http\Controllers\Api\ApiConcernController::class, 'update']);
+    Route::post('/concerns/{id}/messages', [\App\Http\Controllers\Api\ApiConcernController::class, 'storeMessage']);
 
     // Digital diary (WhatsApp-style parent ↔ teacher ↔ admin threads)
     Route::get('/diaries', [\App\Http\Controllers\Api\ApiDiaryController::class, 'index']);

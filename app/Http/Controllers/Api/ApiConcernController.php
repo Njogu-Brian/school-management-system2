@@ -5,20 +5,24 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Staff;
 use App\Models\StudentConcern;
+use App\Models\StudentConcernMessage;
+use App\Models\User;
+use App\Services\ConcernRaiserPresenter;
 use App\Services\ExpoPushService;
+use App\Services\ParentAppNotifyService;
 use App\Services\SMSService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class ApiConcernController extends Controller
 {
     public function index(Request $request)
     {
-        $user = $request->user();
-        $query = StudentConcern::with(['student.classroom', 'concernedStaff', 'createdBy'])
+        $query = StudentConcern::with(['student.classroom', 'student.parent', 'concernedStaff', 'createdBy', 'raisedBy'])
             ->orderByDesc('created_at');
 
         $this->applyViewerScope($query, $request);
@@ -40,7 +44,10 @@ class ApiConcernController extends Controller
 
         $perPage = (int) $request->input('per_page', 20);
         $paginated = $query->paginate($perPage);
-        $data = $paginated->getCollection()->map(fn ($c) => $this->format($c))->values();
+        $presenter = app(ConcernRaiserPresenter::class);
+        $data = $paginated->getCollection()
+            ->map(fn ($c) => $this->format($c, $presenter, false))
+            ->values();
 
         return response()->json([
             'success' => true,
@@ -56,14 +63,23 @@ class ApiConcernController extends Controller
 
     public function show(Request $request, int $id)
     {
-        $concern = StudentConcern::with(['student.classroom', 'concernedStaff', 'createdBy', 'raisedBy'])
-            ->findOrFail($id);
+        $concern = StudentConcern::with([
+            'student.classroom',
+            'student.parent',
+            'concernedStaff',
+            'createdBy',
+            'raisedBy',
+            'messages.user',
+        ])->findOrFail($id);
 
         if (! $this->canViewConcern($request, $concern)) {
             abort(403, 'You do not have access to this concern.');
         }
 
-        return response()->json(['success' => true, 'data' => $this->format($concern)]);
+        return response()->json([
+            'success' => true,
+            'data' => $this->format($concern, app(ConcernRaiserPresenter::class), true),
+        ]);
     }
 
     /**
@@ -147,7 +163,13 @@ class ApiConcernController extends Controller
                 if ($staffIds !== []) {
                     $concern->concernedStaff()->sync($staffIds);
                 }
-                $created[] = $concern->load(['student.classroom', 'concernedStaff', 'createdBy']);
+                $created[] = $concern->load([
+                    'student.classroom',
+                    'student.parent',
+                    'concernedStaff',
+                    'createdBy',
+                    'raisedBy',
+                ]);
             }
 
             return $created;
@@ -155,11 +177,12 @@ class ApiConcernController extends Controller
 
         foreach ($concerns as $concern) {
             if ($concern->concernedStaff->isNotEmpty()) {
-                $this->notifyConcernedStaff($concern);
+                $this->notifyConcernedStaff($concern, 'raised');
             }
         }
 
-        $formatted = array_map(fn ($c) => $this->format($c), $concerns);
+        $presenter = app(ConcernRaiserPresenter::class);
+        $formatted = array_map(fn ($c) => $this->format($c, $presenter, false), $concerns);
         $count = count($formatted);
 
         return response()->json([
@@ -173,8 +196,8 @@ class ApiConcernController extends Controller
     {
         $concern = StudentConcern::findOrFail($id);
 
-        if (! $this->canViewConcern($request, $concern)) {
-            abort(403, 'You do not have access to this concern.');
+        if (! $this->canManageConcern($request, $concern)) {
+            abort(403, 'You do not have permission to update this concern.');
         }
 
         $validated = $request->validate([
@@ -196,11 +219,80 @@ class ApiConcernController extends Controller
             $concern->concernedStaff()->sync($validated['staff_ids'] ?? []);
         }
 
+        $concern = $concern->fresh([
+            'student.classroom',
+            'student.parent',
+            'concernedStaff',
+            'createdBy',
+            'raisedBy',
+            'messages.user',
+        ]);
+
         return response()->json([
             'success' => true,
             'message' => 'Concern updated.',
-            'data' => $this->format($concern->fresh(['student.classroom', 'concernedStaff', 'createdBy'])),
+            'data' => $this->format($concern, app(ConcernRaiserPresenter::class), true),
         ]);
+    }
+
+    public function storeMessage(Request $request, int $id)
+    {
+        $concern = StudentConcern::with(['concernedStaff', 'raisedBy', 'student'])->findOrFail($id);
+
+        if (! $this->canViewConcern($request, $concern)) {
+            abort(403, 'You do not have access to this concern.');
+        }
+
+        if ($concern->status === 'closed') {
+            throw ValidationException::withMessages([
+                'body' => ['This concern is closed and no longer accepts messages.'],
+            ]);
+        }
+
+        $user = $request->user();
+        $isStaffAuthor = $this->canManageConcern($request, $concern);
+        $isParentAuthor = ! $isStaffAuthor && $this->canViewConcern($request, $concern);
+
+        if (! $isStaffAuthor && ! $isParentAuthor) {
+            abort(403, 'You cannot reply to this concern.');
+        }
+
+        $validated = $request->validate([
+            'body' => 'required|string|max:5000',
+        ]);
+
+        $message = StudentConcernMessage::create([
+            'student_concern_id' => $concern->id,
+            'user_id' => $user->id,
+            'body' => $validated['body'],
+            'is_staff' => $isStaffAuthor,
+        ]);
+
+        if ($concern->status === 'open' && $isStaffAuthor) {
+            $concern->update(['status' => 'in_progress']);
+        }
+
+        if ($isStaffAuthor) {
+            app(ParentAppNotifyService::class)->notifyConcernReply($concern, $validated['body']);
+        } else {
+            $this->notifyConcernedStaff($concern->load('concernedStaff'), 'reply', $validated['body']);
+        }
+
+        $concern = $concern->fresh([
+            'student.classroom',
+            'student.parent',
+            'concernedStaff',
+            'createdBy',
+            'raisedBy',
+            'messages.user',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Reply sent.',
+            'data' => $this->format($concern, app(ConcernRaiserPresenter::class), true),
+            'reply' => $this->formatMessage($message->load('user')),
+        ], 201);
     }
 
     /**
@@ -215,22 +307,22 @@ class ApiConcernController extends Controller
             abort(401);
         }
 
-        $privileged = $user->hasAnyRole([
-            'Super Admin', 'Admin', 'Secretary', 'Senior Teacher',
-            'Finance Officer', 'Accountant',
-        ]);
-
-        if ($request->filled('staff_id')) {
-            $staffId = (int) $request->input('staff_id');
-            if (! $privileged && (int) ($user->staff?->id ?? 0) !== $staffId) {
-                abort(403, 'You can only view concerns tagged to you.');
+        if ($this->isPrivileged($user)) {
+            if ($request->filled('staff_id')) {
+                $staffId = (int) $request->input('staff_id');
+                $query->whereHas('concernedStaff', fn ($q) => $q->where('staff.id', $staffId));
             }
-            $query->whereHas('concernedStaff', fn ($q) => $q->where('staff.id', $staffId));
 
             return;
         }
 
-        if ($privileged) {
+        if ($request->filled('staff_id')) {
+            $staffId = (int) $request->input('staff_id');
+            if ((int) ($user->staff?->id ?? 0) !== $staffId) {
+                abort(403, 'You can only view concerns tagged to you.');
+            }
+            $query->whereHas('concernedStaff', fn ($q) => $q->where('staff.id', $staffId));
+
             return;
         }
 
@@ -266,10 +358,7 @@ class ApiConcernController extends Controller
             return false;
         }
 
-        if ($user->hasAnyRole([
-            'Super Admin', 'Admin', 'Secretary', 'Senior Teacher',
-            'Finance Officer', 'Accountant',
-        ])) {
+        if ($this->isPrivileged($user)) {
             return true;
         }
 
@@ -288,12 +377,50 @@ class ApiConcernController extends Controller
         return false;
     }
 
-    protected function notifyConcernedStaff(StudentConcern $concern): void
+    protected function canManageConcern(Request $request, StudentConcern $concern): bool
     {
-        $smsBody = 'A concern was raised regarding a student you are linked to. Please check the portal or app for details.';
-        $pushTitle = 'Student concern raised';
-        $pushBody = 'A '.$concern->category.' concern was logged. Open the app for details.';
-        $emailSubject = 'Student concern raised';
+        $user = $request->user();
+        if (! $user) {
+            return false;
+        }
+
+        if ($this->isPrivileged($user)) {
+            return true;
+        }
+
+        if ($user->staff) {
+            return $concern->concernedStaff()->where('staff.id', $user->staff->id)->exists();
+        }
+
+        return false;
+    }
+
+    protected function isPrivileged(User $user): bool
+    {
+        return $user->hasAnyRole([
+            'Super Admin', 'Admin', 'Secretary', 'Senior Teacher',
+            'Finance Officer', 'Accountant',
+        ]);
+    }
+
+    /**
+     * @param  'raised'|'reply'  $kind
+     */
+    protected function notifyConcernedStaff(StudentConcern $concern, string $kind = 'raised', ?string $preview = null): void
+    {
+        if ($kind === 'reply') {
+            $smsBody = 'A parent replied to a student concern you are linked to. Open the app for details.';
+            $pushTitle = 'Parent replied to concern';
+            $pushBody = Str::limit(trim((string) $preview), 120) ?: 'Open the app to read the reply.';
+            $emailSubject = 'Parent replied to a student concern';
+            $emailBody = "A parent replied to a concern you are linked to.\n\nCategory: {$concern->category}\nPlease sign in to the portal or app to view the thread.\n";
+        } else {
+            $smsBody = 'A concern was raised regarding a student you are linked to. Please check the portal or app for details.';
+            $pushTitle = 'Student concern raised';
+            $pushBody = 'A '.$concern->category.' concern was logged. Open the app for details.';
+            $emailSubject = 'Student concern raised';
+            $emailBody = "A concern was raised for a student you are linked to.\n\nCategory: {$concern->category}\nPlease sign in to the portal or app to view details.\n";
+        }
 
         foreach ($concern->concernedStaff as $staff) {
             try {
@@ -309,7 +436,7 @@ class ApiConcernController extends Controller
                 $email = $staff->work_email ?? $staff->personal_email ?? $staff->email ?? $staff->user?->email;
                 if ($email) {
                     Mail::raw(
-                        "A concern was raised for a student you are linked to.\n\nCategory: {$concern->category}\nPlease sign in to the portal or app to view details.\n",
+                        $emailBody,
                         function ($message) use ($email, $emailSubject) {
                             $message->to($email)->subject($emailSubject);
                         }
@@ -337,6 +464,7 @@ class ApiConcernController extends Controller
                                 'type' => 'student_concern',
                                 'concern_id' => $concern->id,
                                 'student_id' => $concern->student_id,
+                                'deep_link' => "royalkingsusers://concerns/{$concern->id}",
                             ]
                         );
                     }
@@ -347,9 +475,10 @@ class ApiConcernController extends Controller
         }
     }
 
-    protected function format(StudentConcern $c): array
+    protected function format(StudentConcern $c, ConcernRaiserPresenter $presenter, bool $withMessages): array
     {
-        return [
+        $raisedBy = $presenter->present($c);
+        $payload = [
             'id' => $c->id,
             'student_id' => $c->student_id,
             'student_name' => $c->student?->full_name,
@@ -362,9 +491,32 @@ class ApiConcernController extends Controller
                 'id' => $s->id,
                 'name' => $s->full_name ?? $s->name,
             ])->values()->all(),
+            'raised_by' => $raisedBy,
+            'raised_by_label' => $raisedBy['label'],
             'created_by_name' => $c->createdBy?->name,
             'created_at' => optional($c->created_at)?->toIso8601String(),
             'updated_at' => optional($c->updated_at)?->toIso8601String(),
+            'can_reply' => $c->status !== 'closed',
+        ];
+
+        if ($withMessages) {
+            $payload['messages'] = $c->relationLoaded('messages')
+                ? $c->messages->map(fn (StudentConcernMessage $m) => $this->formatMessage($m))->values()->all()
+                : [];
+        }
+
+        return $payload;
+    }
+
+    protected function formatMessage(StudentConcernMessage $m): array
+    {
+        return [
+            'id' => $m->id,
+            'body' => $m->body,
+            'is_staff' => (bool) $m->is_staff,
+            'user_id' => $m->user_id,
+            'author_name' => $m->user?->name,
+            'created_at' => optional($m->created_at)?->toIso8601String(),
         ];
     }
 }

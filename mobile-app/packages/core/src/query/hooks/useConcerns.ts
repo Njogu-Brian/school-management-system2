@@ -88,7 +88,25 @@ export function useUpdateConcern() {
       if (!res.success) throw new Error(res.message || 'Failed to update concern.');
       return res.data;
     },
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['concerns'] }),
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: ['concerns'] });
+      void qc.invalidateQueries({ queryKey: ['concerns', vars.id] });
+    },
+  });
+}
+
+export function usePostConcernMessage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: { id: number; body: string }) => {
+      const res = await concernsApi.postMessage(args.id, args.body);
+      if (!res.success) throw new Error(res.message || 'Failed to send reply.');
+      return res.data;
+    },
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: ['concerns'] });
+      void qc.invalidateQueries({ queryKey: ['concerns', vars.id] });
+    },
   });
 }
 

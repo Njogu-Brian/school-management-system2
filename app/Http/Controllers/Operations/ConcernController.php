@@ -4,21 +4,28 @@ namespace App\Http\Controllers\Operations;
 
 use App\Http\Controllers\Controller;
 use App\Models\Staff;
-use App\Models\Student;
 use App\Models\StudentConcern;
+use App\Models\StudentConcernMessage;
+use App\Services\ConcernRaiserPresenter;
 use App\Services\ExpoPushService;
+use App\Services\ParentAppNotifyService;
 use App\Services\SMSService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\ValidationException;
 
 class ConcernController extends Controller
 {
     public function index(Request $request)
     {
-        $query = StudentConcern::with(['student.classroom', 'concernedStaff'])
-            ->orderByDesc('created_at');
+        $query = StudentConcern::with([
+            'student.classroom',
+            'student.parent',
+            'concernedStaff',
+            'raisedBy',
+        ])->orderByDesc('created_at');
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -37,8 +44,9 @@ class ConcernController extends Controller
 
         $concerns = $query->paginate(20)->withQueryString();
         $categories = StudentConcern::CATEGORIES;
+        $raiser = app(ConcernRaiserPresenter::class);
 
-        return view('operations.concerns.index', compact('concerns', 'categories'));
+        return view('operations.concerns.index', compact('concerns', 'categories', 'raiser'));
     }
 
     public function create()
@@ -81,9 +89,18 @@ class ConcernController extends Controller
 
     public function show($id)
     {
-        $concern = StudentConcern::with(['student.classroom', 'concernedStaff', 'createdBy'])->findOrFail($id);
+        $concern = StudentConcern::with([
+            'student.classroom',
+            'student.parent',
+            'concernedStaff',
+            'createdBy',
+            'raisedBy',
+            'messages.user',
+        ])->findOrFail($id);
 
-        return view('operations.concerns.show', compact('concern'));
+        $raiser = app(ConcernRaiserPresenter::class)->present($concern);
+
+        return view('operations.concerns.show', compact('concern', 'raiser'));
     }
 
     public function update(Request $request, $id)
@@ -95,6 +112,43 @@ class ConcernController extends Controller
         $concern->update($validated);
 
         return back()->with('success', 'Concern status updated.');
+    }
+
+    public function storeMessage(Request $request, $id)
+    {
+        $concern = StudentConcern::with(['raisedBy', 'student', 'concernedStaff'])->findOrFail($id);
+
+        if ($concern->status === 'closed') {
+            throw ValidationException::withMessages([
+                'body' => ['This concern is closed and no longer accepts messages.'],
+            ]);
+        }
+
+        $validated = $request->validate([
+            'body' => 'required|string|max:5000',
+            'status' => 'nullable|in:open,in_progress,resolved,closed',
+        ]);
+
+        StudentConcernMessage::create([
+            'student_concern_id' => $concern->id,
+            'user_id' => auth()->id(),
+            'body' => $validated['body'],
+            'is_staff' => true,
+        ]);
+
+        $status = $validated['status'] ?? null;
+        if ($status) {
+            $concern->status = $status;
+        } elseif ($concern->status === 'open') {
+            $concern->status = 'in_progress';
+        }
+        $concern->save();
+
+        app(ParentAppNotifyService::class)->notifyConcernReply($concern, $validated['body']);
+
+        return redirect()
+            ->route('operations.concerns.show', $concern->id)
+            ->with('success', 'Reply sent to the parent who raised this concern.');
     }
 
     protected function notifyConcernedStaff(StudentConcern $concern): void
@@ -130,7 +184,11 @@ class ConcernController extends Controller
                             $tokens,
                             'Student concern raised',
                             'A '.$concern->category.' concern was logged. Open the app for details.',
-                            ['type' => 'student_concern', 'concern_id' => $concern->id]
+                            [
+                                'type' => 'student_concern',
+                                'concern_id' => $concern->id,
+                                'deep_link' => "royalkingsusers://concerns/{$concern->id}",
+                            ]
                         );
                     }
                 }

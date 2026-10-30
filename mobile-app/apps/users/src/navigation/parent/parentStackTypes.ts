@@ -27,6 +27,7 @@ export type ParentStackParamList = {
   MoreMenu: undefined;
   MyProfile: undefined;
   ConcernsList: undefined;
+  ConcernDetail: { concernId: number };
   Transport: { studentId: number };
   LiveBusTrack: { studentId: number };
   RaiseConcern: { studentId?: number };

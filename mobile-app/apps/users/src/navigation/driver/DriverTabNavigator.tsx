@@ -19,7 +19,11 @@ import { MyProfileScreen } from '../../features/me/screens/MyProfileScreen';
 import { StaffClockScreen } from '../../features/me/screens/StaffClockScreen';
 import { NotificationsListScreen } from '../../features/notifications/screens/NotificationsListScreen';
 import { SettingsScreen } from '../../features/settings/screens/SettingsScreen';
-import { ConcernsListScreen, RaiseConcernScreen } from '../../features/shared/screens';
+import {
+  ConcernDetailScreen,
+  ConcernsListScreen,
+  RaiseConcernScreen,
+} from '../../features/shared/screens';
 import { UsersAppHeaderChrome } from '../UsersAppHeaderChrome';
 import { createUsersTabBar } from '../UsersPremiumTabBar';
 import type { DriverStackParamList } from './driverStackTypes';
@@ -45,6 +49,7 @@ const driverSharedScreens = (Stack: typeof HomeStack) => (
     <Stack.Screen name="MyProfile" component={MyProfileScreen} />
     <Stack.Screen name="DriverSettings" component={SettingsScreen} />
     <Stack.Screen name="ConcernsList" component={ConcernsListScreen} />
+    <Stack.Screen name="ConcernDetail" component={ConcernDetailScreen} />
     <Stack.Screen name="RaiseConcern" component={RaiseConcernScreen} />
   </>
 );

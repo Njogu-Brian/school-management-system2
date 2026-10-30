@@ -16,7 +16,12 @@ import { ParentWalletHomeScreen } from '../../features/parent/screens/wallet/Par
 import { ParentWalletSavingPlanFormScreen } from '../../features/parent/screens/wallet/ParentWalletSavingPlanFormScreen';
 import { ParentWalletSavingPlansScreen } from '../../features/parent/screens/wallet/ParentWalletSavingPlansScreen';
 import { ParentWalletTopUpScreen } from '../../features/parent/screens/wallet/ParentWalletTopUpScreen';
-import { ConcernsListScreen, RaiseConcernScreen, StudentDetailScreen } from '../../features/shared/screens';
+import {
+  ConcernDetailScreen,
+  ConcernsListScreen,
+  RaiseConcernScreen,
+  StudentDetailScreen,
+} from '../../features/shared/screens';
 import { DiaryChatScreen } from '../../features/shared/diary';
 import { DiaryListScreen } from '../../features/parent/screens/DiaryListScreen';
 import { LiveBusTrackScreen } from '../../features/parent/screens/LiveBusTrackScreen';
@@ -48,6 +53,7 @@ const parentSharedScreens = () => (
   <>
     <Stack.Screen name="Notifications" component={NotificationsListScreen} />
     <Stack.Screen name="ConcernsList" component={ConcernsListScreen} />
+    <Stack.Screen name="ConcernDetail" component={ConcernDetailScreen} />
     <Stack.Screen name="RaiseConcern" component={RaiseConcernScreen} />
     <Stack.Screen name="Settings" component={SettingsScreen} />
     <Stack.Screen name="MyProfile" component={MyProfileScreen} />

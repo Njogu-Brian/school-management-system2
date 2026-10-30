@@ -9,6 +9,21 @@ export type ConcernCategory =
   | 'meals'
   | 'administration';
 
+export interface ConcernMessage {
+  id: number;
+  body: string;
+  is_staff: boolean;
+  user_id?: number | null;
+  author_name?: string | null;
+  created_at?: string | null;
+}
+
+export interface ConcernRaisedBy {
+  name?: string | null;
+  slot?: 'mother' | 'father' | 'guardian' | null;
+  label: string;
+}
+
 export interface ConcernRecord {
   id: number;
   student_id: number;
@@ -19,8 +34,13 @@ export interface ConcernRecord {
   description: string;
   status: string;
   staff: Array<{ id: number; name?: string | null }>;
+  raised_by?: ConcernRaisedBy | null;
+  raised_by_label?: string | null;
   created_by_name?: string | null;
   created_at?: string | null;
+  updated_at?: string | null;
+  can_reply?: boolean;
+  messages?: ConcernMessage[];
 }
 
 export type CreateConcernPayload = {
@@ -61,5 +81,9 @@ export const concernsApi = {
     payload: { status?: string; description?: string; staff_ids?: number[] },
   ): Promise<ApiResponse<ConcernRecord>> {
     return apiClient.put(`/concerns/${id}`, payload);
+  },
+
+  postMessage(id: number, body: string): Promise<ApiResponse<ConcernRecord>> {
+    return apiClient.post(`/concerns/${id}/messages`, { body });
   },
 };

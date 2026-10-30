@@ -8,5 +8,6 @@ export type StudentStackParamList = {
   Settings: undefined;
   MyProfile: undefined;
   ConcernsList: undefined;
+  ConcernDetail: { concernId: number };
   RaiseConcern: { studentId?: number } | undefined;
 };

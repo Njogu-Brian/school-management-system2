@@ -14,6 +14,7 @@ import { SettingsScreen } from '../../features/settings/screens/SettingsScreen';
 import { DiaryChatScreen, DiaryListScreen } from '../../features/shared/diary';
 import {
   AnnouncementsListScreen,
+  ConcernDetailScreen,
   ConcernsListScreen,
   RaiseConcernScreen,
   StudentDetailScreen,
@@ -103,6 +104,7 @@ function teacherSharedScreens() {
       <Stack.Screen name="SpeedTestMarks" component={SpeedTestMarksScreen} />
       <Stack.Screen name="MyAdvances" component={MyAdvancesScreen} />
       <Stack.Screen name="ConcernsList" component={ConcernsListScreen} />
+      <Stack.Screen name="ConcernDetail" component={ConcernDetailScreen} />
       <Stack.Screen name="RaiseConcern" component={RaiseConcernScreen} />
       <Stack.Screen name="ReportCardsHub" component={TeacherReportCardsHubScreen} />
       <Stack.Screen name="StudentReportCards" component={TeacherStudentReportCardsScreen} />
