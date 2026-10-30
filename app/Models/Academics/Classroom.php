@@ -67,6 +67,14 @@ class Classroom extends Model
         return $this->belongsTo(Classroom::class, 'next_class_id')->withoutGlobalScope('offered');
     }
 
+    /**
+     * Last offered class in the progression (e.g. Grade 9) — learners here leave / become alumni.
+     */
+    public function isLeavingClass(): bool
+    {
+        return empty($this->next_class_id);
+    }
+
     public function previousClasses()
     {
         return $this->hasMany(Classroom::class, 'next_class_id');

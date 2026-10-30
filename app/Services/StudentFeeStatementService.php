@@ -129,9 +129,7 @@ class StudentFeeStatementService
 
             $students = \App\Models\Student::query()
                 ->whereIn('id', $ids)
-                ->where('archive', 0)
-                ->where('is_alumni', false)
-                ->whereNull('archived_at')
+                ->forFeeRoster()
                 ->where(function ($q) {
                     $q->whereDoesntHave('category', function ($cq) {
                         $cq->whereRaw('LOWER(name) = ?', ['staff']);

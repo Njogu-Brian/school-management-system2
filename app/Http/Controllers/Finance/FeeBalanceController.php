@@ -78,11 +78,9 @@ class FeeBalanceController extends Controller
         $placementService = app(\App\Services\Academics\StudentPlacementService::class);
         $reportYear = (int) $year;
 
-        // Fee Balance never lists archived / alumni / archived_at leavers — for any year filter.
+        // Fee Balance never lists archived / alumni / last-class leavers — for any year filter.
         $studentsQuery = Student::query()
-            ->where('archive', 0)
-            ->where('is_alumni', false)
-            ->whereNull('archived_at')
+            ->forFeeRoster()
             ->with(['classroom', 'stream', 'parent', 'family', 'category'])
             ->where(function ($q) {
                 $q->whereDoesntHave('category', function ($cq) {

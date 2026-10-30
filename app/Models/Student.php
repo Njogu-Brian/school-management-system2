@@ -443,6 +443,21 @@ class Student extends Model
     }
 
     /**
+     * Fee balance / posting / dashboard: never include archived, alumni, or last-class leavers.
+     */
+    public function scopeForFeeRoster(Builder $query): Builder
+    {
+        return $query
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->whereNull('archived_at')
+            // Terminal class (no next_class_id) = leaving / alumni track — keep them off fee rosters.
+            ->whereHas('classroom', function (Builder $c) {
+                $c->whereNotNull('next_class_id');
+            });
+    }
+
+    /**
      * Route-model binding should allow archived & alumni students too.
      * Otherwise nested resources (medical, disciplinary, academic history, etc.)
      * can 404/500 due to the global "active" scope.

@@ -373,9 +373,7 @@ class StudentPlacementService
 
         if ($year === $current) {
             return Student::query()
-                ->where('archive', 0)
-                ->where('is_alumni', false)
-                ->whereNull('archived_at')
+                ->forFeeRoster()
                 ->pluck('id')
                 ->map(fn ($id) => (int) $id)
                 ->all();
@@ -383,9 +381,7 @@ class StudentPlacementService
 
         if ($year > $current) {
             return Student::query()
-                ->where('archive', 0)
-                ->where('is_alumni', false)
-                ->whereNull('archived_at')
+                ->forFeeRoster()
                 ->with(['classroom.nextClass'])
                 ->get()
                 ->filter(function (Student $student) use ($year) {
@@ -429,9 +425,7 @@ class StudentPlacementService
 
         return Student::query()
             ->whereIn('id', $candidateIds)
-            ->where('archive', 0)
-            ->where('is_alumni', false)
-            ->whereNull('archived_at')
+            ->forFeeRoster()
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->all();

@@ -119,11 +119,9 @@ class DashboardController extends Controller
         $placementService = app(\App\Services\Academics\StudentPlacementService::class);
         $yearStudentIds = $placementService->studentIdsForYear($reportYear);
 
-        // Never count archived / alumni / archived_at leavers in dashboard active totals.
+        // Never count archived / alumni / last-class leavers in dashboard active totals.
         $studentBase = Student::query()
-            ->where('archive', 0)
-            ->where('is_alumni', false)
-            ->whereNull('archived_at')
+            ->forFeeRoster()
             ->whereIn('id', $yearStudentIds ?: [0]);
 
         if ($role === 'teacher' && $assignedClassroomIds !== null) {

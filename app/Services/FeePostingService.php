@@ -35,11 +35,18 @@ class FeePostingService
         $usesNextClass = $this->isFutureBillingYear($year);
         
         foreach ($students as $student) {
-            // Future-year posting bills the mapped next class; leavers (alumni next) error out.
+            // Future-year posting bills the mapped next class; leavers (no next class / alumni) are skipped quietly.
             try {
                 $placement = $this->resolveBillingPlacement($student, $year);
             } catch (\InvalidArgumentException $e) {
-                $billingErrors[] = $e->getMessage();
+                $msg = $e->getMessage();
+                $isLeaver = str_contains($msg, 'no next class mapped')
+                    || str_contains($msg, 'already alumni')
+                    || str_contains($msg, 'no current class assigned');
+                if ($usesNextClass && $isLeaver) {
+                    continue;
+                }
+                $billingErrors[] = $msg;
                 continue;
             }
 
@@ -1407,36 +1414,42 @@ class FeePostingService
      */
     private function getFilteredStudents(array $filters): Collection
     {
+        $year = isset($filters['year']) ? (int) $filters['year'] : null;
+        $futureYear = $year !== null && $this->isFutureBillingYear($year);
+
         // If student_ids array is provided, return only those students
         $studentIds = $filters['student_ids'] ?? null;
         if (is_array($studentIds) && !empty($studentIds)) {
             $ids = array_filter(array_map('intval', $studentIds));
             if (!empty($ids)) {
-                return Student::with(['classroom.nextClass'])
+                $q = Student::with(['classroom.nextClass'])
                     ->whereIn('id', $ids)
-                    ->where('archive', 0)
-                    ->where('is_alumni', false)
-                    ->get();
+                    ->forFeeRoster();
+
+                return $q->get();
             }
         }
 
-        // If student_id is explicitly provided, ONLY return that student
+        // If student_id is explicitly provided, ONLY return that student (still block inactive/leavers)
         if (!empty($filters['student_id'])) {
             return Student::with(['classroom.nextClass'])
                 ->where('id', $filters['student_id'])
-                ->where('archive', 0)
-                ->where('is_alumni', false)
+                ->forFeeRoster()
                 ->get();
         }
         
-        // Otherwise, apply class/stream filters (exclude alumni/archived)
+        // School/class posting: never include archived, alumni, or last-class leavers.
+        // For future years, forFeeRoster already drops terminal-class students (no next class).
         return Student::query()
             ->with(['classroom.nextClass'])
-            ->where('archive', 0)
-            ->where('is_alumni', false)
+            ->forFeeRoster()
             ->when(!empty($filters['class_id']), fn($q) => $q->where('classroom_id', $filters['class_id']))
             ->when(!empty($filters['stream_id']), fn($q) => $q->where('stream_id', $filters['stream_id']))
             ->when(!empty($filters['student_category_id']), fn($q) => $q->where('category_id', $filters['student_category_id']))
+            ->when($futureYear, function ($q) {
+                // Belt-and-suspenders: only continuing classes for future billing.
+                $q->whereHas('classroom', fn ($c) => $c->whereNotNull('next_class_id'));
+            })
             ->get();
     }
     
