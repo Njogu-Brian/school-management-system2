@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\PublishInvoicesJob;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Stream;
 use App\Models\Student;
 use App\Services\InvoicePublishService;
 use App\Support\AcademicContext;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class InvoicePublishController extends Controller
 {
@@ -65,19 +67,26 @@ class InvoicePublishController extends Controller
                 ->with('info', 'No unpublished invoices matched the selected scope.');
         }
 
-        $result = $service->publishByFilters($filters, $channels, $notify);
-
-        $message = sprintf(
-            'Published %d invoice(s). Parents notified: %d. Failed: %d. Skipped: %d.',
-            $result['published'],
-            $result['notified'],
-            $result['failed'],
-            $result['skipped']
+        // Always queue: bulk publish + SMS/WhatsApp easily exceeds Cloudflare's ~100s origin timeout (524).
+        PublishInvoicesJob::dispatch(
+            $filters,
+            $channels,
+            $notify,
+            (int) (Auth::id() ?? 0),
+            $pending
         );
+
+        $channelsLabel = $notify
+            ? ('via '.implode('/', $channels ?: ['in-app only']))
+            : 'without parent SMS/WhatsApp';
 
         return redirect()
             ->route('finance.invoices.publish', $filters)
-            ->with($result['failed'] > 0 ? 'warning' : 'success', $message);
+            ->with(
+                'success',
+                "Queued publishing for {$pending} invoice(s) {$channelsLabel}. "
+                .'The queue worker will mark them published and notify parents — refresh this page in a few minutes to confirm drafts are cleared.'
+            );
     }
 
     /**

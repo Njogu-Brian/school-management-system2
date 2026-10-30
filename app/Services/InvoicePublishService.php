@@ -87,11 +87,16 @@ class InvoicePublishService
      * @param  array<string>  $channels  sms|whatsapp (in-app always sent on publish)
      * @return array{published:int, notified:int, failed:int, skipped:int}
      */
-    public function publishByFilters(array $filters, array $channels = ['sms', 'whatsapp'], bool $notify = true, bool $dryRun = false): array
-    {
+    public function publishByFilters(
+        array $filters,
+        array $channels = ['sms', 'whatsapp'],
+        bool $notify = true,
+        bool $dryRun = false,
+        ?int $publishedBy = null
+    ): array {
         $invoices = $this->queryUnpublished($filters)->get();
 
-        return $this->publishMany($invoices, $channels, $notify, $dryRun);
+        return $this->publishMany($invoices, $channels, $notify, $dryRun, $publishedBy);
     }
 
     /**
@@ -99,14 +104,20 @@ class InvoicePublishService
      * @param  array<string>  $channels
      * @return array{published:int, notified:int, failed:int, skipped:int}
      */
-    public function publishMany($invoices, array $channels = ['sms', 'whatsapp'], bool $notify = true, bool $dryRun = false): array
-    {
+    public function publishMany(
+        $invoices,
+        array $channels = ['sms', 'whatsapp'],
+        bool $notify = true,
+        bool $dryRun = false,
+        ?int $publishedBy = null
+    ): array {
         $invoices = collect($invoices);
         $channels = array_values(array_unique(array_filter($channels)));
         $published = 0;
         $skipped = 0;
         $notified = 0;
         $failed = 0;
+        $publishedBy = $publishedBy ?? Auth::id();
 
         $toNotify = collect();
 
@@ -131,7 +142,7 @@ class InvoicePublishService
                 continue;
             }
 
-            $this->publishOne($invoice, false);
+            $this->publishOne($invoice, false, $publishedBy);
             $published++;
             $toNotify->push($invoice->fresh(['student.family', 'academicYear']) ?? $invoice);
         }
@@ -170,11 +181,11 @@ class InvoicePublishService
         ];
     }
 
-    public function publishOne(Invoice $invoice, bool $notify = true): Invoice
+    public function publishOne(Invoice $invoice, bool $notify = true, ?int $publishedBy = null): Invoice
     {
         if (! $invoice->isPublished()) {
             $invoice->published_at = now();
-            $invoice->published_by = Auth::id();
+            $invoice->published_by = $publishedBy ?? Auth::id();
             $invoice->save();
         }
 

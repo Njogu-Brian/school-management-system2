@@ -9,7 +9,7 @@
           <h3 class="mb-1"><i class="bi bi-send-check"></i> Publish Invoices</h3>
           <p class="mb-0 finance-muted">
             Invoices created by Post Pending Fees stay hidden from parents until you publish them.
-            Publishing sends WhatsApp, SMS (with invoice link), and an in-app notification that opens the invoice.
+            Publishing is queued on the background worker (avoids browser timeouts), then sends WhatsApp, SMS (with invoice link), and an in-app notification.
           </p>
         </div>
         <a href="{{ route('finance.posting.index') }}" class="btn btn-finance btn-finance-outline">
@@ -85,7 +85,7 @@
         </div>
 
         <form method="POST" action="{{ route('finance.invoices.publish.submit') }}"
-              onsubmit="return confirm('Publish {{ $pendingCount }} invoice(s) and notify parents via the selected channels?');">
+              onsubmit="return confirm('Queue publishing for {{ $pendingCount }} invoice(s)? The worker will notify parents via the selected channels.');">
           @csrf
           <input type="hidden" name="year" value="{{ $filters['year'] ?? '' }}">
           <input type="hidden" name="term" value="{{ $filters['term'] ?? '' }}">
@@ -106,11 +106,11 @@
                   <span class="form-check-label">SMS (invoice link)</span>
                 </label>
               </div>
-              <div class="form-text">In-app notification is always sent and opens the invoice in the Users app.</div>
+              <div class="form-text">In-app notification is always sent and opens the invoice in the Users app. Large batches run on the queue worker.</div>
             </div>
             <div class="col-md-6 d-flex align-items-end">
               <button type="submit" class="btn btn-finance btn-finance-primary" {{ $pendingCount < 1 ? 'disabled' : '' }}>
-                <i class="bi bi-send-check"></i> Publish &amp; notify parents
+                <i class="bi bi-hourglass-split"></i> Queue publish &amp; notify
               </button>
             </div>
           </div>
