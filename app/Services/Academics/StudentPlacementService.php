@@ -213,6 +213,7 @@ class StudentPlacementService
                 ->where('classroom_id', $classroomId)
                 ->where('archive', 0)
                 ->where('is_alumni', false)
+                ->whereNull('archived_at')
                 ->when($streamId, fn ($q) => $q->where('stream_id', $streamId));
 
             return $query->orderBy('admission_number')->get();
@@ -269,6 +270,7 @@ class StudentPlacementService
             return Student::query()
                 ->where('archive', 0)
                 ->where('is_alumni', false)
+                ->whereNull('archived_at')
                 ->pluck('id')
                 ->map(fn ($id) => (int) $id)
                 ->all();
@@ -278,6 +280,7 @@ class StudentPlacementService
             return Student::query()
                 ->where('archive', 0)
                 ->where('is_alumni', false)
+                ->whereNull('archived_at')
                 ->with(['classroom.nextClass'])
                 ->get()
                 ->filter(function (Student $student) use ($year) {
@@ -295,6 +298,8 @@ class StudentPlacementService
                 ->all();
         }
 
+        // Past years: only learners who were placed that year AND are still active now.
+        // Archived/alumni must never reappear on fee balance / dashboard when filtered to a past year.
         $historyIds = StudentAcademicHistory::query()
             ->whereHas('academicYear', fn ($q) => $q->where('year', $year))
             ->whereNotNull('classroom_id')
@@ -312,20 +317,28 @@ class StudentPlacementService
             })
             ->pluck('student_id');
 
-        return $historyIds->merge($inferredIds)
-            ->unique()
-            ->filter()
+        $candidateIds = $historyIds->merge($inferredIds)->unique()->filter()->values()->all();
+        if ($candidateIds === []) {
+            return [];
+        }
+
+        return Student::query()
+            ->whereIn('id', $candidateIds)
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->whereNull('archived_at')
+            ->pluck('id')
             ->map(fn ($id) => (int) $id)
-            ->values()
             ->all();
     }
 
     /**
-     * Whether past-year report queries should include alumni/archived students.
+     * Past-year classroom membership may include historical rows, but live fee/dashboard
+     * rosters never treat currently archived/alumni learners as active.
      */
     public function includesAlumniForYear(int $year, ?Carbon $now = null): bool
     {
-        return $year < $this->calendarYear($now);
+        return false;
     }
 
     public function matchingStreamId($oldStreamId, int $newClassroomId): ?int
@@ -412,6 +425,7 @@ class StudentPlacementService
             ->whereIn('classroom_id', $sourceClassIds)
             ->where('archive', 0)
             ->where('is_alumni', false)
+            ->whereNull('archived_at')
             ->pluck('id');
 
         $ids = $pendingIds->merge($mappedIds)->unique()->filter()->values();
@@ -425,6 +439,7 @@ class StudentPlacementService
             ->whereIn('id', $ids)
             ->where('archive', 0)
             ->where('is_alumni', false)
+            ->whereNull('archived_at')
             ->orderBy('admission_number')
             ->get();
 
@@ -474,10 +489,13 @@ class StudentPlacementService
             return collect();
         }
 
-        // Past years include learners who have since become alumni/archived.
-        return Student::withAlumni()
+        // Past classroom membership still excludes currently archived/alumni learners.
+        return Student::query()
             ->with('stream:id,name')
             ->whereIn('id', $ids)
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->whereNull('archived_at')
             ->orderBy('admission_number')
             ->get();
     }

@@ -112,7 +112,7 @@ class StudentFeeStatementService
      */
     public function schoolOutstandingSummary(int $year): array
     {
-        $cacheKey = 'finance.school_outstanding.v2.' . $year;
+        $cacheKey = 'finance.school_outstanding.v3.' . $year;
 
         return cache()->remember($cacheKey, now()->addMinutes(5), function () use ($year) {
             $placement = app(\App\Services\Academics\StudentPlacementService::class);
@@ -127,12 +127,11 @@ class StudentFeeStatementService
                 ];
             }
 
-            $studentsQuery = $placement->includesAlumniForYear($year)
-                ? \App\Models\Student::withAlumni()
-                : \App\Models\Student::query();
-
-            $students = $studentsQuery
+            $students = \App\Models\Student::query()
                 ->whereIn('id', $ids)
+                ->where('archive', 0)
+                ->where('is_alumni', false)
+                ->whereNull('archived_at')
                 ->where(function ($q) {
                     $q->whereDoesntHave('category', function ($cq) {
                         $cq->whereRaw('LOWER(name) = ?', ['staff']);
@@ -202,6 +201,7 @@ class StudentFeeStatementService
         $forget = function (int $y): void {
             cache()->forget('finance.school_outstanding.v1.' . $y);
             cache()->forget('finance.school_outstanding.v2.' . $y);
+            cache()->forget('finance.school_outstanding.v3.' . $y);
         };
 
         if ($year) {

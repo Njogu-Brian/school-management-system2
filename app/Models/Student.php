@@ -402,8 +402,11 @@ class Student extends Model
     protected static function booted()
     {
         static::addGlobalScope('active', function (Builder $builder) {
+            // archive flag, alumni flag, OR archived_at timestamp (some legacy rows
+            // set archived_at without flipping archive=1 — treat those as inactive too).
             $builder->where('archive', 0)
-                    ->where('is_alumni', false);
+                    ->where('is_alumni', false)
+                    ->whereNull('archived_at');
         });
 
         static::created(function (self $student) {
@@ -424,7 +427,19 @@ class Student extends Model
     
     public static function activeOnly()
     {
-        return static::where('archive', 0)->where('is_alumni', false);
+        return static::where('archive', 0)
+            ->where('is_alumni', false)
+            ->whereNull('archived_at');
+    }
+
+    /**
+     * True when the learner should be excluded from live fee/dashboard rosters.
+     */
+    public function isInactiveLearner(): bool
+    {
+        return (bool) $this->archive
+            || (bool) $this->is_alumni
+            || $this->archived_at !== null;
     }
 
     /**

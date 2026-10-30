@@ -77,21 +77,18 @@ class FeeBalanceController extends Controller
         // Build student query (exclude staff-category children — they are not billed like regular fee balances)
         $placementService = app(\App\Services\Academics\StudentPlacementService::class);
         $reportYear = (int) $year;
-        $includeAlumni = $placementService->includesAlumniForYear($reportYear);
 
-        // Past years: include learners who were active then (may now be alumni/archived).
-        // Current/future: live active roster only, and future years require a continuing placement.
-        $studentsQuery = ($includeAlumni ? Student::withAlumni() : Student::query())
+        // Fee Balance never lists archived / alumni / archived_at leavers — for any year filter.
+        $studentsQuery = Student::query()
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->whereNull('archived_at')
             ->with(['classroom', 'stream', 'parent', 'family', 'category'])
             ->where(function ($q) {
                 $q->whereDoesntHave('category', function ($cq) {
                     $cq->whereRaw('LOWER(name) = ?', ['staff']);
                 })->orWhereNull('category_id');
             });
-
-        if (! $includeAlumni) {
-            $studentsQuery->where('archive', 0)->where('is_alumni', false);
-        }
         
         // Also exclude children linked via staff user parent_id
         $staffChildIds = $this->getStaffChildStudentIds();
