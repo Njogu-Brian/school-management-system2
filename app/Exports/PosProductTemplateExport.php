@@ -14,22 +14,16 @@ class PosProductTemplateExport implements FromArray, WithHeadings
 
     public function headings(): array
     {
+        // Uniform-only manual POS template (no SKU / barcode).
         return [
             'name',
-            'sku',
-            'barcode',
-            'type',
-            'category',
-            'brand',
-            'description',
-            'base_price',
-            'cost_price',
-            'stock_quantity',
-            'min_stock_level',
+            'color',
+            'selling_price',
+            'buying_price',
+            'sizes',
+            'class_names',
             'track_stock',
-            'allow_backorders',
             'is_active',
-            'is_featured',
         ];
     }
 }

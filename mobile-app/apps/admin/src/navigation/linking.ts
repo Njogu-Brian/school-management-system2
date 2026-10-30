@@ -200,6 +200,9 @@ export const linking: LinkingOptions<DrawerParamList> = {
             parse: { assetId: Number },
           },
           RequirementsRoster: 'requirements',
+          PosOrders: 'pos-orders',
+          PosPlaceOrder: 'pos-place-order',
+          UniformsStock: 'uniforms-stock',
           RequirementsStudent: {
             path: 'requirements/:studentId',
             parse: { studentId: Number },

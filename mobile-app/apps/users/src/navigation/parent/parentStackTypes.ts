@@ -33,4 +33,6 @@ export type ParentStackParamList = {
   CoCurricularHub: undefined;
   CoCurricularChild: { studentId: number };
   ChildRequirements: { studentId: number };
+  RequirementsShop: { studentId: number };
+  UniformsShop: { studentId: number };
 };

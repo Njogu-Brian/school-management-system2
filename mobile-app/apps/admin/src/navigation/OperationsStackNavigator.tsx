@@ -16,6 +16,9 @@ import {
   RequirementsRosterScreen,
   RequirementsStudentScreen,
   RequirementsFulfilmentScreen,
+  PosOrdersScreen,
+  PosPlaceOrderScreen,
+  UniformsStockScreen,
   InventoryReceiptsScreen,
   RequisitionDetailScreen,
   RequisitionFormScreen,
@@ -52,6 +55,9 @@ export const OperationsStackNavigator: React.FC = () => (
     <Stack.Screen name="RequirementsRoster" component={RequirementsRosterScreen} />
     <Stack.Screen name="RequirementsStudent" component={RequirementsStudentScreen} />
     <Stack.Screen name="RequirementsFulfilment" component={RequirementsFulfilmentScreen} />
+    <Stack.Screen name="PosOrders" component={PosOrdersScreen} />
+    <Stack.Screen name="PosPlaceOrder" component={PosPlaceOrderScreen} />
+    <Stack.Screen name="UniformsStock" component={UniformsStockScreen} />
     <Stack.Screen name="InventoryReceipts" component={InventoryReceiptsScreen} />
     <Stack.Screen name="LibraryBooks" component={LibraryBooksScreen} />
     <Stack.Screen name="LibraryCirculation" component={LibraryCirculationScreen} />

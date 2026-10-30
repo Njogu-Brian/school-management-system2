@@ -38,6 +38,9 @@ const FRONT_DESK_SECTIONS = [
   { route: 'VisitorCheckIn' as const, label: 'Check in visitor', icon: 'visitor-check-in' },
   { route: 'RequirementsRoster' as const, label: 'Requirements', icon: 'clipboard' },
   { route: 'RequirementsFulfilment' as const, label: 'Fulfilment report', icon: 'attendance-report' },
+  { route: 'PosOrders' as const, label: 'POS orders', icon: 'clipboard' },
+  { route: 'PosPlaceOrder' as const, label: 'Place POS order', icon: 'clipboard' },
+  { route: 'UniformsStock' as const, label: 'Uniforms stock', icon: 'inventory' },
   { route: 'ConcernsList' as const, label: 'Concerns', icon: 'report-concern' },
 ];
 

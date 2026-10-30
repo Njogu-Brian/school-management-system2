@@ -1,6 +1,7 @@
 import { useParentStudentRequirements } from '@erp/core';
 import {
   AcademicScreenHeader,
+  Button,
   EmptyState,
   ListRowCard,
   ScreenContainer,
@@ -98,6 +99,18 @@ export const ChildRequirementsScreen: React.FC = () => {
               </Text>
             </SurfaceCard>
           ) : null}
+
+          <Button
+            label="Buy from school"
+            onPress={() => navigation.navigate('RequirementsShop', { studentId })}
+            style={{ marginBottom: spacing.sm }}
+          />
+          <Button
+            label="School uniforms"
+            variant="secondary"
+            onPress={() => navigation.navigate('UniformsShop', { studentId })}
+            style={{ marginBottom: spacing.md }}
+          />
 
           <Text
             style={{

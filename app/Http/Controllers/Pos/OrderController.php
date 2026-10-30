@@ -7,6 +7,7 @@ use App\Models\Pos\Order;
 use App\Models\Pos\OrderItem;
 use App\Models\Student;
 use App\Models\ActivityLog;
+use App\Services\PosReceiptService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -52,6 +53,11 @@ class OrderController extends Controller
         $order->load(['items.product', 'items.variant', 'student', 'parent', 'user', 'paymentTransaction']);
 
         return view('pos.orders.show', compact('order'));
+    }
+
+    public function receipt(Order $order, PosReceiptService $receipts)
+    {
+        return $receipts->stream($order);
     }
 
     public function updateStatus(Request $request, Order $order)

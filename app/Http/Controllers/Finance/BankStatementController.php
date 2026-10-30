@@ -1720,6 +1720,17 @@ class BankStatementController extends Controller
                 ->get();
         }
 
+        $openPosOrders = collect();
+        if (Schema::hasTable('pos_orders')) {
+            $openPosOrders = \App\Models\Pos\Order::query()
+                ->with(['student:id,first_name,last_name,admission_number'])
+                ->whereIn('payment_status', ['pending', 'partial'])
+                ->where('status', '!=', 'cancelled')
+                ->latest()
+                ->limit(200)
+                ->get(['id', 'order_number', 'student_id', 'order_type', 'total_amount', 'balance', 'payment_status']);
+        }
+
         $activityTotal = (float) $activityAllocations->sum('amount');
         $remainingAmount = max(0, (float) $bankStatement->amount - $activeTotal - $swimmingTotal);
 
@@ -1762,6 +1773,7 @@ class BankStatementController extends Controller
             'swimmingWalletCredited',
             'activityAllocations',
             'extraIncomeItems',
+            'openPosOrders',
             'isFeeActivitySplitComplete',
             'alreadySplit'
         ));
@@ -3344,10 +3356,14 @@ class BankStatementController extends Controller
             'fee_allocations' => 'nullable|array',
             'fee_allocations.*.student_id' => 'required|exists:students,id',
             'fee_allocations.*.amount' => 'required|numeric|min:0.01',
-            'activity_allocations' => 'required|array|min:1',
+            'activity_allocations' => 'nullable|array',
             'activity_allocations.*.student_id' => 'required|exists:students,id',
             'activity_allocations.*.extra_income_item_id' => 'required|exists:extra_income_items,id',
             'activity_allocations.*.amount' => 'required|numeric|min:0.01',
+            'pos_allocations' => 'nullable|array',
+            'pos_allocations.*.student_id' => 'required|exists:students,id',
+            'pos_allocations.*.pos_order_id' => 'required|exists:pos_orders,id',
+            'pos_allocations.*.amount' => 'required|numeric|min:0.01',
         ]);
 
         $feeAllocations = collect($data['fee_allocations'] ?? [])
@@ -3356,7 +3372,7 @@ class BankStatementController extends Controller
             ->values()
             ->all();
 
-        $activityAllocations = collect($data['activity_allocations'])
+        $activityAllocations = collect($data['activity_allocations'] ?? [])
             ->map(fn($a) => [
                 'student_id' => (int) $a['student_id'],
                 'extra_income_item_id' => (int) $a['extra_income_item_id'],
@@ -3366,9 +3382,19 @@ class BankStatementController extends Controller
             ->values()
             ->all();
 
-        if (empty($activityAllocations)) {
+        $posAllocations = collect($data['pos_allocations'] ?? [])
+            ->map(fn ($a) => [
+                'student_id' => (int) $a['student_id'],
+                'pos_order_id' => (int) $a['pos_order_id'],
+                'amount' => (float) $a['amount'],
+            ])
+            ->filter(fn ($a) => $a['student_id'] > 0 && $a['pos_order_id'] > 0 && $a['amount'] > 0)
+            ->values()
+            ->all();
+
+        if (empty($activityAllocations) && empty($posAllocations)) {
             return redirect()->back()
-                ->withErrors(['error' => 'Add at least one activity fee allocation.']);
+                ->withErrors(['error' => 'Add at least one activity fee or POS order allocation.']);
         }
 
         $keys = collect($activityAllocations)
@@ -3378,14 +3404,21 @@ class BankStatementController extends Controller
                 ->withErrors(['error' => 'Each student can only be split once onto the same activity. Combine the amounts on one row.']);
         }
 
+        $posKeys = collect($posAllocations)->map(fn ($a) => $a['pos_order_id']);
+        if ($posKeys->count() !== $posKeys->unique()->count()) {
+            return redirect()->back()
+                ->withErrors(['error' => 'Each POS order can only appear once in the split.']);
+        }
+
         $feeTotal = (float) collect($feeAllocations)->sum('amount');
         $activityTotal = (float) collect($activityAllocations)->sum('amount');
-        $total = $feeTotal + $activityTotal;
+        $posTotal = (float) collect($posAllocations)->sum('amount');
+        $total = $feeTotal + $activityTotal + $posTotal;
         $txnAmount = (float) $bankStatement->amount;
 
         if (abs($total - $txnAmount) > 0.01) {
             return redirect()->back()
-                ->withErrors(['error' => 'Fee and activity allocations must equal the transaction amount.']);
+                ->withErrors(['error' => 'Fee, activity, and POS allocations must equal the transaction amount.']);
         }
 
         $activePayments = collect();
@@ -3427,7 +3460,7 @@ class BankStatementController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($transaction, $isC2B, $feeAllocations, $activityAllocations, $feeTotal, $activityTotal, $activePayments, $activitySplit) {
+            DB::transaction(function () use ($transaction, $isC2B, $feeAllocations, $activityAllocations, $posAllocations, $feeTotal, $activityTotal, $posTotal, $activePayments, $activitySplit) {
                 if (!$isC2B && $transaction->status === 'draft') {
                     $transaction->confirm();
                 }
@@ -3485,18 +3518,26 @@ class BankStatementController extends Controller
                     $feePayments = array_merge($feePayments, $newPayments);
                 }
 
-                $activitySplit->apply($transaction, $isC2B, $activityAllocations);
+                if (! empty($activityAllocations)) {
+                    $activitySplit->apply($transaction, $isC2B, $activityAllocations);
+                }
 
+                if (! empty($posAllocations)) {
+                    app(\App\Services\PosOrderSplitService::class)->apply($transaction, $isC2B, $posAllocations);
+                }
+
+                $combinedNonFee = $activityTotal + $posTotal;
                 if ($isC2B) {
                     $transaction->update([
                         'payment_id' => $feePayments[0]->id ?? $transaction->payment_id,
                         'status' => 'processed',
                         'allocation_status' => 'manually_allocated',
-                        'allocated_amount' => $feeTotal + $activityTotal,
-                        'unallocated_amount' => max(0, (float) $transaction->trans_amount - ($feeTotal + $activityTotal)),
+                        'allocated_amount' => $feeTotal + $combinedNonFee,
+                        'unallocated_amount' => max(0, (float) $transaction->trans_amount - ($feeTotal + $combinedNonFee)),
                         'match_reason' => trim(
                             'Split complete: fees Ksh ' . number_format($feeTotal, 2)
                             . ' + activity/swimming Ksh ' . number_format($activityTotal, 2)
+                            . ' + POS Ksh ' . number_format($posTotal, 2)
                         ),
                         'processed_at' => now(),
                         'processed_by' => auth()->id(),
@@ -3504,10 +3545,10 @@ class BankStatementController extends Controller
                 } else {
                     $transaction->update([
                         'payment_id' => $feePayments[0]->id ?? $transaction->payment_id,
-                        'payment_created' => !empty($feePayments) || $activityTotal > 0,
+                        'payment_created' => !empty($feePayments) || $combinedNonFee > 0,
                         'status' => 'confirmed',
                         'match_status' => 'manual',
-                        'match_notes' => trim(($transaction->match_notes ?? '') . "\nSplit complete: fees + activity/swimming."),
+                        'match_notes' => trim(($transaction->match_notes ?? '') . "\nSplit complete: fees + activity/swimming + POS."),
                     ]);
                 }
             });
@@ -3522,7 +3563,7 @@ class BankStatementController extends Controller
 
         return redirect()
             ->route('finance.bank-statements.show', ['bankStatement' => $id, 'type' => $isC2B ? 'c2b' : 'bank'])
-            ->with('success', 'Transaction split into school fees and activity fees.');
+            ->with('success', 'Transaction split into school fees, activity fees, and/or POS orders.');
     }
 
     /**

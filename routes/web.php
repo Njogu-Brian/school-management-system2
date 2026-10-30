@@ -2232,6 +2232,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         // Orders
         Route::get('orders', [\App\Http\Controllers\Pos\OrderController::class, 'index'])->name('orders.index');
         Route::get('orders/{order}', [\App\Http\Controllers\Pos\OrderController::class, 'show'])->name('orders.show');
+        Route::get('orders/{order}/receipt', [\App\Http\Controllers\Pos\OrderController::class, 'receipt'])->name('orders.receipt');
         Route::post('orders/{order}/update-status', [\App\Http\Controllers\Pos\OrderController::class, 'updateStatus'])->name('orders.update-status');
         Route::post('orders/{order}/cancel', [\App\Http\Controllers\Pos\OrderController::class, 'cancel'])->name('orders.cancel');
         Route::post('orders/{order}/items/{item}/fulfill', [\App\Http\Controllers\Pos\OrderController::class, 'fulfillItem'])->name('orders.items.fulfill');

@@ -263,63 +263,305 @@ class PosService
         });
     }
 
-    protected function sendOrderConfirmation(Order $order): void
+    /**
+     * Create a POS order for a student from an explicit item list (parent app / admin buy-on-behalf).
+     *
+     * @param  array<int, array{product_id:int, quantity:int, variant_id?:int|null, requirement_template_id?:int|null}>  $items
+     * @param  array{parent_id?:int|null, user_id?:int|null, notes?:string|null, payment_method?:string|null, placed_by?:string|null}  $meta
+     */
+    public function createOrderForStudent(Student $student, array $items, array $meta = []): Order
     {
-        if (!$order->parent && !$order->student?->parent) {
+        if ($items === []) {
+            throw new \InvalidArgumentException('Order must include at least one item.');
+        }
+
+        return DB::transaction(function () use ($student, $items, $meta) {
+            $hasUniforms = false;
+            $hasStationery = false;
+            $built = [];
+
+            foreach ($items as $row) {
+                $product = Product::findOrFail((int) $row['product_id']);
+                $variant = ! empty($row['variant_id']) ? ProductVariant::find((int) $row['variant_id']) : null;
+                $qty = max(1, (int) ($row['quantity'] ?? 1));
+                $unitPrice = (float) $product->base_price + (float) ($variant?->price_adjustment ?? 0);
+
+                if ($product->type === 'uniform') {
+                    $hasUniforms = true;
+                } else {
+                    $hasStationery = true;
+                }
+
+                $built[] = [
+                    'product' => $product,
+                    'variant' => $variant,
+                    'requirement_template_id' => $row['requirement_template_id'] ?? null,
+                    'quantity' => $qty,
+                    'unit_price' => $unitPrice,
+                    'total' => $qty * $unitPrice,
+                    'product_name' => $product->name,
+                    'variant_name' => $variant ? trim(($variant->name ?: $variant->variant_type).': '.$variant->value, ': ') : null,
+                ];
+            }
+
+            $orderType = 'stationery';
+            if ($hasUniforms && $hasStationery) {
+                $orderType = 'mixed';
+            } elseif ($hasUniforms) {
+                $orderType = 'uniform';
+            }
+
+            $subtotal = array_sum(array_column($built, 'total'));
+
+            $order = Order::create([
+                'student_id' => $student->id,
+                'parent_id' => $meta['parent_id'] ?? $student->parent_id,
+                'user_id' => $meta['user_id'] ?? null,
+                'order_type' => $orderType,
+                'subtotal' => $subtotal,
+                'discount_amount' => 0,
+                'total_amount' => $subtotal,
+                'balance' => $subtotal,
+                'payment_method' => $meta['payment_method'] ?? 'brian_paybill',
+                'notes' => $meta['notes'] ?? null,
+                'status' => 'pending',
+                'payment_status' => 'pending',
+            ]);
+
+            foreach ($built as $item) {
+                /** @var Product $product */
+                $product = $item['product'];
+                $variant = $item['variant'];
+
+                $orderItem = OrderItem::create([
+                    'order_id' => $order->id,
+                    'product_id' => $product->id,
+                    'variant_id' => $variant?->id,
+                    'requirement_template_id' => $item['requirement_template_id'],
+                    'product_name' => $item['product_name'],
+                    'variant_name' => $item['variant_name'],
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['unit_price'],
+                    'total_price' => $item['total'],
+                    'fulfillment_status' => 'pending',
+                ]);
+
+                if ($item['requirement_template_id']) {
+                    $this->linkOrderToRequirement($order, $orderItem, (int) $item['requirement_template_id'], $student->id);
+                }
+
+                $this->adjustStockForItem($product, $variant, (int) $item['quantity']);
+            }
+
+            $order->calculateTotals();
+            $order->load(['items', 'student.classroom', 'parent']);
+
+            if (! empty($meta['transaction_code'])) {
+                $this->confirmPayment($order, (string) $meta['transaction_code'], $meta['payment_method'] ?? 'brian_paybill');
+            } else {
+                $this->sendOrderConfirmation($order, false);
+            }
+
+            return $order->fresh(['items', 'student.classroom', 'parent']);
+        });
+    }
+
+    public function confirmPayment(Order $order, string $transactionCode, string $paymentMethod = 'brian_paybill'): Order
+    {
+        $code = strtoupper(trim($transactionCode));
+        if ($code === '') {
+            throw new \InvalidArgumentException('Transaction code is required.');
+        }
+
+        $duplicate = Order::query()
+            ->where('id', '!=', $order->id)
+            ->where('payment_status', 'paid')
+            ->where('payment_reference', $code)
+            ->exists();
+        if ($duplicate) {
+            throw new \InvalidArgumentException('This transaction code was already used on another order.');
+        }
+
+        return DB::transaction(function () use ($order, $code, $paymentMethod) {
+            $order->markAsPaid($paymentMethod, $code);
+            $order->status = $order->status === 'pending' ? 'processing' : $order->status;
+            $order->save();
+
+            foreach ($order->items as $item) {
+                if ($item->requirement_template_id && $order->student_id) {
+                    $this->linkOrderToRequirement($order, $item, (int) $item->requirement_template_id, (int) $order->student_id);
+                }
+            }
+
+            $order->load(['items', 'student.classroom', 'parent']);
+            $this->sendOrderConfirmation($order, true);
+
+            return $order;
+        });
+    }
+
+    public function paymentInstructions(): array
+    {
+        return [
+            'paybill' => config('pos.brian_paybill', '247247'),
+            'account' => config('pos.brian_account', '0708225397'),
+            'contact_name' => config('pos.brian_name', 'Brian'),
+            'contact_whatsapp' => config('pos.brian_whatsapp', '0708225397'),
+            'note' => 'Pay via M-Pesa Paybill, then paste the transaction code to confirm your order. Do not use school fee payment methods for Brian-managed buys.',
+        ];
+    }
+
+    protected function adjustStockForItem(Product $product, ?ProductVariant $variant, int $quantity): void
+    {
+        if (! $product->track_stock) {
             return;
         }
 
-        $parent = $order->parent ?? $order->student->parent;
-        $student = $order->student;
-        
-        try {
-            $commService = app(\App\Services\CommunicationService::class);
+        $availableStock = $variant ? $variant->stock_quantity : $product->stock_quantity;
 
-            // Build order summary
-            $orderSummary = "Order #{$order->order_number}\n\n";
-            $orderSummary .= "Items Ordered:\n";
-            foreach ($order->items as $item) {
-                $orderSummary .= "- {$item->product_name}";
-                if ($item->variant_name) {
-                    $orderSummary .= " ({$item->variant_name})";
-                }
-                $orderSummary .= " x{$item->quantity} = KES " . number_format($item->total_price, 2) . "\n";
-            }
-            $orderSummary .= "\nSubtotal: KES " . number_format($order->subtotal, 2) . "\n";
-            if ($order->discount_amount > 0) {
-                $orderSummary .= "Discount: -KES " . number_format($order->discount_amount, 2) . "\n";
-            }
-            $orderSummary .= "Total: KES " . number_format($order->total_amount, 2) . "\n";
-            
-            if ($order->payment_method === 'cash') {
-                $orderSummary .= "\n💳 Payment Method: Cash (Pay at School)";
+        if ($availableStock >= $quantity) {
+            if ($variant) {
+                $variant->stock_quantity = max(0, $variant->stock_quantity - $quantity);
+                $variant->save();
             } else {
-                $orderSummary .= "\n💳 Payment Method: " . strtoupper($order->payment_method);
-                $orderSummary .= "\n⚠️ Please complete payment to confirm your order.";
+                $product->stock_quantity = max(0, $product->stock_quantity - $quantity);
+                $product->save();
             }
 
-            $messageTemplate = "Dear {{parent_name}},\n\n";
-            if ($student) {
-                $messageTemplate .= "Order placed for {$student->first_name} {$student->last_name}:\n\n";
-            }
-            $messageTemplate .= $orderSummary;
-            $messageTemplate .= "\n\nThank you for your order!";
+            return;
+        }
 
+        if ($product->allow_overselling) {
+            $product->recordOversell($quantity);
+            if ($variant) {
+                $variant->stock_quantity = $variant->stock_quantity - $quantity;
+                $variant->save();
+            } else {
+                $product->stock_quantity = $product->stock_quantity - $quantity;
+                $product->save();
+            }
+
+            return;
+        }
+
+        if (! $product->allow_backorders) {
+            throw new \Exception("Insufficient stock for {$product->name}");
+        }
+    }
+
+    protected function sendOrderConfirmation(Order $order, bool $paid = false): void
+    {
+        $order->loadMissing(['items', 'student.classroom', 'parent']);
+        $student = $order->student;
+
+        $orderSummary = $this->buildOrderSummaryText($order, $paid);
+
+        try {
             if ($student) {
+                $messageTemplate = "Dear {{parent_name}},\n\n";
+                $messageTemplate .= $paid
+                    ? "Your order has been received and payment confirmed for {$student->first_name} {$student->last_name}.\n\n"
+                    : "Order placed for {$student->first_name} {$student->last_name}:\n\n";
+                $messageTemplate .= $orderSummary;
+                if ($paid) {
+                    $messageTemplate .= "\n\nThe specified items will be availed in school.";
+                }
+                $messageTemplate .= "\n\nThank you!";
+
                 $parentNotify = app(\App\Services\ParentSchoolNotificationService::class);
                 $parentNotify->sendSmsTemplateToStudentParents($student, $messageTemplate, 'Order Confirmation');
                 $parentNotify->sendEmailTemplateToStudentParents(
                     $student,
-                    'Order Confirmation - ' . $order->order_number,
+                    'Order Confirmation - '.$order->order_number,
                     $messageTemplate
                 );
+
+                $waBody = str_replace('{{parent_name}}', 'Parent', $messageTemplate);
+                $parentNotify->sendWhatsAppTemplateToStudentParents($student, $waBody, 'Order Confirmation');
+            }
+
+            if ($paid) {
+                $this->notifyBrianOfPaidOrder($order);
             }
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Failed to send order confirmation', [
                 'order_id' => $order->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    protected function notifyBrianOfPaidOrder(Order $order): void
+    {
+        $brian = config('pos.brian_whatsapp');
+        if (! $brian) {
+            return;
+        }
+
+        $student = $order->student;
+        $className = $student?->classroom?->name ?? 'N/A';
+        $who = $order->user_id ? 'Admin (on behalf)' : 'Parent';
+
+        $msg = "POS order received\n";
+        $msg .= "Order: {$order->order_number}\n";
+        if ($student) {
+            $msg .= "Student: {$student->first_name} {$student->last_name} ({$className})\n";
+        }
+        $msg .= "Placed by: {$who}\n";
+        $msg .= "Txn: {$order->payment_reference}\n";
+        $msg .= "Total: KES ".number_format((float) $order->total_amount, 2)."\n\nItems:\n";
+        foreach ($order->items as $item) {
+            $msg .= "- {$item->product_name}";
+            if ($item->variant_name) {
+                $msg .= " ({$item->variant_name})";
+            }
+            $msg .= " x{$item->quantity}\n";
+        }
+
+        try {
+            app(\App\Services\WhatsAppService::class)->sendMessage((string) $brian, $msg);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Failed to WhatsApp Brian about POS order', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function buildOrderSummaryText(Order $order, bool $paid = false): string
+    {
+        $orderSummary = "Order #{$order->order_number}\n\n";
+        $orderSummary .= "Items Ordered:\n";
+        foreach ($order->items as $item) {
+            $orderSummary .= "- {$item->product_name}";
+            if ($item->variant_name) {
+                $orderSummary .= " ({$item->variant_name})";
+            }
+            $orderSummary .= ' x'.$item->quantity.' = KES '.number_format((float) $item->total_price, 2)."\n";
+        }
+        $orderSummary .= "\nSubtotal: KES ".number_format((float) $order->subtotal, 2)."\n";
+        if ((float) $order->discount_amount > 0) {
+            $orderSummary .= 'Discount: -KES '.number_format((float) $order->discount_amount, 2)."\n";
+        }
+        $orderSummary .= 'Total: KES '.number_format((float) $order->total_amount, 2)."\n";
+
+        if ($paid) {
+            $orderSummary .= "\nPayment: CONFIRMED";
+            if ($order->payment_reference) {
+                $orderSummary .= ' ('.$order->payment_reference.')';
+            }
+        } elseif ($order->payment_method === 'cash') {
+            $orderSummary .= "\nPayment Method: Cash (Pay at School)";
+        } elseif ($order->payment_method === 'brian_paybill') {
+            $pay = $this->paymentInstructions();
+            $orderSummary .= "\nPaybill: {$pay['paybill']} Account: {$pay['account']}";
+            $orderSummary .= "\nPaste the M-Pesa transaction code in the app to confirm.";
+        } else {
+            $orderSummary .= "\nPayment Method: ".strtoupper((string) $order->payment_method);
+            $orderSummary .= "\nPlease complete payment to confirm your order.";
+        }
+
+        return $orderSummary;
     }
 
     protected function linkOrderToRequirement(Order $order, OrderItem $orderItem, int $templateId, int $studentId): void

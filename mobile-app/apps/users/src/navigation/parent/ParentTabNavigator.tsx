@@ -32,6 +32,8 @@ import { TransportScreen } from '../../features/parent/screens/TransportScreen';
 import { CoCurricularHubScreen } from '../../features/parent/screens/CoCurricularHubScreen';
 import { CoCurricularChildScreen } from '../../features/parent/screens/CoCurricularChildScreen';
 import { ChildRequirementsScreen } from '../../features/parent/screens/ChildRequirementsScreen';
+import { RequirementsShopScreen } from '../../features/parent/screens/RequirementsShopScreen';
+import { UniformsShopScreen } from '../../features/parent/screens/UniformsShopScreen';
 import { SettingsScreen } from '../../features/settings/screens/SettingsScreen';
 import { MyProfileScreen } from '../../features/me/screens/MyProfileScreen';
 import { UsersAppHeaderChrome } from '../UsersAppHeaderChrome';
@@ -60,6 +62,8 @@ const parentSharedScreens = () => (
     <Stack.Screen name="CoCurricularHub" component={CoCurricularHubScreen} />
     <Stack.Screen name="CoCurricularChild" component={CoCurricularChildScreen} />
     <Stack.Screen name="ChildRequirements" component={ChildRequirementsScreen} />
+    <Stack.Screen name="RequirementsShop" component={RequirementsShopScreen} />
+    <Stack.Screen name="UniformsShop" component={UniformsShopScreen} />
     <Stack.Screen name="Announcements" component={AnnouncementsScreen} />
     <Stack.Screen name="DiaryList" component={DiaryListScreen} />
   </>

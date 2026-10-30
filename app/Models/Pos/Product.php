@@ -2,6 +2,7 @@
 
 namespace App\Models\Pos;
 
+use App\Models\Academics\Classroom;
 use App\Models\InventoryItem;
 use App\Models\RequirementType;
 use Illuminate\Database\Eloquent\Model;
@@ -69,6 +70,12 @@ class Product extends Model
         return $this->hasMany(\App\Models\RequirementTemplate::class, 'pos_product_id');
     }
 
+    public function classrooms()
+    {
+        return $this->belongsToMany(Classroom::class, 'pos_product_classroom', 'product_id', 'classroom_id')
+            ->withTimestamps();
+    }
+
     public function isInStock(): bool
     {
         if (!$this->track_stock) {
@@ -127,6 +134,55 @@ class Product extends Model
     public function scopePubliclyVisible($query)
     {
         return $query->where('is_publicly_visible', true);
+    }
+
+    /**
+     * Blade compatibility: treat variants as "sizes" for uniform views.
+     */
+    public function getSizesAttribute()
+    {
+        if ($this->relationLoaded('variants')) {
+            return $this->variants;
+        }
+
+        return $this->variants()->get();
+    }
+
+    public function getPriceAttribute(): float
+    {
+        return (float) $this->base_price;
+    }
+
+    public function getTotalStockAttribute(): int
+    {
+        $variantStock = (int) $this->variants()->sum('stock_quantity');
+        if ($variantStock > 0) {
+            return $variantStock;
+        }
+
+        return (int) $this->stock_quantity;
+    }
+
+    public function getImageUrlsAttribute(): array
+    {
+        return collect($this->images ?? [])
+            ->filter()
+            ->map(function ($path) {
+                if (str_starts_with((string) $path, 'http')) {
+                    return $path;
+                }
+
+                return function_exists('storage_public_url')
+                    ? (storage_public_url($path) ?: asset('storage/'.$path))
+                    : asset('storage/'.$path);
+            })
+            ->values()
+            ->all();
+    }
+
+    public function getPrimaryImageUrlAttribute(): ?string
+    {
+        return $this->image_urls[0] ?? null;
     }
 
     /**

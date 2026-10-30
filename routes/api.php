@@ -196,6 +196,20 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::post('/students/{student}/attendance-absence', [\App\Http\Controllers\Api\ApiParentAttendanceController::class, 'store']);
     Route::get('/students/{student}/requirements', [\App\Http\Controllers\Api\ApiParentRequirementsController::class, 'show']);
 
+    // POS shop (requirements + uniforms)
+    Route::get('/pos/payment-instructions', [\App\Http\Controllers\Api\ApiPosController::class, 'paymentInstructions']);
+    Route::get('/students/{student}/pos/requirements-catalog', [\App\Http\Controllers\Api\ApiPosController::class, 'requirementsCatalog']);
+    Route::get('/pos/uniforms', [\App\Http\Controllers\Api\ApiPosController::class, 'uniforms']);
+    Route::post('/pos/uniforms', [\App\Http\Controllers\Api\ApiPosController::class, 'upsertUniform']);
+    Route::patch('/pos/uniforms/{product}/stock', [\App\Http\Controllers\Api\ApiPosController::class, 'updateUniformStock']);
+    Route::get('/pos/orders', [\App\Http\Controllers\Api\ApiPosController::class, 'indexOrders']);
+    Route::get('/pos/orders/{order}', [\App\Http\Controllers\Api\ApiPosController::class, 'showOrder']);
+    Route::post('/students/{student}/pos/orders', [\App\Http\Controllers\Api\ApiPosController::class, 'storeOrder']);
+    Route::post('/admin/students/{student}/pos/orders', [\App\Http\Controllers\Api\ApiPosController::class, 'storeOrder']);
+    Route::post('/pos/orders/{order}/confirm-payment', [\App\Http\Controllers\Api\ApiPosController::class, 'confirmPayment']);
+    Route::patch('/pos/orders/{order}/status', [\App\Http\Controllers\Api\ApiPosController::class, 'updateStatus']);
+    Route::get('/pos/orders/{order}/receipt', [\App\Http\Controllers\Api\ApiPosController::class, 'receipt']);
+
     // Parent family wallet (Users app)
     Route::get('/parent-wallet', [\App\Http\Controllers\Api\ApiParentWalletController::class, 'show']);
     Route::post('/parent-wallet/top-up', [\App\Http\Controllers\Api\ApiParentWalletController::class, 'topUp']);

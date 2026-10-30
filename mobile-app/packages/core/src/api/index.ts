@@ -24,6 +24,7 @@ export * from './diagnostics.api';
 export * from './finance.api';
 export * from './academicsWorkspace.api';
 export * from './operations.api';
+export * from './pos.api';
 export * from './documents.api';
 export * from './communication.api';
 export * from './appAdoption.api';

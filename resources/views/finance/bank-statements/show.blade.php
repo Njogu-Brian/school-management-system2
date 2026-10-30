@@ -1225,7 +1225,7 @@
                     <div class="modal-content">
                         <div class="modal-header">
                             <h5 class="modal-title" id="splitTransactionModalLabel">
-                                Split fees and activity fees
+                                Split fees, activities &amp; POS
                             </h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
@@ -1234,23 +1234,15 @@
                             <div class="modal-body">
                                 <p class="text-muted mb-3">
                                     Total transaction amount: <strong>Ksh {{ number_format($bankStatement->amount ?? 0, 2) }}</strong>.
-                                    Put the school-fees portion on the fee side. Put the trip, fun day, or swimming portion on the activity side for that child.
+                                    Put the school-fees portion on the fee side. Put trip/fun day/swimming on activity. Put requirements/uniform shop orders on POS.
                                     @if(\Illuminate\Support\Facades\Route::has('finance.extra-income.index'))
                                         Activities are set up under <a href="{{ route('finance.extra-income.index') }}">Extra income</a>.
                                     @endif
                                 </p>
 
-                                @if(($extraIncomeItems ?? collect())->isEmpty())
-                                    <div class="alert alert-warning">
-                                        No open activity fees yet.
-                                        <a href="{{ route('finance.extra-income.create') }}">Add a trip, fun day, or swimming charge</a>
-                                        before splitting.
-                                    </div>
-                                @endif
-
                                 <div class="mb-4">
                                     <h6>School fees</h6>
-                                    <p class="small text-muted mb-2">The part that stays as school fees. Remove this section if the whole payment is an activity fee.</p>
+                                    <p class="small text-muted mb-2">The part that stays as school fees. Remove this section if none of the payment is school fees.</p>
                                     <div id="feeAllocations" class="split-allocations"></div>
                                     <button type="button" class="btn btn-sm btn-outline-primary mt-2" data-add-split="fee">
                                         <i class="bi bi-plus-circle"></i> Add fee student
@@ -1266,15 +1258,25 @@
                                     </button>
                                 </div>
 
+                                <div class="mb-4">
+                                    <h6>POS orders (requirements / uniforms)</h6>
+                                    <p class="small text-muted mb-2">Allocate to an unpaid shop order for the student. Amount should match the order balance.</p>
+                                    <div id="posAllocations" class="split-allocations"></div>
+                                    <button type="button" class="btn btn-sm btn-outline-primary mt-2" data-add-split="pos" @if(($openPosOrders ?? collect())->isEmpty()) disabled @endif>
+                                        <i class="bi bi-plus-circle"></i> Add POS order
+                                    </button>
+                                </div>
+
                                 <div class="alert alert-info mb-0">
                                     <div>Fees total: <strong id="feeTotal">Ksh 0.00</strong></div>
                                     <div>Activity total: <strong id="activityTotal">Ksh 0.00</strong></div>
+                                    <div>POS total: <strong id="posTotal">Ksh 0.00</strong></div>
                                     <div>Remaining: <strong id="splitRemaining">Ksh {{ number_format($bankStatement->amount ?? 0, 2) }}</strong></div>
                                 </div>
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                <button type="submit" class="btn btn-primary" @if(($extraIncomeItems ?? collect())->isEmpty()) disabled @endif>Split transaction</button>
+                                <button type="submit" class="btn btn-primary">Split transaction</button>
                             </div>
                         </form>
                     </div>
@@ -2158,14 +2160,34 @@ function updateModalTotal() {
         })->values();
     @endphp
     const activities = @json($splitActivities);
+    @php
+        $splitPosOrders = ($openPosOrders ?? collect())->map(function ($order) {
+            $balance = (float) (($order->balance > 0 ? $order->balance : $order->total_amount) ?? 0);
+            $student = $order->student;
+            $label = $order->order_number
+                .' · '.($student ? trim($student->first_name.' '.$student->last_name) : 'Student')
+                .' · '.ucfirst($order->order_type)
+                .' · Ksh '.number_format($balance, 2);
+            return [
+                'id' => $order->id,
+                'student_id' => $order->student_id,
+                'amount' => $balance,
+                'label' => $label,
+            ];
+        })->values();
+    @endphp
+    const posOrders = @json($splitPosOrders);
     const feeContainer = splitModal.querySelector('#feeAllocations');
     const activityContainer = splitModal.querySelector('#activityAllocations');
+    const posContainer = splitModal.querySelector('#posAllocations');
     const feeTotalEl = splitModal.querySelector('#feeTotal');
     const activityTotalEl = splitModal.querySelector('#activityTotal');
+    const posTotalEl = splitModal.querySelector('#posTotal');
     const remainingEl = splitModal.querySelector('#splitRemaining');
 
     let feeIndex = 0;
     let activityIndex = 0;
+    let posIndex = 0;
 
     const formatMoney = (amt) => `Ksh ${amt.toFixed(2)}`;
 
@@ -2174,9 +2196,12 @@ function updateModalTotal() {
             .reduce((sum, input) => sum + (parseFloat(input.value) || 0), 0);
         const activityTotal = Array.from(splitModal.querySelectorAll('.split-amount[data-target="activity"]'))
             .reduce((sum, input) => sum + (parseFloat(input.value) || 0), 0);
+        const posTotal = Array.from(splitModal.querySelectorAll('.split-amount[data-target="pos"]'))
+            .reduce((sum, input) => sum + (parseFloat(input.value) || 0), 0);
         feeTotalEl.textContent = formatMoney(feeTotal);
         activityTotalEl.textContent = formatMoney(activityTotal);
-        remainingEl.textContent = formatMoney(Math.max(0, txnAmount - feeTotal - activityTotal));
+        if (posTotalEl) posTotalEl.textContent = formatMoney(posTotal);
+        remainingEl.textContent = formatMoney(Math.max(0, txnAmount - feeTotal - activityTotal - posTotal));
     };
 
     const matchingActivities = (classroomId) => activities.filter((item) => {
@@ -2271,6 +2296,46 @@ function updateModalTotal() {
     const createRow = (target, index) => {
         const row = document.createElement('div');
         row.className = 'split-row mb-2';
+
+        if (target === 'pos') {
+            row.innerHTML = `
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-7">
+                        <label class="form-label">Unpaid POS order</label>
+                        <select class="form-select split-pos-order" name="pos_allocations[${index}][pos_order_id]" required>
+                            <option value="">Select order…</option>
+                            ${posOrders.map((o) => `<option value="${o.id}" data-student-id="${o.student_id}" data-amount="${o.amount}">${o.label}</option>`).join('')}
+                        </select>
+                        <input type="hidden" class="split-student-id" name="pos_allocations[${index}][student_id]">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Amount</label>
+                        <input type="number" step="0.01" min="0.01" class="form-control split-amount" data-target="pos" name="pos_allocations[${index}][amount]" required>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="button" class="btn btn-outline-danger remove-split-row w-100">Remove</button>
+                    </div>
+                </div>
+            `;
+            const orderSelect = row.querySelector('.split-pos-order');
+            const studentHidden = row.querySelector('.split-student-id');
+            const amountInput = row.querySelector('.split-amount');
+            orderSelect.addEventListener('change', () => {
+                const selected = orderSelect.selectedOptions[0];
+                studentHidden.value = selected?.dataset.studentId || '';
+                if (selected?.dataset.amount) {
+                    amountInput.value = selected.dataset.amount;
+                    updateTotals();
+                }
+            });
+            amountInput.addEventListener('input', updateTotals);
+            row.querySelector('.remove-split-row').addEventListener('click', () => {
+                row.remove();
+                updateTotals();
+            });
+            return row;
+        }
+
         const studentName = target === 'fee'
             ? `fee_allocations[${index}][student_id]`
             : `activity_allocations[${index}][student_id]`;
@@ -2326,6 +2391,10 @@ function updateModalTotal() {
     const addRow = (target) => {
         if (target === 'fee') {
             feeContainer.appendChild(createRow('fee', feeIndex++));
+        } else if (target === 'pos') {
+            if (posOrders.length && posContainer) {
+                posContainer.appendChild(createRow('pos', posIndex++));
+            }
         } else if (activities.length) {
             activityContainer.appendChild(createRow('activity', activityIndex++));
         }
@@ -2338,7 +2407,7 @@ function updateModalTotal() {
 
     splitModal.addEventListener('shown.bs.modal', () => {
         if (!feeContainer.children.length) addRow('fee');
-        if (activityContainer && !activityContainer.children.length) addRow('activity');
+        if (activityContainer && !activityContainer.children.length && activities.length) addRow('activity');
         updateTotals();
     });
 })();
