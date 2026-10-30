@@ -121,3 +121,6 @@ mobile-app/package.json.*
 
 # Experimental local motion-poster app
 /motion-poster/
+
+# DomPDF AFM font metrics (generated)
+/storage/fonts/*.afm.json
