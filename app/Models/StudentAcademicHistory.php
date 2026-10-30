@@ -20,6 +20,8 @@ class StudentAcademicHistory extends Model
         'completion_date',
         'promotion_status',
         'promotion_date',
+        'effective_date',
+        'applied_at',
         'final_grade',
         'class_position',
         'stream_position',
@@ -34,11 +36,32 @@ class StudentAcademicHistory extends Model
         'enrollment_date' => 'date',
         'completion_date' => 'date',
         'promotion_date' => 'date',
+        'effective_date' => 'date',
+        'applied_at' => 'datetime',
         'final_grade' => 'decimal:2',
         'is_current' => 'boolean',
         'class_position' => 'integer',
         'stream_position' => 'integer',
     ];
+
+    public function scopePending($query)
+    {
+        return $query->whereNull('applied_at');
+    }
+
+    public function scopeDue($query, $onOrBefore = null)
+    {
+        $onOrBefore = $onOrBefore ? \Carbon\Carbon::parse($onOrBefore)->toDateString() : now()->toDateString();
+
+        return $query->pending()
+            ->whereNotNull('effective_date')
+            ->whereDate('effective_date', '<=', $onOrBefore);
+    }
+
+    public function isPending(): bool
+    {
+        return $this->applied_at === null;
+    }
 
     public function student()
     {

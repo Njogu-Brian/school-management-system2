@@ -1512,14 +1512,12 @@ class FeePostingService
     }
     
     /**
-     * Whether the posting year is after the school's current academic year.
-     * Future-year posts bill using each student's mapped next class.
+     * Whether the posting year is after the current calendar year.
+     * Future-year posts bill using each student's mapped / pending next class.
      */
     public function isFutureBillingYear(int $year): bool
     {
-        $current = get_current_academic_year();
-
-        return $current !== null && (int) $year > (int) $current;
+        return app(\App\Services\Academics\StudentPlacementService::class)->isFutureYear((int) $year);
     }
 
     /**
@@ -1531,61 +1529,20 @@ class FeePostingService
      */
     public function resolveBillingPlacement(Student $student, int $year): array
     {
-        $student->loadMissing(['classroom.nextClass']);
+        $placement = app(\App\Services\Academics\StudentPlacementService::class)->forYear($student, (int) $year);
         $name = trim((string) ($student->full_name ?? (($student->first_name ?? '').' '.($student->last_name ?? '')))) ?: ('#'.$student->id);
-        $current = $student->classroom;
 
-        if (! $this->isFutureBillingYear($year)) {
-            if (! $current) {
-                throw new \InvalidArgumentException("Cannot post {$year} fees for {$name}: no current class assigned.");
-            }
-
-            return [
-                'classroom_id' => (int) $current->id,
-                'stream_id' => $student->stream_id ? (int) $student->stream_id : null,
-                'classroom_name' => (string) $current->name,
-                'used_next_class' => false,
-            ];
-        }
-
-        if ($student->is_alumni) {
-            throw new \InvalidArgumentException(
-                "Cannot post {$year} fees for {$name}: student is already alumni."
-            );
-        }
-
-        if (! $current) {
-            throw new \InvalidArgumentException(
-                "Cannot post {$year} fees for {$name}: no current class assigned."
-            );
-        }
-
-        // Future-year billing uses the mapped next class even when that class is the
-        // final year (e.g. Grade 8 → Grade 9). Only block true leavers: no next class
-        // mapped means they are leaving school after the current year.
-        $next = $current->nextClass;
-        if (! $next) {
-            throw new \InvalidArgumentException(
-                "Cannot post {$year} fees for {$name}: {$current->name} has no next class mapped (leaving / last class). Mark as alumni instead of billing."
-            );
-        }
-
-        $newStreamId = null;
-        if ($student->stream_id) {
-            $oldStream = \App\Models\Academics\Stream::find($student->stream_id);
-            if ($oldStream) {
-                $match = \App\Models\Academics\Stream::where('classroom_id', $next->id)
-                    ->where('name', $oldStream->name)
-                    ->first();
-                $newStreamId = $match?->id ? (int) $match->id : null;
-            }
+        if (empty($placement['classroom_id'])) {
+            throw new \InvalidArgumentException("Cannot post {$year} fees for {$name}: no class placement for {$year}.");
         }
 
         return [
-            'classroom_id' => (int) $next->id,
-            'stream_id' => $newStreamId,
-            'classroom_name' => (string) $next->name,
-            'used_next_class' => true,
+            'classroom_id' => (int) $placement['classroom_id'],
+            'stream_id' => isset($placement['stream_id']) && $placement['stream_id']
+                ? (int) $placement['stream_id']
+                : null,
+            'classroom_name' => (string) ($placement['classroom_name'] ?? ''),
+            'used_next_class' => (bool) ($placement['used_next_class'] ?? false),
         ];
     }
 

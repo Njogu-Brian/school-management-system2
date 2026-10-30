@@ -90,7 +90,7 @@ class ExamMarkEntryService
             throw new \RuntimeException('This exam is not open for mark entry.');
         }
 
-        $exam->loadMissing(['examType', 'subject', 'classroom']);
+        $exam->loadMissing(['examType', 'subject', 'classroom', 'academicYear']);
         $subjectId = (int) $exam->subject_id;
         if ($subjectId <= 0) {
             throw new \RuntimeException('This exam has no subject configured.');
@@ -100,6 +100,13 @@ class ExamMarkEntryService
         $minMarks = (float) ($exam->examType?->default_min_mark ?? 0);
         $grading = app(ClassroomGradingService::class);
         $staffId = $user?->staff?->id;
+        $placement = app(StudentPlacementService::class);
+        $examYear = (int) ($exam->academicYear?->year ?? $placement->calendarYear());
+        $rosterIds = $placement->studentsInClassroom(
+            $classroomId,
+            $examYear,
+            $exam->stream_id ? (int) $exam->stream_id : null
+        )->pluck('id')->map(fn ($id) => (int) $id)->flip()->all();
 
         $saved = 0;
         $skipped = 0;
@@ -107,7 +114,7 @@ class ExamMarkEntryService
 
         DB::transaction(function () use (
             $exam, $classroomId, $subjectId, $rows, $user, $finalize,
-            $maxMarks, $minMarks, $grading, $staffId, &$saved, &$skipped, &$markChanges
+            $maxMarks, $minMarks, $grading, $staffId, $rosterIds, &$saved, &$skipped, &$markChanges
         ) {
             foreach ($rows as $row) {
                 $studentId = (int) ($row['student_id'] ?? 0);
@@ -121,11 +128,7 @@ class ExamMarkEntryService
                     $skipped++;
                     continue;
                 }
-                if ((int) $student->classroom_id !== $classroomId) {
-                    $skipped++;
-                    continue;
-                }
-                if ($exam->stream_id && (int) $student->stream_id !== (int) $exam->stream_id) {
+                if (! isset($rosterIds[$studentId])) {
                     $skipped++;
                     continue;
                 }

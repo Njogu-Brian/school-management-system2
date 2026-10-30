@@ -59,6 +59,9 @@ class FeeBalanceController extends Controller
         $fiscalTaskFilter = $request->input('fiscal_task_filter');
         
         // Build student query (exclude staff-category children — they are not billed like regular fee balances)
+        $placementService = app(\App\Services\Academics\StudentPlacementService::class);
+        $reportYear = (int) $year;
+
         $studentsQuery = Student::query()
             ->where('archive', 0)
             ->where('is_alumni', false)
@@ -75,10 +78,8 @@ class FeeBalanceController extends Controller
             $studentsQuery->whereNotIn('id', $staffChildIds);
         }
         
-        // Apply classroom filter
-        if ($classroomId) {
-            $studentsQuery->where('classroom_id', $classroomId);
-        }
+        // Apply classroom filter by report year (future years use next/pending class)
+        $placementService->applyClassroomFilter($studentsQuery, $reportYear, $classroomId ? (int) $classroomId : null);
         
         // Get students
         $students = $studentsQuery->get();
@@ -95,7 +96,7 @@ class FeeBalanceController extends Controller
         $statementService = app(StudentFeeStatementService::class);
 
         // Enrich each student with financial and attendance data
-        $enrichedStudents = $students->map(function ($student) use ($year, $termNumber, $termId, $selectedTerm, $balanceBroughtForwardVotehead, $statementService, $promiseMaps, $paymentStats, $termBalances, $noteCounts, $todayAttendance) {
+        $enrichedStudents = $students->map(function ($student) use ($year, $termNumber, $termId, $selectedTerm, $balanceBroughtForwardVotehead, $statementService, $promiseMaps, $paymentStats, $termBalances, $noteCounts, $todayAttendance, $placementService, $reportYear) {
             // Term invoice (for payment plans / BBF status context)
             $invoice = Invoice::where('student_id', $student->id)
                 ->when($termId, fn($q) => $q->where('term_id', $termId))
@@ -160,15 +161,28 @@ class FeeBalanceController extends Controller
             $split = $termBalances[$student->id] ?? ['current' => 0.0, 'prior' => 0.0];
             $familyNoteCount = $student->family_id ? (int) ($noteCounts['family'][$student->family_id] ?? 0) : 0;
             $studentNoteCount = (int) ($noteCounts['student'][$student->id] ?? 0);
+
+            $yearPlacement = null;
+            try {
+                $yearPlacement = $placementService->forYear($student, $reportYear);
+            } catch (\InvalidArgumentException) {
+                $yearPlacement = null;
+            }
+            $displayClassroomId = $yearPlacement['classroom_id'] ?? $student->classroom_id;
+            $displayClassroomName = $yearPlacement['classroom_name'] ?? ($student->classroom ? $student->classroom->name : null);
+            $displayStreamName = $student->stream ? $student->stream->name : null;
+            if ($yearPlacement && ! empty($yearPlacement['stream_id']) && (int) $yearPlacement['stream_id'] !== (int) $student->stream_id) {
+                $displayStreamName = \App\Models\Academics\Stream::find($yearPlacement['stream_id'])?->name;
+            }
             
             return [
                 'id' => $student->id,
                 'family_id' => $student->family_id,
                 'admission_number' => $student->admission_number,
                 'full_name' => $student->full_name,
-                'classroom' => $student->classroom ? $student->classroom->name : null,
-                'classroom_id' => $student->classroom_id,
-                'stream' => $student->stream ? $student->stream->name : null,
+                'classroom' => $displayClassroomName,
+                'classroom_id' => $displayClassroomId,
+                'stream' => $displayStreamName,
                 'parent_phone' => $parentPhone,
                 'father_name' => $this->cleanDisplayValue($student->parent?->father_name),
                 'father_phone' => $this->cleanDisplayValue($student->parent?->father_phone),

@@ -246,14 +246,19 @@ class Exam extends Model
 
     public function getStudentsCountAttribute()
     {
-        if ($this->classroom_id) {
-            $query = \App\Models\Student::where('classroom_id', $this->classroom_id);
-            if ($this->stream_id) {
-                $query->where('stream_id', $this->stream_id);
-            }
-            return $query->count();
+        if (! $this->classroom_id) {
+            return 0;
         }
-        return 0;
+
+        $this->loadMissing('academicYear');
+        $placement = app(\App\Services\Academics\StudentPlacementService::class);
+        $year = (int) ($this->academicYear?->year ?? $placement->calendarYear());
+
+        return $placement->studentsInClassroom(
+            (int) $this->classroom_id,
+            $year,
+            $this->stream_id ? (int) $this->stream_id : null
+        )->count();
     }
 
     // Methods

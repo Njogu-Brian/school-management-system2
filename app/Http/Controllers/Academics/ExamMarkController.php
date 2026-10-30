@@ -12,6 +12,7 @@ use App\Services\Academics\ClassroomGradingService;
 use App\Services\Academics\ExamMarkChangeDigestService;
 use App\Services\Academics\ExamMarkEntryService;
 use App\Services\Academics\ExamMarkEntryAuditService;
+use App\Services\Academics\StudentPlacementService;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Stream;
 use App\Models\Student;
@@ -172,15 +173,16 @@ class ExamMarkController extends Controller
             return back()->withInput()->with('error', 'You do not have access to this classroom.');
         }
 
-        $studentsQuery = Student::query()
-            ->where('classroom_id', $classroomId)
-            ->where('archive', 0)
-            ->where('is_alumni', false)
-            ->when($streamId, fn ($q) => $q->where('stream_id', $streamId));
+        $examYear = $this->examRosterYear();
+        $students = app(StudentPlacementService::class)
+            ->studentsInClassroom($classroomId, $examYear, $streamId);
         if ($authUser->hasTeacherLikeRole() && ! $authUser->hasAnyRole(['Super Admin', 'Admin'])) {
-            $authUser->applyTeacherStudentFilter($studentsQuery);
+            $scope = Student::query()->whereIn('id', $students->pluck('id'));
+            $authUser->applyTeacherStudentFilter($scope);
+            $allowedIds = $scope->pluck('id')->map(fn ($id) => (int) $id)->all();
+            $students = $students->whereIn('id', $allowedIds)->values();
         }
-        $allowedStudentIds = $studentsQuery->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $allowedStudentIds = $students->pluck('id')->map(fn ($id) => (int) $id)->all();
         $allowedStudentIdSet = array_flip($allowedStudentIds);
 
         $examCandidates = Exam::query()
@@ -273,19 +275,23 @@ class ExamMarkController extends Controller
         $classroom = Classroom::findOrFail($classroomId);
         $stream = $streamId ? Stream::find($streamId) : null;
 
-        $studentsQuery = Student::query()
-            ->where('classroom_id', $classroomId)
-            ->where('archive', 0)
-            ->where('is_alumni', false)
-            ->when($streamId, fn ($q) => $q->where('stream_id', $streamId));
+        $examYear = $this->examRosterYear();
+        $students = app(StudentPlacementService::class)
+            ->studentsInClassroom($classroomId, $examYear, $streamId);
         if ($authUser->hasTeacherLikeRole() && ! $authUser->hasAnyRole(['Super Admin', 'Admin'])) {
-            $authUser->applyTeacherStudentFilter($studentsQuery);
+            $scope = Student::query()->whereIn('id', $students->pluck('id'));
+            $authUser->applyTeacherStudentFilter($scope);
+            $allowedIds = $scope->pluck('id')->map(fn ($id) => (int) $id)->all();
+            $students = $students->whereIn('id', $allowedIds)->values();
         }
-        $students = $studentsQuery->orderBy('last_name')->orderBy('first_name')->get();
+        $students = $students->sortBy([
+            ['last_name', 'asc'],
+            ['first_name', 'asc'],
+        ])->values();
 
         $entryService = app(ExamMarkEntryService::class);
         $examCandidates = Exam::query()
-            ->with(['subject', 'examType'])
+            ->with(['subject', 'examType', 'academicYear'])
             ->where('exam_type_id', $examTypeId)
             ->where('classroom_id', $classroomId)
             ->whereIn('status', $entryService->entryVisibleStatuses($authUser))
@@ -514,18 +520,20 @@ class ExamMarkController extends Controller
         $canEdit = $entryService->examAcceptsTeacherEntry($exam, $authUser);
 
         // Enforce single-exam workflow: marks are per (exam, student, subject)
-        // Exclude alumni and archived students; scope to teacher streams when applicable
-        $studentsQuery = Student::where('classroom_id', $class->id)
-            ->with('stream:id,name')
-            ->where('archive', 0)
-            ->where('is_alumni', false)
-            ->when($exam->stream_id, fn ($q) => $q->where('stream_id', $exam->stream_id));
+        // Roster is year-scoped so premature promotions do not pull next-year kids into this exam.
+        $exam->loadMissing('academicYear');
+        $examYear = $this->examRosterYear($exam);
+        $students = app(StudentPlacementService::class)
+            ->studentsInClassroom((int) $class->id, $examYear, $exam->stream_id ? (int) $exam->stream_id : null);
 
         if ($authUser->hasTeacherLikeRole() && ! $authUser->hasAnyRole(['Super Admin', 'Admin'])) {
-            $authUser->applyTeacherStudentFilter($studentsQuery);
+            $scope = Student::query()->whereIn('id', $students->pluck('id'));
+            $authUser->applyTeacherStudentFilter($scope);
+            $allowedIds = $scope->pluck('id')->map(fn ($id) => (int) $id)->all();
+            $students = $students->whereIn('id', $allowedIds)->values();
         }
 
-        $students = $studentsQuery->orderBy('last_name')->get();
+        $students = $students->sortBy('last_name')->values();
 
         $existing = ExamMark::where('exam_id', $exam->id)
             ->where('subject_id', $subjectId)
@@ -919,5 +927,17 @@ class ExamMarkController extends Controller
         return redirect()
             ->route('academics.exam-marks.changes')
             ->with('success', 'Exam mark changes marked as reviewed.');
+    }
+
+    private function examRosterYear(?Exam $exam = null): int
+    {
+        if ($exam) {
+            $exam->loadMissing('academicYear');
+            if ($exam->academicYear?->year) {
+                return (int) $exam->academicYear->year;
+            }
+        }
+
+        return app(StudentPlacementService::class)->calendarYear();
     }
 }

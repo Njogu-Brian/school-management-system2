@@ -11,7 +11,7 @@
       <div>
         <div class="crumb">Academics</div>
         <h1 class="mb-1">Student Promotions</h1>
-        <p class="text-muted mb-0">Promote students to mapped classes or mark as alumni.</p>
+        <p class="text-muted mb-0">Schedule promotions to mapped classes (live class moves on 1 January of the next calendar year).</p>
       </div>
       <div class="d-flex gap-2 flex-wrap">
         <a href="{{ route('academics.promotions.alumni') }}" class="btn btn-ghost-strong">
@@ -19,7 +19,7 @@
         </a>
         @if($currentYear && $currentTerm)
         <form action="{{ route('academics.promotions.promote-school') }}" method="POST"
-              onsubmit="return confirm('Promote the ENTIRE school for {{ $currentYear->year }}?\n\nEach class moves to its mapped next class in one step (Grade 3→4 and Grade 4→5 will not mix the same children).\nLeavers mapped to alumni become alumni.\n\nThis cannot be easily undone.');">
+              onsubmit="return confirm('Schedule whole-school promotion for {{ $currentYear->year }}?\n\nEach class is recorded against its mapped next class (Grade 3→4 and Grade 4→5 will not mix the same children).\nLive class membership stays until 1 January {{ (int) date('Y') + 1 }}.\n2027 invoices/fees can still bill the next class before then.\n\nContinue?');">
           @csrf
           <input type="hidden" name="academic_year_id" value="{{ $currentYear->id }}">
           <input type="hidden" name="term_id" value="{{ $currentTerm->id }}">
@@ -59,8 +59,9 @@
     @endif
 
     <div class="alert alert-secondary">
-      <strong>Tip:</strong> Use <em>Promote Whole School</em> so every class moves from a frozen snapshot of who was in it.
-      That avoids the cascade problem of promoting Grade 3→4 first, then accidentally moving those same children again with Grade 4→5.
+      <strong>Tip:</strong> Use <em>Promote Whole School</em> so every class is scheduled from a frozen snapshot of who was in it
+      (avoids Grade 3→4 then Grade 4→5 cascading the same children). Live rosters stay on the current calendar-year class until
+      1 January; reports and invoices for a future year still show that year’s class.
     </div>
 
     <div class="settings-card">

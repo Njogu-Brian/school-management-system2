@@ -42,8 +42,26 @@ class InvoiceController extends Controller
             ->when($request->filled('year'), fn($qq)=>$qq->where('year',$request->year))
             ->when($request->filled('term'), fn($qq)=>$qq->where('term',$request->term))
             ->when($request->filled('student_id'), fn($qq)=>$qq->where('student_id', (int) $request->student_id))
-            ->when($request->filled('class_id'), fn($qq)=>$qq->whereHas('student', fn($s)=>$s->where('classroom_id',$request->class_id)->where('archive', 0)->where('is_alumni', false)))
-            ->when($request->filled('stream_id'), fn($qq)=>$qq->whereHas('student', fn($s)=>$s->where('stream_id',$request->stream_id)->where('archive', 0)->where('is_alumni', false)))
+            ->when($request->filled('class_id'), function ($qq) use ($request) {
+                $classId = (int) $request->class_id;
+                $qq->where(function (Builder $inner) use ($classId) {
+                    $inner->where('classroom_id', $classId)
+                        ->orWhere(function (Builder $legacy) use ($classId) {
+                            $legacy->whereNull('classroom_id')
+                                ->whereHas('student', fn ($s) => $s->where('classroom_id', $classId)->where('archive', 0)->where('is_alumni', false));
+                        });
+                });
+            })
+            ->when($request->filled('stream_id'), function ($qq) use ($request) {
+                $streamId = (int) $request->stream_id;
+                $qq->where(function (Builder $inner) use ($streamId) {
+                    $inner->where('stream_id', $streamId)
+                        ->orWhere(function (Builder $legacy) use ($streamId) {
+                            $legacy->whereNull('stream_id')
+                                ->whereHas('student', fn ($s) => $s->where('stream_id', $streamId)->where('archive', 0)->where('is_alumni', false));
+                        });
+                });
+            })
             ->when($request->filled('votehead_id'), fn($qq)=>$qq->whereHas('items', fn($ii)=>$ii->where('votehead_id',$request->votehead_id)))
             ->when($request->filled('status'), fn($qq)=>$qq->where('status',$request->status))
             ->when($request->boolean('overdue'), function ($qq) {

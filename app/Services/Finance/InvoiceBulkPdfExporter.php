@@ -253,12 +253,26 @@ class InvoiceBulkPdfExporter
             ->when($request->filled('votehead_id'), fn ($q) =>
                 $q->whereHas('items', fn ($i) => $i->where('votehead_id', $request->votehead_id))
             )
-            ->when($request->filled('class_id'), fn ($q) =>
-                $q->whereHas('student', fn ($s) => $s->where('classroom_id', $request->class_id)->where('archive', 0)->where('is_alumni', false))
-            )
-            ->when($request->filled('stream_id'), fn ($q) =>
-                $q->whereHas('student', fn ($s) => $s->where('stream_id', $request->stream_id)->where('archive', 0)->where('is_alumni', false))
-            )
+            ->when($request->filled('class_id'), function ($q) use ($request) {
+                $classId = (int) $request->class_id;
+                $q->where(function ($inner) use ($classId) {
+                    $inner->where('classroom_id', $classId)
+                        ->orWhere(function ($legacy) use ($classId) {
+                            $legacy->whereNull('classroom_id')
+                                ->whereHas('student', fn ($s) => $s->where('classroom_id', $classId)->where('archive', 0)->where('is_alumni', false));
+                        });
+                });
+            })
+            ->when($request->filled('stream_id'), function ($q) use ($request) {
+                $streamId = (int) $request->stream_id;
+                $q->where(function ($inner) use ($streamId) {
+                    $inner->where('stream_id', $streamId)
+                        ->orWhere(function ($legacy) use ($streamId) {
+                            $legacy->whereNull('stream_id')
+                                ->whereHas('student', fn ($s) => $s->where('stream_id', $streamId)->where('archive', 0)->where('is_alumni', false));
+                        });
+                });
+            })
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status));
 
         return $this->sortInvoicesForExport($query->get());
@@ -277,8 +291,8 @@ class InvoiceBulkPdfExporter
             if (!$s) {
                 return '~~~|~~~|~~~|~~~|~~~';
             }
-            $class = strtolower(trim((string) (optional($s->classroom)->name ?? optional($invoice->classroom)->name ?? '~~~')));
-            $stream = strtolower(trim((string) (optional($s->stream)->name ?? optional($invoice->stream)->name ?? '')));
+            $class = strtolower(trim((string) (optional($invoice->classroom)->name ?? optional($s->classroom)->name ?? '~~~')));
+            $stream = strtolower(trim((string) (optional($invoice->stream)->name ?? optional($s->stream)->name ?? '')));
             // Empty stream sorts before named streams within a class, still its own batch key.
             $first = strtolower(trim((string) ($s->first_name ?? '')));
             $middle = strtolower(trim((string) ($s->middle_name ?? '')));
@@ -304,7 +318,7 @@ class InvoiceBulkPdfExporter
         $s = $invoice->student;
         $classId = (string) ($invoice->classroom_id ?? $s?->classroom_id ?? '0');
         $streamId = (string) ($invoice->stream_id ?? $s?->stream_id ?? '0');
-        $className = strtolower(trim(optional($s?->classroom)->name ?? optional($invoice->classroom)->name ?? 'unknown'));
+        $className = strtolower(trim(optional($invoice->classroom)->name ?? optional($s?->classroom)->name ?? 'unknown'));
         $streamName = strtolower(trim(optional($invoice->stream)->name ?? optional($s?->stream)->name ?? ''));
 
         // Prefer ids when present so renames don't split batches mid-export.
@@ -314,7 +328,7 @@ class InvoiceBulkPdfExporter
     public function groupLabel(Invoice $invoice): string
     {
         $s = $invoice->student;
-        $className = trim((string) (optional($s?->classroom)->name ?? optional($invoice->classroom)->name ?? 'Unknown class'));
+        $className = trim((string) (optional($invoice->classroom)->name ?? optional($s?->classroom)->name ?? 'Unknown class'));
         $streamName = trim((string) (optional($invoice->stream)->name ?? optional($s?->stream)->name ?? ''));
 
         return $streamName !== '' ? "{$className} - {$streamName}" : $className;

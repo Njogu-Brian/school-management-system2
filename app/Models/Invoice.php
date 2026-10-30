@@ -70,18 +70,39 @@ class Invoice extends Model
     }
 
     /**
-     * Class shown on this invoice (billed placement), falling back to the student's current class.
+     * Class shown on this invoice (billed placement).
+     * Falls back to year-scoped student placement (so 2027 invoices show next class while still in 2026).
      */
     public function displayClassroomName(): string
     {
         $this->loadMissing(['classroom', 'stream', 'student.classroom', 'student.stream']);
 
-        $class = $this->classroom?->name ?? $this->student?->classroom?->name;
+        $class = $this->classroom?->name;
+        $stream = $this->stream?->name;
+
+        if (! $class && $this->student) {
+            try {
+                $placement = app(\App\Services\Academics\StudentPlacementService::class)
+                    ->forYear($this->student, (int) $this->year);
+                $class = $placement['classroom_name'] ?? null;
+                if (! $stream && ! empty($placement['stream_id'])) {
+                    $stream = \App\Models\Academics\Stream::find($placement['stream_id'])?->name;
+                }
+            } catch (\InvalidArgumentException) {
+                $class = $this->student->classroom?->name;
+                $stream = $stream ?: $this->student->stream?->name;
+            }
+        }
+
+        if (! $class) {
+            $class = $this->student?->classroom?->name;
+            $stream = $stream ?: $this->student?->stream?->name;
+        }
+
         if (! $class) {
             return '—';
         }
 
-        $stream = $this->stream?->name ?? $this->student?->stream?->name;
         if ($stream) {
             return $class.' / '.$stream;
         }

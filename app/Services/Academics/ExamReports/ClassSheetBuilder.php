@@ -11,6 +11,7 @@ use App\Models\Academics\Stream;
 use App\Models\Academics\Subject;
 use App\Models\Student;
 use App\Models\StudentAcademicHistory;
+use App\Services\Academics\StudentPlacementService;
 use Illuminate\Support\Collection;
 
 class ClassSheetBuilder
@@ -658,9 +659,14 @@ class ClassSheetBuilder
             ->unique()
             ->values();
 
-        $currentIds = Student::query()
-            ->where('classroom_id', $classroom->id)
-            ->pluck('id');
+        $placement = app(StudentPlacementService::class);
+        $year = null;
+        if ($academicYearId) {
+            $year = (int) (\App\Models\AcademicYear::find($academicYearId)?->year ?? 0) ?: null;
+        }
+        $year = $year ?: $placement->calendarYear();
+
+        $currentIds = $placement->studentsInClassroom((int) $classroom->id, $year, $streamId)->pluck('id');
 
         $markIds = $examIdList->isEmpty()
             ? collect()

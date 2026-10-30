@@ -62,6 +62,12 @@ Schedule::command('academic:sync-current-term')
     ->name('academic-sync-current-term')
     ->withoutOverlapping();
 
+Schedule::command('promotions:apply-due')
+    ->dailyAt('00:10')
+    ->timezone('Africa/Nairobi')
+    ->name('promotions-apply-due')
+    ->withoutOverlapping();
+
 Schedule::command('payment-plans:update-statuses')->dailyAt('00:15');
 
 Schedule::command('parent-wallet:send-saving-reminders')

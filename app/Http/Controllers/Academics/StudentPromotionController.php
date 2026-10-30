@@ -6,8 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Academics\Classroom;
 use App\Models\Student;
 use App\Models\AcademicYear;
+use App\Models\StudentAcademicHistory;
 use App\Models\Term;
-use App\Services\FamilyArchiveService;
+use App\Services\Academics\StudentPlacementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -166,60 +167,58 @@ class StudentPromotionController extends Controller
             $skippedCount = $students->count() - $validStudents->count();
             $skippedMessage = $skippedCount > 0 ? " ({$skippedCount} student(s) skipped - already promoted this year)" : '';
 
+            $placement = app(StudentPlacementService::class);
+            $effectiveDate = $placement->defaultEffectiveDate();
+            $applyNow = $placement->isEffectiveDue($effectiveDate);
+            $scheduledLabel = $effectiveDate->format('j M Y');
+
             foreach ($validStudents as $student) {
                 $oldClassroomId = $student->classroom_id;
                 $oldStreamId = $student->stream_id;
                 $newStreamId = null;
-                
-                if ($classroom->is_alumni) {
-                    // Mark as alumni - remove from current class and stream
-                    $student->update([
-                        'is_alumni' => true,
-                        'alumni_date' => Carbon::parse($request->promotion_date),
-                        'classroom_id' => null, // Remove from class
-                        'stream_id' => null, // Remove from stream
-                    ]);
-                    // If family has 0 or 1 active members left, remove family and store archived_family_id for restore
-                    app(FamilyArchiveService::class)->onStudentArchivedOrAlumni($student->fresh());
-                } else {
-                    // Promote to next class, find matching stream
+                $nextClassroomId = null;
+                $status = $classroom->is_alumni ? 'graduated' : 'promoted';
+
+                if (! $classroom->is_alumni) {
                     $nextClassroom = $classroom->nextClass;
+                    $nextClassroomId = (int) $nextClassroom->id;
                     $newStreamId = $this->findMatchingStream($oldStreamId, $nextClassroom->id);
-                    
-                    // Update student to new class and stream (removes from old class/stream)
-                    $student->update([
-                        'classroom_id' => $nextClassroom->id,
-                        'stream_id' => $newStreamId, // Will be null if no matching stream found
-                    ]);
                 }
 
-                // Mark previous academic history as not current
-                \App\Models\StudentAcademicHistory::where('student_id', $student->id)
+                StudentAcademicHistory::where('student_id', $student->id)
                     ->where('is_current', true)
                     ->update(['is_current' => false]);
 
-                // Record in academic history
-                \App\Models\StudentAcademicHistory::create([
+                $history = StudentAcademicHistory::create([
                     'student_id' => $student->id,
                     'academic_year_id' => $request->academic_year_id,
                     'term_id' => $request->term_id,
                     'classroom_id' => $oldClassroomId,
                     'stream_id' => $oldStreamId,
-                    'next_classroom_id' => $classroom->is_alumni ? null : $classroom->nextClass->id,
+                    'next_classroom_id' => $nextClassroomId,
                     'next_stream_id' => $classroom->is_alumni ? null : $newStreamId,
                     'enrollment_date' => Carbon::parse($request->promotion_date),
-                    'promotion_status' => $classroom->is_alumni ? 'graduated' : 'promoted',
+                    'promotion_status' => $status,
                     'promotion_date' => Carbon::parse($request->promotion_date),
+                    'effective_date' => $effectiveDate->toDateString(),
+                    'applied_at' => null,
                     'promoted_by' => auth()->id(),
                     'notes' => $request->notes ?? 'Bulk promotion',
                     'is_current' => true,
                 ]);
+
+                if ($applyNow) {
+                    $placement->applyHistory($history);
+                }
             }
 
             DB::commit();
             
-            $status = $classroom->is_alumni ? 'marked as alumni' : 'promoted';
-            $message = count($validStudents) . ' student(s) ' . $status . ' successfully.' . $skippedMessage;
+            $status = $classroom->is_alumni ? 'scheduled as alumni' : 'scheduled for promotion';
+            $timing = $applyNow
+                ? 'applied immediately'
+                : "live class stays until {$scheduledLabel}";
+            $message = count($validStudents) . " student(s) {$status} ({$timing})." . $skippedMessage;
             return redirect()->route('academics.promotions.index')
                 ->with('success', $message);
         } catch (\Exception $e) {
@@ -281,19 +280,15 @@ class StudentPromotionController extends Controller
                 }
             }
 
-            // Update student to new class and stream
-            $student->update([
-                'classroom_id' => $newClassroomId,
-                'stream_id' => $newStreamId,
-            ]);
+            // Demotions are current-year corrections: apply immediately.
+            $demotionDate = Carbon::parse($request->demotion_date);
+            $placement = app(StudentPlacementService::class);
 
-            // Mark previous academic history as not current
-            \App\Models\StudentAcademicHistory::where('student_id', $student->id)
+            StudentAcademicHistory::where('student_id', $student->id)
                 ->where('is_current', true)
                 ->update(['is_current' => false]);
 
-            // Record demotion in academic history
-            \App\Models\StudentAcademicHistory::create([
+            $history = StudentAcademicHistory::create([
                 'student_id' => $student->id,
                 'academic_year_id' => $request->academic_year_id,
                 'term_id' => $request->term_id,
@@ -301,13 +296,17 @@ class StudentPromotionController extends Controller
                 'stream_id' => $oldStreamId,
                 'next_classroom_id' => $newClassroomId,
                 'next_stream_id' => $newStreamId,
-                'enrollment_date' => Carbon::parse($request->demotion_date),
+                'enrollment_date' => $demotionDate,
                 'promotion_status' => 'demoted',
-                'promotion_date' => Carbon::parse($request->demotion_date),
+                'promotion_date' => $demotionDate,
+                'effective_date' => $demotionDate->toDateString(),
+                'applied_at' => null,
                 'promoted_by' => auth()->id(),
                 'notes' => 'Demotion reason: ' . $request->reason,
                 'is_current' => true,
             ]);
+
+            $placement->applyHistory($history);
 
             DB::commit();
             
@@ -497,6 +496,10 @@ class StudentPromotionController extends Controller
         $graduated = 0;
         $skipped = 0;
         $classSummaries = [];
+        $placement = app(StudentPlacementService::class);
+        $effectiveDate = $placement->defaultEffectiveDate();
+        $applyNow = $placement->isEffectiveDue($effectiveDate);
+        $scheduledLabel = $effectiveDate->format('j M Y');
 
         try {
             DB::transaction(function () use (
@@ -505,6 +508,9 @@ class StudentPromotionController extends Controller
                 $termId,
                 $promotionDate,
                 $notes,
+                $placement,
+                $effectiveDate,
+                $applyNow,
                 &$promoted,
                 &$graduated,
                 &$skipped,
@@ -515,7 +521,7 @@ class StudentPromotionController extends Controller
                     $classroom = $snap['classroom'];
                     $studentIds = $snap['student_ids'];
 
-                    $alreadyPromotedClass = \App\Models\StudentAcademicHistory::where('classroom_id', $classroom->id)
+                    $alreadyPromotedClass = StudentAcademicHistory::where('classroom_id', $classroom->id)
                         ->where('academic_year_id', $academicYearId)
                         ->whereIn('promotion_status', ['promoted', 'graduated'])
                         ->exists();
@@ -537,7 +543,7 @@ class StudentPromotionController extends Controller
                             continue;
                         }
 
-                        $alreadyPromoted = \App\Models\StudentAcademicHistory::where('student_id', $student->id)
+                        $alreadyPromoted = StudentAcademicHistory::where('student_id', $student->id)
                             ->where('academic_year_id', $academicYearId)
                             ->whereIn('promotion_status', ['promoted', 'graduated'])
                             ->exists();
@@ -556,13 +562,6 @@ class StudentPromotionController extends Controller
                         // A next class flagged is_alumni (e.g. Grade 9) still means "move into
                         // that class" — same behaviour as per-class promote — not leave school.
                         if ($classroom->is_alumni) {
-                            $student->update([
-                                'is_alumni' => true,
-                                'alumni_date' => $promotionDate,
-                                'classroom_id' => null,
-                                'stream_id' => null,
-                            ]);
-                            app(FamilyArchiveService::class)->onStudentArchivedOrAlumni($student->fresh());
                             $status = 'graduated';
                             $classGraduated++;
                         } else {
@@ -574,19 +573,15 @@ class StudentPromotionController extends Controller
 
                             $nextClassroomId = (int) $nextClassroom->id;
                             $newStreamId = $this->findMatchingStream($oldStreamId, $nextClassroom->id);
-                            $student->update([
-                                'classroom_id' => $nextClassroom->id,
-                                'stream_id' => $newStreamId,
-                            ]);
                             $status = 'promoted';
                             $classPromoted++;
                         }
 
-                        \App\Models\StudentAcademicHistory::where('student_id', $student->id)
+                        StudentAcademicHistory::where('student_id', $student->id)
                             ->where('is_current', true)
                             ->update(['is_current' => false]);
 
-                        \App\Models\StudentAcademicHistory::create([
+                        $history = StudentAcademicHistory::create([
                             'student_id' => $student->id,
                             'academic_year_id' => $academicYearId,
                             'term_id' => $termId,
@@ -597,10 +592,16 @@ class StudentPromotionController extends Controller
                             'enrollment_date' => $promotionDate,
                             'promotion_status' => $status,
                             'promotion_date' => $promotionDate,
+                            'effective_date' => $effectiveDate->toDateString(),
+                            'applied_at' => null,
                             'promoted_by' => auth()->id(),
                             'notes' => $notes,
                             'is_current' => true,
                         ]);
+
+                        if ($applyNow) {
+                            $placement->applyHistory($history);
+                        }
                     }
 
                     $promoted += $classPromoted;
@@ -620,7 +621,10 @@ class StudentPromotionController extends Controller
                 ->with('error', 'Whole-school promotion failed: '.$e->getMessage());
         }
 
-        $message = "Whole-school promotion complete. Promoted: {$promoted}. Alumni: {$graduated}. Skipped: {$skipped}.";
+        $timing = $applyNow
+            ? 'applied immediately'
+            : "live classes stay until {$scheduledLabel}";
+        $message = "Whole-school promotion scheduled. Promoted: {$promoted}. Alumni: {$graduated}. Skipped: {$skipped}. ({$timing})";
 
         return redirect()->route('academics.promotions.index')
             ->with('success', $message)

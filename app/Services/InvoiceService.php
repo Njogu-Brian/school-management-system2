@@ -43,20 +43,21 @@ class InvoiceService
         // Resolve due_date from the term's opening date (academic days).
         // This stays on opening day even during the holiday before the term starts.
         $dueDate = $termModel && $termModel->opening_date ? $termModel->opening_date->toDateString() : null;
-        $placementFields = self::placementFields($student, $placement);
+        $placementFields = self::placementFields($student, $placement, $year);
 
         // If found and soft deleted, restore it
         if ($invoice && $invoice->trashed()) {
             $invoice->restore();
-            // Update the invoice with current data
-            $updateData = array_merge([
+            // Update the invoice with current data; fill placement only when missing
+            $updateData = [
                 'family_id' => $student->family_id,
                 'academic_year_id' => $academicYear->id ?? $invoice->academic_year_id,
                 'term_id' => $termModel->id ?? $invoice->term_id,
-            ], $placementFields);
+            ];
             if ($dueDate) {
                 $updateData['due_date'] = $dueDate;
             }
+            $updateData = array_merge($updateData, self::placementFieldsForExisting($invoice, $placementFields));
             $invoice->update($updateData);
             self::finalizeInvoiceAfterEnsure($invoice, $student, $year, $term);
             return $invoice;
@@ -64,8 +65,9 @@ class InvoiceService
         
         // If found and not deleted, return it
         if ($invoice && !$invoice->trashed()) {
-            // Update academic_year_id, term_id, and due_date if needed (for legacy invoices)
-            $updateData = $placementFields;
+            // Update academic_year_id, term_id, and due_date if needed (for legacy invoices).
+            // Do NOT overwrite an existing billed classroom with the live student class.
+            $updateData = self::placementFieldsForExisting($invoice, $placementFields);
             if (!$invoice->academic_year_id && $academicYear) {
                 $updateData['academic_year_id'] = $academicYear->id;
             }
@@ -114,7 +116,7 @@ class InvoiceService
                     ->first();
                 
                 if ($invoice) {
-                    $raceUpdate = $placementFields;
+                    $raceUpdate = self::placementFieldsForExisting($invoice, $placementFields);
                     // Update academic_year_id and term_id if they're null
                     if (!$invoice->academic_year_id && $academicYear) {
                         $raceUpdate['academic_year_id'] = $academicYear->id;
@@ -139,7 +141,7 @@ class InvoiceService
      * @param  array{classroom_id?:int,stream_id?:?int}|null  $placement
      * @return array{classroom_id?:int,stream_id?:?int}
      */
-    private static function placementFields(Student $student, ?array $placement): array
+    private static function placementFields(Student $student, ?array $placement, int $year): array
     {
         if (is_array($placement) && ! empty($placement['classroom_id'])) {
             return [
@@ -154,6 +156,20 @@ class InvoiceService
             return [];
         }
 
+        try {
+            $resolved = app(\App\Services\Academics\StudentPlacementService::class)->forYear($student, $year);
+            if (! empty($resolved['classroom_id'])) {
+                return [
+                    'classroom_id' => (int) $resolved['classroom_id'],
+                    'stream_id' => isset($resolved['stream_id']) && $resolved['stream_id']
+                        ? (int) $resolved['stream_id']
+                        : null,
+                ];
+            }
+        } catch (\InvalidArgumentException) {
+            // Fall through to live class.
+        }
+
         if ($student->classroom_id) {
             return [
                 'classroom_id' => (int) $student->classroom_id,
@@ -162,6 +178,29 @@ class InvoiceService
         }
 
         return [];
+    }
+
+    /**
+     * Only fill billed placement on existing invoices when it is still empty.
+     *
+     * @param  array{classroom_id?:int,stream_id?:?int}  $placementFields
+     * @return array{classroom_id?:int,stream_id?:?int}
+     */
+    private static function placementFieldsForExisting(Invoice $invoice, array $placementFields): array
+    {
+        if (empty($placementFields) || empty($placementFields['classroom_id'])) {
+            return [];
+        }
+
+        if (! \Illuminate\Support\Facades\Schema::hasColumn('invoices', 'classroom_id')) {
+            return [];
+        }
+
+        if ($invoice->classroom_id) {
+            return [];
+        }
+
+        return $placementFields;
     }
 
     /**
