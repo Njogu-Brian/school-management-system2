@@ -231,7 +231,12 @@ class StudentPlacementService
     public function applyClassroomFilter(Builder $studentsQuery, int $year, ?int $classroomId): Builder
     {
         if (! $classroomId) {
-            return $studentsQuery;
+            $ids = $this->studentIdsForYear($year);
+            if (empty($ids)) {
+                return $studentsQuery->whereRaw('1 = 0');
+            }
+
+            return $studentsQuery->whereIn('id', $ids);
         }
 
         $current = $this->calendarYear();
@@ -246,6 +251,81 @@ class StudentPlacementService
         }
 
         return $studentsQuery->whereIn('id', $ids);
+    }
+
+    /**
+     * Student IDs that belong in reports for a billing/academic year.
+     * - Current year: live active roster
+     * - Future year: continuing students with a resolvable next-class placement (excludes alumni / leavers)
+     * - Past year: anyone with academic history for that year (includes later alumni/archived)
+     *
+     * @return array<int>
+     */
+    public function studentIdsForYear(int $year, ?Carbon $now = null): array
+    {
+        $current = $this->calendarYear($now);
+
+        if ($year === $current) {
+            return Student::query()
+                ->where('archive', 0)
+                ->where('is_alumni', false)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+        }
+
+        if ($year > $current) {
+            return Student::query()
+                ->where('archive', 0)
+                ->where('is_alumni', false)
+                ->with(['classroom.nextClass'])
+                ->get()
+                ->filter(function (Student $student) use ($year) {
+                    try {
+                        $placement = $this->forYear($student, $year);
+
+                        return ! empty($placement['classroom_id']);
+                    } catch (\InvalidArgumentException) {
+                        return false;
+                    }
+                })
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->all();
+        }
+
+        $historyIds = StudentAcademicHistory::query()
+            ->whereHas('academicYear', fn ($q) => $q->where('year', $year))
+            ->whereNotNull('classroom_id')
+            ->pluck('student_id');
+
+        $inferredIds = StudentAcademicHistory::query()
+            ->whereIn('promotion_status', ['promoted', 'graduated', 'demoted'])
+            ->whereNotNull('classroom_id')
+            ->where(function ($q) use ($year) {
+                $q->whereYear('effective_date', $year + 1)
+                    ->orWhere(function ($inner) use ($year) {
+                        $inner->whereNull('effective_date')
+                            ->whereYear('promotion_date', $year + 1);
+                    });
+            })
+            ->pluck('student_id');
+
+        return $historyIds->merge($inferredIds)
+            ->unique()
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Whether past-year report queries should include alumni/archived students.
+     */
+    public function includesAlumniForYear(int $year, ?Carbon $now = null): bool
+    {
+        return $year < $this->calendarYear($now);
     }
 
     public function matchingStreamId($oldStreamId, int $newClassroomId): ?int
@@ -394,7 +474,8 @@ class StudentPlacementService
             return collect();
         }
 
-        return Student::query()
+        // Past years include learners who have since become alumni/archived.
+        return Student::withAlumni()
             ->with('stream:id,name')
             ->whereIn('id', $ids)
             ->orderBy('admission_number')

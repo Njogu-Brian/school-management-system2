@@ -22,19 +22,22 @@
     <div class="dash-section-label">Today at a glance</div>
     <div class="row g-3 mb-3">
       <div class="col-6 col-xl-3">
-        <x-data.stat-card label="Active students" :value="format_number($kpis['students'] ?? 0)" trend="{{ ($kpis['attendance_pct'] ?? null) !== null ? format_number($kpis['attendance_pct'], 1) . '% present today' : 'Current scope' }}" icon="bi bi-people" />
-      </div>
-      <div class="col-6 col-xl-3">
-        <x-data.stat-card label="Attendance today" :value="($kpis['attendance_pct'] ?? null) !== null ? format_number($kpis['attendance_pct'], 1) . '%' : '—'" trend="{{ format_number($kpis['absent_today'] ?? 0) }} absent · {{ format_number($kpis['unmarked_today'] ?? 0) }} unmarked" icon="bi bi-clipboard-check" />
+        <x-data.stat-card label="Active students" :value="format_number($kpis['students'] ?? 0)" trend="{{ ($kpis['attendance_pct'] ?? null) !== null ? format_number($kpis['attendance_pct'], 1) . '% present today' : 'Selected year scope' }}" icon="bi bi-people" />
       </div>
       @if(in_array($role ?? 'admin', ['admin', 'finance']))
+        <div class="col-6 col-xl-3">
+          <x-data.stat-card label="Total invoiced" :value="format_money($kpis['total_invoiced'] ?? 0)" trend="Selected term charges" icon="bi bi-receipt" />
+        </div>
         <div class="col-6 col-xl-3">
           <x-data.stat-card label="Collected" :value="format_money($kpis['fees_collected'] ?? 0)" trend="{{ ($kpis['collection_rate'] ?? null) !== null ? format_number($kpis['collection_rate'], 1) . '% of invoiced' : 'Selected period' }}" icon="bi bi-cash-coin" />
         </div>
         <div class="col-6 col-xl-3">
-          <x-data.stat-card label="Outstanding" :value="format_money($kpis['fees_outstanding'] ?? 0)" trend="{{ format_number($kpis['owing_students'] ?? 0) }} students owing" icon="bi bi-wallet2" />
+          <x-data.stat-card label="Outstanding" :value="format_money($kpis['fees_outstanding'] ?? 0)" trend="{{ format_number($kpis['owing_students'] ?? 0) }} owing · {{ format_money($kpis['fees_upcoming'] ?? 0) }} upcoming" icon="bi bi-wallet2" />
         </div>
       @else
+        <div class="col-6 col-xl-3">
+          <x-data.stat-card label="Attendance today" :value="($kpis['attendance_pct'] ?? null) !== null ? format_number($kpis['attendance_pct'], 1) . '%' : '—'" trend="{{ format_number($kpis['absent_today'] ?? 0) }} absent · {{ format_number($kpis['unmarked_today'] ?? 0) }} unmarked" icon="bi bi-clipboard-check" />
+        </div>
         <div class="col-6 col-xl-3">
           <x-data.stat-card label="Active staff" :value="format_number($kpis['staff_active'] ?? 0)" trend="{{ format_number($kpis['teachers_on_leave'] ?? 0) }} on leave today" icon="bi bi-person-badge" />
         </div>

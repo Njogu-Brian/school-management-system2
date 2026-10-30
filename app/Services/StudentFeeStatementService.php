@@ -104,19 +104,35 @@ class StudentFeeStatementService
     }
 
     /**
-     * Single school-wide outstanding definition used by Fee Balance Report and Admin Dashboard:
-     * sum of positive year statement closing balances for active, non-staff students.
+     * School-wide outstanding / upcoming for Fee Balance Report and Admin Dashboard.
+     * Outstanding = due/overdue invoice balances for the year (excludes not-yet-due).
+     * Upcoming = not-yet-due invoice balances for the year.
      *
-     * @return array{total_outstanding: float, students_owing: int, year: int}
+     * @return array{total_outstanding: float, total_upcoming: float, students_owing: int, students_upcoming: int, year: int}
      */
     public function schoolOutstandingSummary(int $year): array
     {
-        $cacheKey = 'finance.school_outstanding.v1.' . $year;
+        $cacheKey = 'finance.school_outstanding.v2.' . $year;
 
         return cache()->remember($cacheKey, now()->addMinutes(5), function () use ($year) {
-            $students = \App\Models\Student::query()
-                ->where('archive', 0)
-                ->where('is_alumni', false)
+            $placement = app(\App\Services\Academics\StudentPlacementService::class);
+            $ids = $placement->studentIdsForYear($year);
+            if (empty($ids)) {
+                return [
+                    'total_outstanding' => 0.0,
+                    'total_upcoming' => 0.0,
+                    'students_owing' => 0,
+                    'students_upcoming' => 0,
+                    'year' => $year,
+                ];
+            }
+
+            $studentsQuery = $placement->includesAlumniForYear($year)
+                ? \App\Models\Student::withAlumni()
+                : \App\Models\Student::query();
+
+            $students = $studentsQuery
+                ->whereIn('id', $ids)
                 ->where(function ($q) {
                     $q->whereDoesntHave('category', function ($cq) {
                         $cq->whereRaw('LOWER(name) = ?', ['staff']);
@@ -124,20 +140,58 @@ class StudentFeeStatementService
                 })
                 ->get(['id', 'category_id']);
 
-            $total = 0.0;
+            $studentIds = $students->pluck('id')->all();
+            $ledger = app(\App\Services\StudentFeeLedgerService::class);
+
+            $invoices = \App\Models\Invoice::query()
+                ->notReversed()
+                ->where('year', $year)
+                ->whereIn('student_id', $studentIds)
+                ->with('term')
+                ->get(['id', 'student_id', 'balance', 'due_date', 'term_id', 'status']);
+
+            $outstandingByStudent = [];
+            $upcomingByStudent = [];
+            foreach ($invoices as $invoice) {
+                $balance = max(0.0, (float) $invoice->balance);
+                if ($balance <= 0.009) {
+                    continue;
+                }
+                $sid = (int) $invoice->student_id;
+                if ($ledger->invoiceIsDue($invoice)) {
+                    $outstandingByStudent[$sid] = ($outstandingByStudent[$sid] ?? 0) + $balance;
+                } else {
+                    $upcomingByStudent[$sid] = ($upcomingByStudent[$sid] ?? 0) + $balance;
+                }
+            }
+
+            // Legacy BBF (not yet on an invoice) counts as outstanding.
+            $totalOutstanding = 0.0;
             $owing = 0;
             foreach ($students as $student) {
-                $pack = $this->forStudent($student, $year, null);
-                $balance = (float) ($pack['closing_balance'] ?? 0);
-                if ($balance > 0.009) {
-                    $total += $balance;
+                $bbf = (float) \App\Services\StudentBalanceService::getBalanceBroughtForward($student);
+                $due = round(($outstandingByStudent[(int) $student->id] ?? 0) + max(0.0, $bbf), 2);
+                if ($due > 0.009) {
+                    $totalOutstanding += $due;
                     $owing++;
                 }
             }
 
+            $totalUpcoming = 0.0;
+            $upcomingCount = 0;
+            foreach ($upcomingByStudent as $amount) {
+                $amount = round((float) $amount, 2);
+                if ($amount > 0.009) {
+                    $totalUpcoming += $amount;
+                    $upcomingCount++;
+                }
+            }
+
             return [
-                'total_outstanding' => round($total, 2),
+                'total_outstanding' => round($totalOutstanding, 2),
+                'total_upcoming' => round($totalUpcoming, 2),
                 'students_owing' => $owing,
+                'students_upcoming' => $upcomingCount,
                 'year' => $year,
             ];
         });
@@ -145,14 +199,19 @@ class StudentFeeStatementService
 
     public static function forgetSchoolOutstandingCache(?int $year = null): void
     {
+        $forget = function (int $y): void {
+            cache()->forget('finance.school_outstanding.v1.' . $y);
+            cache()->forget('finance.school_outstanding.v2.' . $y);
+        };
+
         if ($year) {
-            cache()->forget('finance.school_outstanding.v1.' . $year);
+            $forget((int) $year);
 
             return;
         }
         $years = \App\Models\AcademicYear::query()->pluck('year');
         foreach ($years as $y) {
-            cache()->forget('finance.school_outstanding.v1.' . (int) $y);
+            $forget((int) $y);
         }
     }
 

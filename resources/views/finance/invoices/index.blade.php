@@ -60,9 +60,12 @@
                 <label class="finance-form-label">Status</label>
                 <select name="status" class="finance-form-select">
                     <option value="">All Statuses</option>
-                    <option value="unpaid" {{ request('status') == 'unpaid' ? 'selected' : '' }}>Unpaid</option>
-                    <option value="partial" {{ request('status') == 'partial' ? 'selected' : '' }}>Partial</option>
-                    <option value="paid" {{ request('status') == 'paid' ? 'selected' : '' }}>Paid</option>
+                    <option value="unpaid" {{ request('status') == 'unpaid' ? 'selected' : '' }}>Unpaid (due)</option>
+                    <option value="partial" {{ request('status') == 'partial' ? 'selected' : '' }}>Partial (due)</option>
+                    <option value="paid" {{ request('status') == 'paid' ? 'selected' : '' }}>Paid (due)</option>
+                    <option value="upcoming_unpaid" {{ request('status') == 'upcoming_unpaid' ? 'selected' : '' }}>Upcoming unpaid</option>
+                    <option value="upcoming_partial" {{ request('status') == 'upcoming_partial' ? 'selected' : '' }}>Upcoming partial</option>
+                    <option value="upcoming_completed" {{ request('status') == 'upcoming_completed' ? 'selected' : '' }}>Upcoming completed</option>
                     <option value="reversed" {{ request('status') == 'reversed' ? 'selected' : '' }}>Reversed</option>
                 </select>
             </div>
@@ -213,8 +216,8 @@
                                 </span>
                             </td>
                             <td>
-                                <span class="finance-badge badge-{{ $inv->status === 'paid' ? 'paid' : ($inv->status === 'partial' ? 'partial' : ($inv->status === 'reversed' ? 'reversed' : 'unpaid')) }}">
-                                    {{ ucfirst($inv->status) }}
+                                <span class="finance-badge badge-{{ $inv->displayStatusBadgeClass() }}">
+                                    {{ $inv->displayStatusLabel() }}
                                 </span>
                                 @if(! $inv->isPublished() && ! $inv->isReversed())
                                     <span class="badge bg-secondary ms-1">Draft</span>

@@ -396,9 +396,77 @@ class Invoice extends Model
         return $this->status === 'paid' || $this->balance <= 0;
     }
 
+    /**
+     * Invoice is not yet collectible: due date (or term opening) is still in the future.
+     */
+    public function isUpcoming(): bool
+    {
+        if ($this->status === 'reversed') {
+            return false;
+        }
+
+        return ! app(\App\Services\StudentFeeLedgerService::class)->invoiceIsDue($this);
+    }
+
     public function isOverdue(): bool
     {
-        return $this->due_date && $this->due_date->isPast() && !$this->isPaid();
+        if ($this->isPaid() || $this->isUpcoming()) {
+            return false;
+        }
+
+        if (! $this->due_date) {
+            return false;
+        }
+
+        return $this->due_date->toDateString() < now()->toDateString();
+    }
+
+    /**
+     * Display status key for UI: upcoming_* when not yet due, else DB status.
+     */
+    public function displayStatusKey(): string
+    {
+        if ($this->status === 'reversed') {
+            return 'reversed';
+        }
+
+        if ($this->isUpcoming()) {
+            return match ($this->status) {
+                'paid' => 'upcoming_completed',
+                'partial' => 'upcoming_partial',
+                default => 'upcoming_unpaid',
+            };
+        }
+
+        return match ($this->status) {
+            'paid' => 'paid',
+            'partial' => 'partial',
+            default => 'unpaid',
+        };
+    }
+
+    public function displayStatusLabel(): string
+    {
+        return match ($this->displayStatusKey()) {
+            'upcoming_unpaid' => 'Upcoming unpaid',
+            'upcoming_partial' => 'Upcoming partial',
+            'upcoming_completed' => 'Upcoming completed',
+            'reversed' => 'Reversed',
+            'paid' => 'Paid',
+            'partial' => 'Partial',
+            default => 'Unpaid',
+        };
+    }
+
+    public function displayStatusBadgeClass(): string
+    {
+        return match ($this->displayStatusKey()) {
+            'upcoming_completed', 'paid' => 'paid',
+            'upcoming_partial', 'partial' => 'partial',
+            'reversed' => 'reversed',
+            'upcoming_unpaid' => 'partial',
+            default => 'unpaid',
+        };
     }
 
     /**

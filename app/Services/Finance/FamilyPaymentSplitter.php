@@ -91,7 +91,8 @@ class FamilyPaymentSplitter
 
         $balances = [];
         foreach ($siblingIds as $id) {
-            $balances[$id] = max(0.0, StudentBalanceService::getTotalOutstandingBalance($id));
+            // Allocation may prepay upcoming invoices — use full ledger, not due-only outstanding.
+            $balances[$id] = max(0.0, StudentBalanceService::getTotalOutstandingBalance($id, false));
         }
 
         $preferred = $preferredStudentId ?: $siblingIds[0];
@@ -144,7 +145,8 @@ class FamilyPaymentSplitter
 
         $balances = [];
         foreach ($siblings as $sibling) {
-            $balances[(int) $sibling->id] = max(0.0, StudentBalanceService::getTotalOutstandingBalance($sibling->id));
+            // Allocation may prepay upcoming invoices — use full ledger, not due-only outstanding.
+            $balances[(int) $sibling->id] = max(0.0, StudentBalanceService::getTotalOutstandingBalance($sibling->id, false));
         }
 
         return self::allocations($balances, $payment, $studentId);

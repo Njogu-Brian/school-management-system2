@@ -63,7 +63,46 @@ class InvoiceController extends Controller
                 });
             })
             ->when($request->filled('votehead_id'), fn($qq)=>$qq->whereHas('items', fn($ii)=>$ii->where('votehead_id',$request->votehead_id)))
-            ->when($request->filled('status'), fn($qq)=>$qq->where('status',$request->status))
+            ->when($request->filled('status'), function ($qq) use ($request) {
+                $status = (string) $request->status;
+                $today = now()->toDateString();
+                $upcomingStatuses = [
+                    'upcoming_unpaid' => 'unpaid',
+                    'upcoming_partial' => 'partial',
+                    'upcoming_completed' => 'paid',
+                ];
+                if (isset($upcomingStatuses[$status])) {
+                    $qq->where('status', $upcomingStatuses[$status])
+                        ->where(function ($q) use ($today) {
+                            $q->whereDate('due_date', '>', $today)
+                                ->orWhere(function ($inner) use ($today) {
+                                    $inner->whereNull('due_date')
+                                        ->whereHas('term', fn ($t) => $t->whereDate('opening_date', '>', $today));
+                                });
+                        });
+
+                    return;
+                }
+
+                $qq->where('status', $status);
+                // Plain unpaid/partial/paid = due (or no future opening) — not upcoming.
+                if (in_array($status, ['unpaid', 'partial', 'paid'], true)) {
+                    $qq->where(function ($q) use ($today) {
+                        $q->where(function ($due) use ($today) {
+                            $due->whereNotNull('due_date')->whereDate('due_date', '<=', $today);
+                        })->orWhere(function ($dueTerm) use ($today) {
+                            $dueTerm->whereNull('due_date')
+                                ->where(function ($termDue) use ($today) {
+                                    $termDue->whereDoesntHave('term')
+                                        ->orWhereHas('term', function ($t) use ($today) {
+                                            $t->whereNull('opening_date')
+                                                ->orWhereDate('opening_date', '<=', $today);
+                                        });
+                                });
+                        });
+                    });
+                }
+            })
             ->when($request->boolean('overdue'), function ($qq) {
                 $qq->whereIn('status', ['unpaid', 'partial'])
                     ->where('balance', '>', 0)

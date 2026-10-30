@@ -430,7 +430,7 @@
         @include('finance.partials.header', [
             'title' => 'Fee Balance Report',
             'icon' => 'bi bi-cash-stack',
-            'subtitle' => 'Term invoiced/paid · combined outstanding balance · siblings grouped',
+            'subtitle' => 'Year + term · outstanding (due) vs upcoming (not yet due) · siblings grouped',
             'actions' => '
                 <div class="d-flex flex-wrap align-items-center gap-2">
                     <div class="form-check mb-0">
@@ -453,7 +453,7 @@
 
         {{-- Summary Cards --}}
         <div class="row g-3 mb-4">
-            <div class="col-md-3">
+            <div class="col-md-4 col-xl">
                 <div class="stat-card border-primary">
                     <div class="stat-value text-primary">{{ $summary['total_students'] }}</div>
                     <div class="stat-label">Total Students</div>
@@ -462,14 +462,14 @@
                     </small>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-4 col-xl">
                 <div class="stat-card border-info">
                     <div class="stat-value text-info">Ksh {{ number_format($summary['total_invoiced'], 0) }}</div>
                     <div class="stat-label">Total Invoiced</div>
                     <small class="text-muted">Selected term (invoiced totals)</small>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-4 col-xl">
                 <div class="stat-card border-success">
                     <div class="stat-value text-success">Ksh {{ number_format($summary['total_paid'], 0) }}</div>
                     <div class="stat-label">Total Collected</div>
@@ -478,12 +478,21 @@
                     </small>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-6 col-xl">
                 <div class="stat-card border-danger">
                     <div class="stat-value text-danger">Ksh {{ number_format($summary['total_balance'], 0) }}</div>
                     <div class="stat-label">Outstanding Balance</div>
                     <small class="text-warning">
-                        <i class="bi bi-exclamation-triangle"></i> {{ $summary['students_with_balance'] }} students owing (year statement)
+                        <i class="bi bi-exclamation-triangle"></i> {{ $summary['students_with_balance'] }} students owing (due only)
+                    </small>
+                </div>
+            </div>
+            <div class="col-md-6 col-xl">
+                <div class="stat-card border-secondary">
+                    <div class="stat-value text-secondary">Ksh {{ number_format($summary['total_upcoming'] ?? 0, 0) }}</div>
+                    <div class="stat-label">Upcoming Balance</div>
+                    <small class="text-muted">
+                        <i class="bi bi-calendar-event"></i> {{ $summary['students_with_upcoming'] ?? 0 }} students not yet due
                     </small>
                 </div>
             </div>
@@ -588,7 +597,12 @@
                 <ul class="nav nav-tabs nav-tabs-finance" role="tablist">
                     <li class="nav-item">
                         <a class="nav-link {{ ($view ?? 'all') == 'all' ? 'active' : '' }}" href="{{ route('finance.fee-balances.index', ['view' => 'all'] + request()->except('view')) }}">
-                            All <span class="badge bg-secondary">{{ $counts['all'] ?? 0 }}</span>
+                            Outstanding <span class="badge bg-danger">{{ $counts['all'] ?? 0 }}</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ ($view ?? 'all') == 'upcoming' ? 'active' : '' }}" href="{{ route('finance.fee-balances.index', ['view' => 'upcoming'] + request()->except('view')) }}">
+                            Upcoming <span class="badge bg-secondary">{{ $counts['upcoming'] ?? 0 }}</span>
                         </a>
                     </li>
                     <li class="nav-item">
@@ -624,12 +638,22 @@
         <div class="finance-filter-card finance-animate shadow-sm rounded-4 border-0 mb-4">
             <form method="GET" action="{{ route('finance.fee-balances.index') }}" class="row g-3">
                 <input type="hidden" name="view" value="{{ $view ?? 'all' }}">
+                <div class="col-md-2">
+                    <label class="finance-form-label">Year</label>
+                    <select name="year" class="finance-form-select" onchange="this.form.submit()">
+                        @foreach($years ?? collect() as $y)
+                            <option value="{{ $y->year }}" {{ (int) ($selectedYear ?? 0) === (int) $y->year ? 'selected' : '' }}>
+                                {{ $y->year }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
                 <div class="col-md-3">
                     <label class="finance-form-label">Term</label>
                     <select name="term_id" class="finance-form-select">
-                        @foreach($terms ?? collect() as $t)
+                        @foreach(($terms ?? collect())->filter(fn ($t) => (int) (optional($t->academicYear)->year ?? 0) === (int) ($selectedYear ?? 0) || !($selectedYear ?? null)) as $t)
                             <option value="{{ $t->id }}" {{ ($selectedTermId ?? null) == $t->id ? 'selected' : '' }}>
-                                {{ $t->name }} ({{ optional($t->academicYear)->year ?? '' }})
+                                {{ $t->name }}
                             </option>
                         @endforeach
                     </select>
@@ -717,7 +741,7 @@
 
             <div class="fee-list finance-animate">
                 @forelse(($familyGroups ?? collect()) as $group)
-                    @include('finance.fee_balances.partials.family_group', ['group' => $group])
+                    @include('finance.fee_balances.partials.family_group', ['group' => $group, 'view' => $view ?? 'all'])
                 @empty
                     <div class="text-center py-5 finance-card rounded-4 border-0">
                         <i class="bi bi-inbox fs-1 text-muted"></i>
@@ -763,7 +787,7 @@
                 </div>
                 <div class="col-md-6">
                     <ul class="mb-0">
-                        <li><strong>Previous terms / this term:</strong> Unpaid invoice balances for earlier terms vs the selected term. <strong>Total owed</strong> is the year statement balance for the student or family.</li>
+                        <li><strong>Invoiced / previous due / this term due / upcoming:</strong> Selected-term charges, due balances from earlier terms, due balance for this term, and not-yet-due balances. <strong>Outstanding</strong> is due/overdue only — upcoming invoices are excluded until their due date.</li>
                         <li><strong>Parents:</strong> Father and mother contacts when both are on file; one contact when only one is recorded. Tap a number to call.</li>
                         <li><strong>Fee notes:</strong> Open from the Fee notes button — a panel on this page, not a new window</li>
                         <li><strong>Term Start:</strong> {{ $currentTerm?->opening_date ? $currentTerm->opening_date->format('M d, Y') : 'Not set' }}</li>

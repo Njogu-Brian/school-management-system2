@@ -31,24 +31,40 @@ class FeeBalanceController extends Controller
      */
     public function index(Request $request)
     {
-        // Get current term - use term_id for alignment with Admin Dashboard
+        // Get current term - use year + term_id for alignment with Admin Dashboard
         $currentTerm = Term::where('is_current', true)->with('academicYear')->first();
-        $termId = $request->input('term_id') ?: $currentTerm?->id;
-        $year = $request->input('year', $currentTerm?->academicYear?->year ?? now()->year);
+        $year = (int) $request->input('year', $currentTerm?->academicYear?->year ?? now()->year);
+        $termId = $request->input('term_id') ?: null;
         $termNumber = $request->input('term', $currentTerm ? $this->extractTermNumber($currentTerm->name) : 1);
-        
-        // Resolve term_id from year+term if not set (for alignment with dashboard)
-        if (!$termId && $year && $termNumber) {
-            $resolvedTerm = Term::whereHas('academicYear', fn($q) => $q->where('year', $year))
-                ->where(function ($q) use ($termNumber) {
-                    $q->where('name', 'like', '%Term ' . $termNumber . '%')
-                      ->orWhere('name', 'like', '% ' . $termNumber);
-                })
-                ->first();
-            $termId = $resolvedTerm?->id;
+
+        $selectedTerm = $termId ? Term::with('academicYear')->find($termId) : null;
+        // If selected term is outside the chosen year (e.g. year dropdown changed), drop it.
+        if ($selectedTerm && (int) optional($selectedTerm->academicYear)->year !== $year) {
+            $selectedTerm = null;
+            $termId = null;
         }
-        
-        $selectedTerm = $termId ? Term::with('academicYear')->find($termId) : $currentTerm;
+
+        if (! $selectedTerm) {
+            $selectedTerm = Term::whereHas('academicYear', fn ($q) => $q->where('year', $year))
+                ->when($termNumber, function ($q) use ($termNumber) {
+                    $q->where(function ($inner) use ($termNumber) {
+                        $inner->where('name', 'like', '%Term '.$termNumber.'%')
+                            ->orWhere('name', 'like', '% '.$termNumber);
+                    });
+                })
+                ->orderBy('opening_date')
+                ->first()
+                ?: Term::whereHas('academicYear', fn ($q) => $q->where('year', $year))
+                    ->orderBy('opening_date')
+                    ->first()
+                ?: $currentTerm;
+            $termId = $selectedTerm?->id;
+        }
+
+        if ($selectedTerm) {
+            $year = (int) (optional($selectedTerm->academicYear)->year ?? $year);
+            $termNumber = $this->extractTermNumber($selectedTerm->name);
+        }
         
         // Get filters
         $classroomId = $request->input('classroom_id');
@@ -61,16 +77,21 @@ class FeeBalanceController extends Controller
         // Build student query (exclude staff-category children — they are not billed like regular fee balances)
         $placementService = app(\App\Services\Academics\StudentPlacementService::class);
         $reportYear = (int) $year;
+        $includeAlumni = $placementService->includesAlumniForYear($reportYear);
 
-        $studentsQuery = Student::query()
-            ->where('archive', 0)
-            ->where('is_alumni', false)
+        // Past years: include learners who were active then (may now be alumni/archived).
+        // Current/future: live active roster only, and future years require a continuing placement.
+        $studentsQuery = ($includeAlumni ? Student::withAlumni() : Student::query())
             ->with(['classroom', 'stream', 'parent', 'family', 'category'])
             ->where(function ($q) {
                 $q->whereDoesntHave('category', function ($cq) {
                     $cq->whereRaw('LOWER(name) = ?', ['staff']);
                 })->orWhereNull('category_id');
             });
+
+        if (! $includeAlumni) {
+            $studentsQuery->where('archive', 0)->where('is_alumni', false);
+        }
         
         // Also exclude children linked via staff user parent_id
         $staffChildIds = $this->getStaffChildStudentIds();
@@ -78,7 +99,7 @@ class FeeBalanceController extends Controller
             $studentsQuery->whereNotIn('id', $staffChildIds);
         }
         
-        // Apply classroom filter by report year (future years use next/pending class)
+        // Scope to students placed for this year (+ optional classroom)
         $placementService->applyClassroomFilter($studentsQuery, $reportYear, $classroomId ? (int) $classroomId : null);
         
         // Get students
@@ -103,18 +124,18 @@ class FeeBalanceController extends Controller
                 ->when(!$termId, fn($q) => $q->where('year', $year)->where('term', $termNumber))
                 ->first();
 
-            // Year-wide figures must match Student Statements (not single-term invoice only).
-            // Prior-term arrears + overpayments were previously invisible here (e.g. Alex Kirika).
+            // Year-wide charges/payments for context; outstanding excludes not-yet-due invoices.
             $yearPack = $statementService->forStudent($student, (int) $year, null);
-            // Outstanding balance = all fees still owing (year-wide statement).
             $yearInvoiced = (float) ($yearPack['total_charges'] ?? 0);
             $yearPaid = (float) ($yearPack['total_payments'] ?? 0);
-            $balance = (float) ($yearPack['closing_balance'] ?? 0);
 
             // Invoiced / paid columns are for the selected term only.
             $termInvoiced = $invoice ? (float) $invoice->total : 0;
             $termPaid = $invoice ? (float) $invoice->paid_amount : 0;
             $termBalance = $invoice ? (float) $invoice->balance : 0;
+            $termIsUpcoming = $invoice
+                ? ! app(\App\Services\StudentFeeLedgerService::class)->invoiceIsDue($invoice)
+                : false;
             
             // Get balance brought forward information
             $balanceBroughtForwardData = $this->getBalanceBroughtForwardData($student, $balanceBroughtForwardVotehead, $invoice, $termBalance);
@@ -158,7 +179,12 @@ class FeeBalanceController extends Controller
                     ? ($student->parent->father_phone ?? $student->parent->mother_phone ?? $student->parent->guardian_phone)
                     : null
             );
-            $split = $termBalances[$student->id] ?? ['current' => 0.0, 'prior' => 0.0];
+            $split = $termBalances[$student->id] ?? [
+                'current' => 0.0,
+                'prior' => 0.0,
+                'upcoming' => 0.0,
+                'outstanding' => 0.0,
+            ];
             $familyNoteCount = $student->family_id ? (int) ($noteCounts['family'][$student->family_id] ?? 0) : 0;
             $studentNoteCount = (int) ($noteCounts['student'][$student->id] ?? 0);
 
@@ -174,6 +200,11 @@ class FeeBalanceController extends Controller
             if ($yearPlacement && ! empty($yearPlacement['stream_id']) && (int) $yearPlacement['stream_id'] !== (int) $student->stream_id) {
                 $displayStreamName = \App\Models\Academics\Stream::find($yearPlacement['stream_id'])?->name;
             }
+
+            // Legacy BBF (not on an invoice) counts as outstanding; invoice BBF is already in split.
+            $legacyBbf = max(0.0, (float) StudentBalanceService::getBalanceBroughtForward($student));
+            $outstanding = round((float) ($split['outstanding'] ?? 0) + $legacyBbf, 2);
+            $upcoming = round((float) ($split['upcoming'] ?? 0), 2);
             
             return [
                 'id' => $student->id,
@@ -196,8 +227,10 @@ class FeeBalanceController extends Controller
                 'term_invoiced' => $termInvoiced,
                 'term_paid' => $termPaid,
                 'term_balance' => $termBalance,
+                'term_is_upcoming' => $termIsUpcoming,
                 'current_term_balance' => round((float) ($split['current'] ?? 0), 2),
                 'prior_term_balance' => round((float) ($split['prior'] ?? 0), 2),
+                'upcoming_balance' => $upcoming,
                 'own_note_count' => $studentNoteCount,
                 'family_note_count' => $familyNoteCount,
                 'note_count' => $studentNoteCount + $familyNoteCount,
@@ -213,12 +246,14 @@ class FeeBalanceController extends Controller
                 'paid_in_term_period' => (float) ($payStats['paid_in_term_period'] ?? 0),
                 'last_payment_date' => $payStats['last_payment_date'] ?? null,
                 'last_payment_amount' => (float) ($payStats['last_payment_amount'] ?? 0),
-                // Outstanding = combined all fees still owing (year statement)
-                'balance' => $balance,
+                // Outstanding = due/overdue only (upcoming excluded)
+                'balance' => $outstanding,
                 'year_invoiced' => $yearInvoiced,
                 'year_paid' => $yearPaid,
-                'balance_percentage' => $yearInvoiced > 0 ? round((max($balance, 0) / $yearInvoiced) * 100, 1) : 0,
-                'payment_status' => $this->getPaymentStatus($yearInvoiced, $yearPaid, $balance),
+                'balance_percentage' => $yearInvoiced > 0
+                    ? round((max($outstanding, 0) / $yearInvoiced) * 100, 1)
+                    : 0,
+                'payment_status' => $this->getPaymentStatus($yearInvoiced, $yearPaid, $outstanding, $upcoming),
                 'attendance_days' => $attendanceData['total_days'],
                 'days_present' => $attendanceData['present'],
                 'days_absent' => $attendanceData['absent'],
@@ -340,9 +375,11 @@ class FeeBalanceController extends Controller
             });
         }
         
-        // Categorize students
+        // Categorize students (cleared = no outstanding and no upcoming left)
         $clearedStudents = $filteredStudents->filter(function ($s) {
-            return abs((float) ($s['balance'] ?? 0)) <= 0.009 && ($s['year_invoiced'] ?? 0) > 0;
+            return abs((float) ($s['balance'] ?? 0)) <= 0.009
+                && (float) ($s['upcoming_balance'] ?? 0) <= 0.009
+                && ($s['year_invoiced'] ?? 0) > 0;
         });
         
         $partialStudents = $filteredStudents->filter(function ($s) {
@@ -362,12 +399,17 @@ class FeeBalanceController extends Controller
             return !$s['is_in_school'];
         });
         
-        // Get view filter (all, cleared, partial, unpaid-present, unpaid-absent, with-bbf)
+        $upcomingStudents = $filteredStudents->filter(fn ($s) => (float) ($s['upcoming_balance'] ?? 0) > 0.009);
+
+        // Get view filter (all, upcoming, cleared, partial, unpaid-present, unpaid-absent, with-bbf)
         $view = $request->input('view', 'all');
         
         // Filter students based on view
         $displayStudents = collect();
         switch ($view) {
+            case 'upcoming':
+                $displayStudents = $upcomingStudents;
+                break;
             case 'cleared':
                 $displayStudents = $clearedStudents;
                 break;
@@ -387,13 +429,13 @@ class FeeBalanceController extends Controller
                 });
                 break;
             default:
-                // All = outstanding balances only (hide cleared and overpayments)
+                // All = outstanding (due) balances only — never upcoming
                 $displayStudents = $filteredStudents->filter(function ($s) {
                     return (float) ($s['balance'] ?? 0) > 0.009;
                 });
         }
         
-        // Calculate summary — outstanding uses ONE definition: sum of positive year balances only.
+        // Calculate summary — outstanding = due only; upcoming tracked separately.
         $owingStudents = $filteredStudents->filter(fn ($s) => (float) ($s['balance'] ?? 0) > 0.009);
         $owingInSchool = $owingStudents->filter(fn ($s) => !empty($s['is_in_school']));
 
@@ -404,7 +446,9 @@ class FeeBalanceController extends Controller
             'total_invoiced' => $filteredStudents->sum('total_invoiced'),
             'total_paid' => $filteredStudents->sum('total_paid'),
             'total_balance' => round((float) $owingStudents->sum('balance'), 2),
+            'total_upcoming' => round((float) $upcomingStudents->sum('upcoming_balance'), 2),
             'students_with_balance' => $owingStudents->count(),
+            'students_with_upcoming' => $upcomingStudents->count(),
             'students_cleared' => $clearedStudents->count(),
             'students_partial' => $partialStudents->count(),
             'students_unpaid' => $unpaidStudents->count(),
@@ -427,6 +471,7 @@ class FeeBalanceController extends Controller
         // Calculate counts for tabs
         $counts = [
             'all' => $owingStudents->count(),
+            'upcoming' => $upcomingStudents->count(),
             'cleared' => $clearedStudents->count(),
             'partial' => $partialStudents->count(),
             'unpaid-present' => $unpaidPresent->count(),
@@ -842,8 +887,10 @@ class FeeBalanceController extends Controller
                 'total_paid' => (float) $children->sum('term_paid'),
                 'prior_term_balance' => round((float) $children->sum('prior_term_balance'), 2),
                 'current_term_balance' => round((float) $children->sum('current_term_balance'), 2),
+                'upcoming_balance' => round((float) $children->sum('upcoming_balance'), 2),
                 'paid_in_term_period' => (float) $children->sum('paid_in_term_period'),
                 'balance' => (float) $children->sum('balance'),
+                'term_invoiced' => (float) $children->sum('term_invoiced'),
                 'last_promised' => $lastPromised,
                 'fiscal_task' => $fiscalTask,
                 'children' => $children,
@@ -854,9 +901,9 @@ class FeeBalanceController extends Controller
     }
 
     /**
-     * Positive invoice balances split into the selected term and earlier terms in the same year.
+     * Positive invoice balances for the year, split into due (outstanding) vs not-yet-due (upcoming).
      *
-     * @return array<int, array{current: float, prior: float}>
+     * @return array<int, array{current: float, prior: float, upcoming: float, outstanding: float}>
      */
     private function loadTermInvoiceBalances(Collection $students, int $year, ?int $termId, int $termNumber): array
     {
@@ -865,18 +912,33 @@ class FeeBalanceController extends Controller
             return [];
         }
 
+        $ledger = app(\App\Services\StudentFeeLedgerService::class);
         $invoices = Invoice::query()
             ->notReversed()
             ->whereIn('student_id', $studentIds)
             ->where('year', $year)
-            ->get(['student_id', 'term_id', 'term', 'year', 'balance']);
+            ->with('term')
+            ->get(['id', 'student_id', 'term_id', 'term', 'year', 'balance', 'due_date', 'status']);
 
         $split = [];
         foreach ($invoices as $invoice) {
             $studentId = (int) $invoice->student_id;
             $balance = max(0, (float) $invoice->balance);
+            if ($balance <= 0.009) {
+                continue;
+            }
             if (!isset($split[$studentId])) {
-                $split[$studentId] = ['current' => 0.0, 'prior' => 0.0];
+                $split[$studentId] = [
+                    'current' => 0.0,
+                    'prior' => 0.0,
+                    'upcoming' => 0.0,
+                    'outstanding' => 0.0,
+                ];
+            }
+
+            if (! $ledger->invoiceIsDue($invoice)) {
+                $split[$studentId]['upcoming'] += $balance;
+                continue;
             }
 
             $isCurrent = false;
@@ -891,6 +953,7 @@ class FeeBalanceController extends Controller
             } else {
                 $split[$studentId]['prior'] += $balance;
             }
+            $split[$studentId]['outstanding'] += $balance;
         }
 
         return $split;
@@ -1091,10 +1154,15 @@ class FeeBalanceController extends Controller
     /**
      * Get payment status label
      */
-    private function getPaymentStatus($invoiced, $paid, $balance): string
+    private function getPaymentStatus($invoiced, $paid, $balance, $upcoming = 0): string
     {
         if ($invoiced == 0) {
             return 'not_invoiced';
+        }
+
+        // Not-yet-due balances are upcoming, not outstanding unpaid.
+        if ((float) $balance <= 0.009 && (float) $upcoming > 0.009) {
+            return 'upcoming';
         }
         
         if ($balance <= 0) {
@@ -1227,7 +1295,7 @@ class FeeBalanceController extends Controller
             
             $headers = ['Family ID', 'Admission No', 'Student Name', 'Class', 'Stream', 'Father Name', 'Father Phone', 'Mother Name', 'Mother Phone', 'Last Promised', 'Fiscal Task'];
             if ($includeAmounts) {
-                $headers = array_merge($headers, ['Term Invoiced', 'Term Paid', 'Previous Term Balance', 'Current Term Balance', 'Total Owed', 'Balance %', 'Payment Status', 'BBF Outstanding', 'Days in School', 'Days Present', 'Days Absent', 'Attendance %', 'In School', 'Has Payment Plan', 'Plan Status', 'Next Installment']);
+                $headers = array_merge($headers, ['Term Invoiced', 'Term Paid', 'Previous Due', 'Current Term Due', 'Upcoming', 'Outstanding', 'Balance %', 'Payment Status', 'BBF Outstanding', 'Days in School', 'Days Present', 'Days Absent', 'Attendance %', 'In School', 'Has Payment Plan', 'Plan Status', 'Next Installment']);
             }
             fputcsv($handle, $headers);
 
@@ -1253,6 +1321,7 @@ class FeeBalanceController extends Controller
                             number_format($group['total_paid'], 2),
                             number_format($group['prior_term_balance'] ?? 0, 2),
                             number_format($group['current_term_balance'] ?? 0, 2),
+                            number_format($group['upcoming_balance'] ?? 0, 2),
                             number_format($group['balance'], 2),
                             '',
                             'Family',
@@ -1294,6 +1363,7 @@ class FeeBalanceController extends Controller
                             number_format($student['term_paid'] ?? $student['total_paid'], 2),
                             number_format($student['prior_term_balance'] ?? 0, 2),
                             number_format($student['current_term_balance'] ?? 0, 2),
+                            number_format($student['upcoming_balance'] ?? 0, 2),
                             number_format($student['balance'], 2),
                             $student['balance_percentage'] . '%',
                             ucfirst(str_replace('_', ' ', $student['payment_status'])),

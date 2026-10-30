@@ -19,16 +19,25 @@
         'paid' => 'success',
         'partial' => 'warning',
         'unpaid' => 'danger',
+        'upcoming' => 'info',
         'not_invoiced' => 'secondary',
     ];
     $statusColor = $statusColors[$student['payment_status']] ?? 'secondary';
+    $statusLabel = match ($student['payment_status'] ?? '') {
+        'upcoming' => 'Upcoming unpaid',
+        'paid' => 'Cleared',
+        default => ucfirst(str_replace('_', ' ', $student['payment_status'] ?? 'unknown')),
+    };
+    $displayOwed = (($view ?? request('view', 'all')) === 'upcoming')
+        ? (float) ($student['upcoming_balance'] ?? 0)
+        : (float) ($student['balance'] ?? 0);
 @endphp
 
 <div class="fee-child-card {{ $inFamilyGroup ? 'is-child' : '' }} {{ $student['is_in_school'] && $student['balance'] > 1000 ? 'highlight-row' : '' }}">
     <div class="fee-child-identity">
         <div class="fee-child-name-row">
             <strong class="fee-child-name">{{ $student['full_name'] }}</strong>
-            <span class="finance-badge badge-{{ $statusColor }}">{{ ucfirst(str_replace('_', ' ', $student['payment_status'])) }}</span>
+            <span class="finance-badge badge-{{ $statusColor }}">{{ $statusLabel }}</span>
         </div>
         <div class="fee-child-sub">
             <span class="fee-adm">{{ $student['admission_number'] }}</span>
@@ -45,17 +54,25 @@
 
     <div class="fee-child-figures">
         <div class="fee-metric">
-            <span class="fee-metric-label">Previous terms</span>
+            <span class="fee-metric-label">Invoiced</span>
+            <span class="fee-metric-value">Ksh {{ number_format($student['term_invoiced'] ?? $student['total_invoiced'] ?? 0, 0) }}</span>
+        </div>
+        <div class="fee-metric">
+            <span class="fee-metric-label">Previous due</span>
             <span class="fee-metric-value">Ksh {{ number_format($student['prior_term_balance'] ?? 0, 0) }}</span>
         </div>
         <div class="fee-metric">
-            <span class="fee-metric-label">This term</span>
+            <span class="fee-metric-label">This term due</span>
             <span class="fee-metric-value">Ksh {{ number_format($student['current_term_balance'] ?? 0, 0) }}</span>
         </div>
+        <div class="fee-metric">
+            <span class="fee-metric-label">Upcoming</span>
+            <span class="fee-metric-value">Ksh {{ number_format($student['upcoming_balance'] ?? 0, 0) }}</span>
+        </div>
         <div class="fee-metric fee-metric-emphasis">
-            <span class="fee-metric-label">Total owed</span>
-            <span class="fee-metric-value {{ $student['balance'] > 0 ? 'text-danger' : 'text-success' }}">
-                Ksh {{ number_format($student['balance'], 0) }}
+            <span class="fee-metric-label">{{ (($view ?? request('view', 'all')) === 'upcoming') ? 'Upcoming balance' : 'Outstanding' }}</span>
+            <span class="fee-metric-value {{ $displayOwed > 0 ? 'text-danger' : 'text-success' }}">
+                Ksh {{ number_format($displayOwed, 0) }}
             </span>
         </div>
     </div>

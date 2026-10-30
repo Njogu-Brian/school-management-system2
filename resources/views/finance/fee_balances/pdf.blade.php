@@ -172,9 +172,9 @@
                     <th style="width: {{ $includeAmounts ?? true ? '18%' : '26%' }};">Child's Name</th>
                     <th style="width: {{ $includeAmounts ?? true ? '10%' : '14%' }};">Adm No</th>
                     @if($includeAmounts ?? true)
-                    <th style="width: 11%;" class="text-end">Previous</th>
-                    <th style="width: 11%;" class="text-end">This term</th>
-                    <th style="width: 12%;" class="text-end">Total owed</th>
+                    <th style="width: 11%;" class="text-end">Previous due</th>
+                    <th style="width: 11%;" class="text-end">This term due</th>
+                    <th style="width: 12%;" class="text-end">Outstanding</th>
                     @endif
                     <th style="width: 11%;">Last Promised</th>
                     <th style="width: 10%;">Fiscal Task</th>

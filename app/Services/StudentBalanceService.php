@@ -13,11 +13,14 @@ class StudentBalanceService
     /**
      * Get total outstanding balance for a student including balance brought forward from legacy data.
      *
+     * Outstanding = due / overdue invoices only. Not-yet-due (upcoming) invoices are excluded by default.
+     * Pass $dueOnly = false only when you need the full fee ledger (e.g. payment allocation / prepay).
+     *
      * @param Student|int $student Student model or ID
      * @param bool $dueOnly If true, only include invoices with due_date <= today (exclude not-yet-due)
      * @return float Total outstanding balance (invoices balance + balance brought forward)
      */
-    public static function getTotalOutstandingBalance($student, bool $dueOnly = false): float
+    public static function getTotalOutstandingBalance($student, bool $dueOnly = true): float
     {
         $studentModel = $student instanceof Student ? $student : Student::find($student);
         if (!$studentModel) {
@@ -29,6 +32,27 @@ class StudentBalanceService
         $ledger = app(StudentFeeLedgerService::class)->snapshot((int) $studentModel->id, $dueOnly);
 
         return $ledger['balance'] + $balanceBroughtForward;
+    }
+
+    /**
+     * Sum of unpaid balances on invoices that are not yet due (upcoming).
+     */
+    public static function getUpcomingBalance($student): float
+    {
+        $studentModel = $student instanceof Student ? $student : Student::find($student);
+        if (!$studentModel) {
+            return 0.0;
+        }
+
+        $ledger = app(StudentFeeLedgerService::class)->snapshot((int) $studentModel->id, false);
+        $upcoming = 0.0;
+        foreach ($ledger['invoices'] as $row) {
+            if (empty($row['due']) && ($row['balance'] ?? 0) > 0.009) {
+                $upcoming = round($upcoming + (float) $row['balance'], 2);
+            }
+        }
+
+        return $upcoming;
     }
 
     /**

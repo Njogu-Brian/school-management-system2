@@ -84,15 +84,23 @@
             </div>
             <div class="fee-family-totals">
                 <div class="fee-metric">
-                    <span class="fee-metric-label">Previous terms</span>
+                    <span class="fee-metric-label">Invoiced</span>
+                    <span class="fee-metric-value">Ksh {{ number_format($group['term_invoiced'] ?? $group['total_invoiced'] ?? 0, 0) }}</span>
+                </div>
+                <div class="fee-metric">
+                    <span class="fee-metric-label">Previous due</span>
                     <span class="fee-metric-value">Ksh {{ number_format($group['prior_term_balance'] ?? 0, 0) }}</span>
                 </div>
                 <div class="fee-metric">
-                    <span class="fee-metric-label">This term</span>
+                    <span class="fee-metric-label">This term due</span>
                     <span class="fee-metric-value">Ksh {{ number_format($group['current_term_balance'] ?? 0, 0) }}</span>
                 </div>
+                <div class="fee-metric">
+                    <span class="fee-metric-label">Upcoming</span>
+                    <span class="fee-metric-value">Ksh {{ number_format($group['upcoming_balance'] ?? 0, 0) }}</span>
+                </div>
                 <div class="fee-metric fee-metric-emphasis">
-                    <span class="fee-metric-label">Total owed</span>
+                    <span class="fee-metric-label">Outstanding</span>
                     <span class="fee-metric-value {{ ($group['balance'] ?? 0) > 0 ? 'text-danger' : 'text-success' }}">
                         Ksh {{ number_format($group['balance'], 0) }}
                     </span>
@@ -112,6 +120,7 @@
             @include('finance.fee_balances.partials.student_row', [
                 'student' => $student,
                 'inFamilyGroup' => $isFamily,
+                'view' => $view ?? request('view', 'all'),
             ])
         @endforeach
     </div>

@@ -30,16 +30,19 @@ class FinanceTermKpiService
             $q->where('name', 'like', '%swim%')->orWhere('code', 'like', '%SWIM%');
         })->pluck('id')->toArray();
 
-        // Archived and alumni students stay out of every total, even when an
-        // old invoice is still unpaid. Student global scope enforces that.
+        $term->loadMissing('academicYear');
+        $year = (int) ($term->academicYear->year ?? now()->year);
+        $placement = app(\App\Services\Academics\StudentPlacementService::class);
+        $scopeStudentIds = $placement->studentIdsForYear($year) ?: [0];
+
+        // Scope invoices to students placed for this year (excludes alumni/leavers from future years;
+        // past years include learners who were active then).
         $termInvoiceIds = Invoice::where('term_id', $term->id)
             ->whereNull('reversed_at')
             ->whereNull('deleted_at')
-            ->whereHas('student')
+            ->whereIn('student_id', $scopeStudentIds)
             ->pluck('id');
 
-        $term->loadMissing('academicYear');
-        $year = (int) ($term->academicYear->year ?? now()->year);
         $schoolOutstanding = app(StudentFeeStatementService::class)->schoolOutstandingSummary($year);
 
         if ($termInvoiceIds->isEmpty()) {
@@ -80,7 +83,9 @@ class FinanceTermKpiService
             'total_invoiced' => round($totalInvoiced, 2),
             'fees_collected' => round($feesCollected, 2),
             'fees_outstanding' => round((float) $schoolOutstanding['total_outstanding'], 2),
+            'fees_upcoming' => round((float) ($schoolOutstanding['total_upcoming'] ?? 0), 2),
             'students_owing' => (int) $schoolOutstanding['students_owing'],
+            'students_upcoming' => (int) ($schoolOutstanding['students_upcoming'] ?? 0),
             'fees_overdue' => round($feesOverdue, 2),
         ];
     }
@@ -95,7 +100,9 @@ class FinanceTermKpiService
             'total_invoiced' => 0.0,
             'fees_collected' => 0.0,
             'fees_outstanding' => round((float) ($schoolOutstanding['total_outstanding'] ?? 0), 2),
+            'fees_upcoming' => round((float) ($schoolOutstanding['total_upcoming'] ?? 0), 2),
             'students_owing' => (int) ($schoolOutstanding['students_owing'] ?? 0),
+            'students_upcoming' => (int) ($schoolOutstanding['students_upcoming'] ?? 0),
             'fees_overdue' => 0.0,
         ];
     }

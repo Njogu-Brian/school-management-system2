@@ -135,8 +135,8 @@
             <div class="finance-card finance-animate h-100 shadow-sm rounded-4 border-0">
                 <div class="finance-card-body text-center p-4">
                     <h6 class="finance-muted mb-2">Status</h6>
-                    <span class="finance-badge badge-{{ $invoice->status === 'paid' ? 'paid' : ($invoice->status === 'partial' ? 'partial' : ($invoice->status === 'reversed' ? 'reversed' : 'unpaid')) }} fs-6">
-                        {{ ucfirst($invoice->status) }}
+                    <span class="finance-badge badge-{{ $invoice->displayStatusBadgeClass() }} fs-6">
+                        {{ $invoice->displayStatusLabel() }}
                     </span>
                 </div>
             </div>
