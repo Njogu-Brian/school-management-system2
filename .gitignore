@@ -95,3 +95,29 @@ mobile-app/package.json.*
 /scripts/generate_section_timetables.py
 /scripts/revise_fee_communications_review.py
 /scripts/prepare_cashbook_*.py
+
+# Cursor local IDE settings (keep tracked rules/skills)
+.cursor/settings.json
+.cursor/*.log
+
+# Firebase / Expo mobile secrets
+**/google-services.json
+**/GoogleService-Info.plist
+
+# DomPDF generated font metrics (regenerated locally)
+/storage/fonts/*.ufm.json
+/storage/fonts/*-Bold.ufm.json
+
+# Root one-off PDFs / newsletters (keep on disk)
+/Learning_Requirements_*.pdf
+/Royal_Kings_*.pdf
+/*.pdf
+
+# Local one-off generator scripts and assets
+/scripts/create_buying_pricelist_pdf.py
+/scripts/create_stationery_pricelist.py
+/scripts/generate_2027_newsletter.py
+/scripts/royal_kings_logo.png
+
+# Experimental local motion-poster app
+/motion-poster/
