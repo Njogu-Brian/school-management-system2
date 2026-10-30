@@ -57,14 +57,18 @@ class StudentPlacementService
     }
 
     /**
+     * Current-year placement. Prefer the still-current-year base class when live
+     * membership was advanced early for a not-yet-effective promotion.
+     *
      * @return array{classroom_id:?int,stream_id:?int,classroom_name:string,source:string,used_next_class:bool}
      */
     public function resolveLivePlacement(Student $student): array
     {
         $student->loadMissing(['classroom']);
-        $current = $student->classroom;
+        $base = $this->currentYearBaseClassroom($student);
+        $scheduled = $this->latestScheduledPromotion($student);
 
-        if (! $current) {
+        if (! $base) {
             return [
                 'classroom_id' => null,
                 'stream_id' => $student->stream_id ? (int) $student->stream_id : null,
@@ -74,17 +78,30 @@ class StudentPlacementService
             ];
         }
 
+        $streamId = $student->stream_id ? (int) $student->stream_id : null;
+        if (
+            $scheduled
+            && $scheduled->applied_at !== null
+            && (int) $student->classroom_id === (int) ($scheduled->next_classroom_id ?? 0)
+            && $scheduled->stream_id
+        ) {
+            $streamId = (int) $scheduled->stream_id;
+        }
+
         return [
-            'classroom_id' => (int) $current->id,
-            'stream_id' => $student->stream_id ? (int) $student->stream_id : null,
-            'classroom_name' => (string) $current->name,
-            'source' => 'live',
+            'classroom_id' => (int) $base->id,
+            'stream_id' => $streamId,
+            'classroom_name' => (string) $base->name,
+            'source' => ((int) ($student->classroom_id ?? 0) === (int) $base->id) ? 'live' : 'current_year_base',
             'used_next_class' => false,
         ];
     }
 
     /**
-     * Future-year placement: pending promotion next class, else mapped next class.
+     * Future-year placement: exactly one hop from the current calendar-year class.
+     *
+     * Never bills next(next(...)) when live membership was moved early — base class is
+     * the still-current year class (pending/from), then nextClass is applied once.
      *
      * @return array{classroom_id:?int,stream_id:?int,classroom_name:string,source:string,used_next_class:bool}
      *
@@ -100,14 +117,7 @@ class StudentPlacementService
             );
         }
 
-        $pending = StudentAcademicHistory::query()
-            ->where('student_id', $student->id)
-            ->whereNull('applied_at')
-            ->whereIn('promotion_status', ['promoted', 'graduated'])
-            ->whereNotNull('next_classroom_id')
-            ->orderByDesc('id')
-            ->first();
-
+        $pending = $this->latestScheduledPromotion($student);
         if ($pending && $pending->next_classroom_id) {
             $next = Classroom::withoutGlobalScope('offered')->find($pending->next_classroom_id);
             if ($next) {
@@ -121,28 +131,85 @@ class StudentPlacementService
             }
         }
 
-        $student->loadMissing(['classroom.nextClass']);
-        $current = $student->classroom;
-        if (! $current) {
+        $base = $this->currentYearBaseClassroom($student);
+        if (! $base) {
             throw new \InvalidArgumentException(
                 "Cannot resolve {$year} placement for {$name}: no current class assigned."
             );
         }
 
-        $next = $current->nextClass;
+        $base->loadMissing('nextClass');
+        $next = $base->nextClass;
         if (! $next) {
             throw new \InvalidArgumentException(
-                "Cannot resolve {$year} placement for {$name}: {$current->name} has no next class mapped (leaving / last class)."
+                "Cannot resolve {$year} placement for {$name}: {$base->name} has no next class mapped (leaving / last class)."
             );
+        }
+
+        $streamId = null;
+        if ($pending && (int) $pending->classroom_id === (int) $base->id && $pending->next_stream_id) {
+            $streamId = (int) $pending->next_stream_id;
+        } else {
+            $streamId = $this->matchingStreamId($student->stream_id, (int) $next->id);
         }
 
         return [
             'classroom_id' => (int) $next->id,
-            'stream_id' => $this->matchingStreamId($student->stream_id, (int) $next->id),
+            'stream_id' => $streamId,
             'classroom_name' => (string) $next->name,
-            'source' => 'next_class_map',
+            'source' => 'next_of_current_year_base',
             'used_next_class' => true,
         ];
+    }
+
+    /**
+     * Class the student still belongs to for the current calendar year.
+     * If live pointer already advanced for a not-yet-effective promotion, use the from-class.
+     */
+    public function currentYearBaseClassroom(Student $student): ?Classroom
+    {
+        $student->loadMissing('classroom');
+
+        $scheduled = $this->latestScheduledPromotion($student);
+        if ($scheduled && $scheduled->classroom_id) {
+            // Live already on destination before effective date → treat from-class as current year.
+            if (
+                $scheduled->applied_at !== null
+                && $scheduled->next_classroom_id
+                && (int) $student->classroom_id === (int) $scheduled->next_classroom_id
+            ) {
+                return Classroom::withoutGlobalScope('offered')->find($scheduled->classroom_id);
+            }
+
+            // Pending (not applied): from-class is authoritative for current year.
+            if ($scheduled->applied_at === null) {
+                return Classroom::withoutGlobalScope('offered')->find($scheduled->classroom_id)
+                    ?? $student->classroom;
+            }
+        }
+
+        return $student->classroom;
+    }
+
+    /**
+     * Latest promotion/graduation that is still scheduled for a future effective date
+     * (pending apply, or applied early before effective_date).
+     */
+    public function latestScheduledPromotion(Student $student): ?StudentAcademicHistory
+    {
+        return StudentAcademicHistory::query()
+            ->where('student_id', $student->id)
+            ->whereIn('promotion_status', ['promoted', 'graduated'])
+            ->whereNotNull('classroom_id')
+            ->where(function ($q) {
+                $q->whereNull('applied_at')
+                    ->orWhere(function ($inner) {
+                        $inner->whereNotNull('effective_date')
+                            ->whereDate('effective_date', '>', now()->toDateString());
+                    });
+            })
+            ->orderByDesc('id')
+            ->first();
     }
 
     /**
@@ -208,15 +275,53 @@ class StudentPlacementService
         $current = $this->calendarYear();
 
         if ($year === $current) {
-            $query = Student::query()
-                ->with('stream:id,name')
+            $liveIds = Student::query()
                 ->where('classroom_id', $classroomId)
                 ->where('archive', 0)
                 ->where('is_alumni', false)
                 ->whereNull('archived_at')
-                ->when($streamId, fn ($q) => $q->where('stream_id', $streamId));
+                ->when($streamId, fn ($q) => $q->where('stream_id', $streamId))
+                ->pluck('id');
 
-            return $query->orderBy('admission_number')->get();
+            // Include learners whose live pointer moved early but current-year base is this class.
+            $prematureIds = StudentAcademicHistory::query()
+                ->where('classroom_id', $classroomId)
+                ->whereIn('promotion_status', ['promoted', 'graduated'])
+                ->where(function ($q) {
+                    $q->whereNull('applied_at')
+                        ->orWhere(function ($inner) {
+                            $inner->whereNotNull('effective_date')
+                                ->whereDate('effective_date', '>', now()->toDateString());
+                        });
+                })
+                ->when($streamId, fn ($q) => $q->where('stream_id', $streamId))
+                ->pluck('student_id');
+
+            $ids = $liveIds->merge($prematureIds)->unique()->filter()->values();
+            if ($ids->isEmpty()) {
+                return collect();
+            }
+
+            return Student::query()
+                ->with('stream:id,name')
+                ->whereIn('id', $ids)
+                ->where('archive', 0)
+                ->where('is_alumni', false)
+                ->whereNull('archived_at')
+                ->orderBy('admission_number')
+                ->get()
+                ->filter(function (Student $student) use ($classroomId, $year, $streamId) {
+                    $placement = $this->forYear($student, $year);
+                    if ((int) ($placement['classroom_id'] ?? 0) !== $classroomId) {
+                        return false;
+                    }
+                    if ($streamId && (int) ($placement['stream_id'] ?? 0) !== $streamId) {
+                        return false;
+                    }
+
+                    return true;
+                })
+                ->values();
         }
 
         if ($year > $current) {
@@ -410,10 +515,17 @@ class StudentPlacementService
 
     private function studentsForFutureClassroom(int $classroomId, int $year, ?int $streamId): Collection
     {
-        $pendingIds = StudentAcademicHistory::query()
-            ->whereNull('applied_at')
+        // Pending or early-applied promotions targeting this classroom.
+        $scheduledIds = StudentAcademicHistory::query()
             ->whereIn('promotion_status', ['promoted', 'graduated'])
             ->where('next_classroom_id', $classroomId)
+            ->where(function ($q) {
+                $q->whereNull('applied_at')
+                    ->orWhere(function ($inner) {
+                        $inner->whereNotNull('effective_date')
+                            ->whereDate('effective_date', '>', now()->toDateString());
+                    });
+            })
             ->when($streamId, fn ($q) => $q->where('next_stream_id', $streamId))
             ->pluck('student_id');
 
@@ -421,14 +533,27 @@ class StudentPlacementService
             ->where('next_class_id', $classroomId)
             ->pluck('id');
 
-        $mappedIds = Student::query()
+        // Candidates whose live OR current-year base class maps to this next class.
+        $liveMappedIds = Student::query()
             ->whereIn('classroom_id', $sourceClassIds)
             ->where('archive', 0)
             ->where('is_alumni', false)
             ->whereNull('archived_at')
             ->pluck('id');
 
-        $ids = $pendingIds->merge($mappedIds)->unique()->filter()->values();
+        $baseMappedIds = StudentAcademicHistory::query()
+            ->whereIn('classroom_id', $sourceClassIds)
+            ->whereIn('promotion_status', ['promoted', 'graduated'])
+            ->where(function ($q) {
+                $q->whereNull('applied_at')
+                    ->orWhere(function ($inner) {
+                        $inner->whereNotNull('effective_date')
+                            ->whereDate('effective_date', '>', now()->toDateString());
+                    });
+            })
+            ->pluck('student_id');
+
+        $ids = $scheduledIds->merge($liveMappedIds)->merge($baseMappedIds)->unique()->filter()->values();
 
         if ($ids->isEmpty()) {
             return collect();
