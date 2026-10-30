@@ -428,23 +428,21 @@ class ParentInfo extends Model
 
     public function getPrimaryContactNameAttribute(): ?string
     {
-        return $this->father_name
-            ?? $this->mother_name
-            ?? $this->guardian_name;
+        // Mother first, then father. Guardian is informational only.
+        return $this->mother_name
+            ?? $this->father_name;
     }
 
     public function getPrimaryContactPhoneAttribute(): ?string
     {
-        return $this->father_phone
-            ?? $this->mother_phone
-            ?? $this->guardian_phone;
+        return $this->mother_phone
+            ?? $this->father_phone;
     }
 
     public function getPrimaryContactEmailAttribute(): ?string
     {
-        return $this->father_email
-            ?? $this->mother_email
-            ?? $this->guardian_email;
+        return $this->mother_email
+            ?? $this->father_email;
     }
 
     public function documents()

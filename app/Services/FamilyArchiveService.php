@@ -84,9 +84,9 @@ class FamilyArchiveService
             $phone = null;
             $email = null;
             if ($p) {
-                $guardianName = $p->guardian_name ?? $p->father_name ?? $p->mother_name ?? $guardianName;
-                $phone = $p->guardian_phone ?? $p->father_phone ?? $p->mother_phone;
-                $email = $p->guardian_email ?? $p->father_email ?? $p->mother_email;
+                $guardianName = $p->mother_name ?? $p->father_name ?? $p->guardian_name ?? $guardianName;
+                $phone = $p->mother_phone ?? $p->father_phone ?? $p->guardian_phone;
+                $email = $p->mother_email ?? $p->father_email ?? $p->guardian_email;
             }
 
             $family = Family::create([

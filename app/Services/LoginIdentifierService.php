@@ -153,8 +153,7 @@ class LoginIdentifierService
             $parent = ParentInfo::query()
                 ->where(function ($q) use ($email) {
                     $q->whereRaw('LOWER(TRIM(father_email)) = ?', [$email])
-                        ->orWhereRaw('LOWER(TRIM(mother_email)) = ?', [$email])
-                        ->orWhereRaw('LOWER(TRIM(guardian_email)) = ?', [$email]);
+                        ->orWhereRaw('LOWER(TRIM(mother_email)) = ?', [$email]);
                 })
                 ->first();
             if (! $parent) {
@@ -163,7 +162,7 @@ class LoginIdentifierService
             $slot = match (true) {
                 strtolower(trim((string) $parent->father_email)) === $email => 'father',
                 strtolower(trim((string) $parent->mother_email)) === $email => 'mother',
-                default => 'guardian',
+                default => 'mother',
             };
 
             return ['parent' => $parent, 'slot' => $slot];
@@ -174,10 +173,10 @@ class LoginIdentifierService
             return null;
         }
 
+        // Guardian phones/emails are informational only — never used for login matching.
         $columns = [
             'father' => ['father_phone', 'father_whatsapp'],
             'mother' => ['mother_phone', 'mother_whatsapp'],
-            'guardian' => ['guardian_phone', 'guardian_whatsapp'],
         ];
 
         $query = ParentInfo::query()->where(function ($q) use ($needle, $columns) {
@@ -320,14 +319,11 @@ class LoginIdentifierService
             $emails[] = (string) ($parent->father_email ?? '');
             $phones[] = (string) ($parent->father_phone ?? '');
             $phones[] = (string) ($parent->father_whatsapp ?? '');
-        } elseif ($slot === 'mother') {
+        } else {
+            // Mother (guardian is never a login slot)
             $emails[] = (string) ($parent->mother_email ?? '');
             $phones[] = (string) ($parent->mother_phone ?? '');
             $phones[] = (string) ($parent->mother_whatsapp ?? '');
-        } else {
-            $emails[] = (string) ($parent->guardian_email ?? '');
-            $phones[] = (string) ($parent->guardian_phone ?? '');
-            $phones[] = (string) ($parent->guardian_whatsapp ?? '');
         }
 
         $emails = array_values(array_filter($emails));

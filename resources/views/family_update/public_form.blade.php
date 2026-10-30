@@ -736,7 +736,7 @@
                                     @endif
                             </div>
 
-                            @include('students.partials.kemis_parent_identity_fields', ['slot' => 'guardian', 'parent' => $parent, 'title' => 'Guardian (if there are no parents)', 'showRelationship' => true])
+                            @include('students.partials.kemis_parent_identity_fields', ['slot' => 'guardian', 'parent' => $parent, 'title' => 'Guardian / extra contact (info only — no app login or school messages)', 'showRelationship' => true])
                             <div class="col-md-6">
                                 <label class="form-label">Guardian Email</label>
                                 <input type="email" name="guardian_email" class="form-control" value="{{ old('guardian_email', $parent->guardian_email ?? '') }}">

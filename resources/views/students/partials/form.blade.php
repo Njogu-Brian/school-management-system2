@@ -374,7 +374,7 @@
         <option value="father" @selected(old('school_notifications_muted_parent', $p->school_notifications_muted_parent ?? '') === 'father')>Do not notify father (mother only)</option>
         <option value="mother" @selected(old('school_notifications_muted_parent', $p->school_notifications_muted_parent ?? '') === 'mother')>Do not notify mother (father only)</option>
       </select>
-      <div class="form-text">Only one parent can be excluded; the other must have phone, WhatsApp, or email. Guardian is never used for automated school messages.</div>
+      <div class="form-text">Only one parent can be excluded; the other must have phone, WhatsApp, or email. Guardian never receives school messages and cannot sign in to the app.</div>
     </div>
     {{-- Father --}}
     @include('students.partials.kemis_parent_identity_fields', ['slot' => 'father', 'parent' => $p, 'title' => 'Father'])
@@ -455,7 +455,7 @@
     </div>
 
     {{-- Guardian --}}
-    @include('students.partials.kemis_parent_identity_fields', ['slot' => 'guardian', 'parent' => $p, 'title' => 'Guardian (optional)', 'showRelationship' => true])
+    @include('students.partials.kemis_parent_identity_fields', ['slot' => 'guardian', 'parent' => $p, 'title' => 'Guardian / extra contact (info only — no app login or school messages)', 'showRelationship' => true])
     <div class="col-md-3"><label class="form-label">Phone</label>
       <div class="input-group">
         <select name="guardian_phone_country_code" class="form-select" style="max-width:170px">

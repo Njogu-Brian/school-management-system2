@@ -373,6 +373,7 @@ class ApiParentClaimController extends Controller
             return null;
         }
 
+        // Guardian is informational only — claim/login requires father or mother contact.
         $slots = [
             'father' => [
                 'name' => $parent->father_name,
@@ -387,13 +388,6 @@ class ApiParentClaimController extends Controller
                 'contacts' => $channel === 'email'
                     ? [$parent->mother_email]
                     : [$parent->mother_phone, $parent->mother_whatsapp],
-            ],
-            'guardian' => [
-                'name' => $parent->guardian_name,
-                'email' => $parent->guardian_email,
-                'contacts' => $channel === 'email'
-                    ? [$parent->guardian_email]
-                    : [$parent->guardian_phone, $parent->guardian_whatsapp],
             ],
         ];
 

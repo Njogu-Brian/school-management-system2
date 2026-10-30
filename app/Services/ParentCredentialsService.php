@@ -300,11 +300,24 @@ class ParentCredentialsService
     public function ensureParentUsers(ParentInfo $parent): array
     {
         $accounts = [];
+        $seenContacts = [];
         foreach ($this->contactSlots($parent) as $slot) {
             try {
+                $contact = $this->slotContact($parent, $slot);
+                $dedupeKey = normalize_contact_for_parent_match((string) ($contact['phone'] ?? ''))
+                    ?: strtolower(trim((string) ($contact['email'] ?? '')));
+                // Same phone/email on father + mother must not create two logins.
+                if ($dedupeKey !== '' && isset($seenContacts[$dedupeKey])) {
+                    continue;
+                }
+
+                $user = $this->ensureParentUserForSlot($parent, $slot);
+                if ($dedupeKey !== '') {
+                    $seenContacts[$dedupeKey] = true;
+                }
                 $accounts[] = [
                     'slot' => $slot,
-                    'user' => $this->ensureParentUserForSlot($parent, $slot),
+                    'user' => $user,
                 ];
             } catch (\Throwable $e) {
                 Log::warning('Could not provision parent slot login', [
@@ -320,6 +333,10 @@ class ParentCredentialsService
 
     public function ensureParentUserForSlot(ParentInfo $parent, string $slot, ?Student $preferredChild = null): User
     {
+        if ($slot === 'guardian') {
+            throw new \RuntimeException('Guardian contacts are informational only and cannot sign in to the parent app.');
+        }
+
         $contact = $this->slotContact($parent, $slot);
         $phone = $contact['phone'];
         $email = $contact['email'];
@@ -1039,18 +1056,7 @@ class ParentCredentialsService
                 ]),
             ];
         }
-        if ($slots === [] && $this->slotHasContact($parent, 'guardian')) {
-            $slots[] = [
-                'slot' => 'guardian',
-                'label' => 'Guardian',
-                'name' => filled($parent->guardian_name) ? trim((string) $parent->guardian_name) : null,
-                'emails' => array_filter([(string) ($parent->guardian_email ?? '')]),
-                'phones' => array_filter([
-                    (string) ($parent->guardian_phone ?? ''),
-                    (string) ($parent->guardian_whatsapp ?? ''),
-                ]),
-            ];
-        }
+        // Guardian is informational only — never shown as a login slot.
 
         $pool = $users->values();
 
@@ -1324,11 +1330,77 @@ class ParentCredentialsService
         if ($this->slotHasUsableLogin($parent, 'mother')) {
             $slots[] = 'mother';
         }
-        if ($slots === [] && $this->slotHasUsableLogin($parent, 'guardian')) {
-            $slots[] = 'guardian';
-        }
+        // Guardian is informational only — never provision app login for guardian.
 
         return $slots;
+    }
+
+    /**
+     * ParentInfo IDs that share this father/mother contact (same person across households).
+     * Used so a mother login can see children linked to separate ParentInfo rows
+     * (e.g. same mother, different fathers). Guardian is never expanded.
+     *
+     * @return list<int>
+     */
+    public function relatedParentIdsForContactSlot(ParentInfo $parent, string $slot): array
+    {
+        $ownId = (int) $parent->id;
+        if (! in_array($slot, ['father', 'mother'], true)) {
+            return [$ownId];
+        }
+
+        $contact = $this->slotContact($parent, $slot);
+        $phone = $contact['phone'] ?? null;
+        $email = $contact['email'] ?? null;
+        $phoneNeedle = $phone ? normalize_contact_for_parent_match((string) $phone) : '';
+        $emailNeedle = $email ? strtolower(trim((string) $email)) : '';
+
+        if ($phoneNeedle === '' && $emailNeedle === '') {
+            return [$ownId];
+        }
+
+        $phoneCols = $slot === 'father'
+            ? ['father_phone', 'father_whatsapp']
+            : ['mother_phone', 'mother_whatsapp'];
+        $emailCol = $slot === 'father' ? 'father_email' : 'mother_email';
+
+        $candidates = ParentInfo::query()
+            ->where(function ($q) use ($phoneCols, $emailCol, $phoneNeedle, $emailNeedle) {
+                if ($emailNeedle !== '') {
+                    $q->orWhereRaw('LOWER(TRIM('.$emailCol.')) = ?', [$emailNeedle]);
+                }
+                if ($phoneNeedle !== '') {
+                    foreach ($phoneCols as $col) {
+                        $q->orWhere($col, 'like', '%'.$phoneNeedle.'%');
+                    }
+                }
+            })
+            ->get(['id', 'father_phone', 'father_whatsapp', 'father_email', 'mother_phone', 'mother_whatsapp', 'mother_email']);
+
+        $ids = [$ownId];
+        foreach ($candidates as $candidate) {
+            $matched = false;
+            if ($emailNeedle !== '') {
+                $candidateEmail = strtolower(trim((string) ($candidate->{$emailCol} ?? '')));
+                if ($candidateEmail !== '' && $candidateEmail === $emailNeedle) {
+                    $matched = true;
+                }
+            }
+            if (! $matched && $phoneNeedle !== '') {
+                foreach ($phoneCols as $col) {
+                    $candidatePhone = normalize_contact_for_parent_match((string) ($candidate->{$col} ?? ''));
+                    if ($candidatePhone !== '' && $candidatePhone === $phoneNeedle) {
+                        $matched = true;
+                        break;
+                    }
+                }
+            }
+            if ($matched) {
+                $ids[] = (int) $candidate->id;
+            }
+        }
+
+        return array_values(array_unique($ids));
     }
 
     /**
@@ -1385,15 +1457,27 @@ class ParentCredentialsService
         }
 
         $ids = app(LoginIdentifierService::class);
+        // Reuse an existing parent login with the same phone/email even if linked to another
+        // ParentInfo (same mother across split households). Never create a second account.
         if ($phone) {
-            $byPhone = User::query()->whereIn('phone_number', $ids->phoneVariants($phone))->first();
-            if ($byPhone && (! $byPhone->parent_id || (int) $byPhone->parent_id === (int) $parent->id)) {
+            $byPhone = User::query()
+                ->with('roles')
+                ->whereIn('phone_number', $ids->phoneVariants($phone))
+                ->orderBy('id')
+                ->get()
+                ->first(fn (User $u) => ! $u->hasElevatedStaffRole());
+            if ($byPhone) {
                 return $byPhone;
             }
         }
         if ($email) {
-            $byEmail = User::whereRaw('LOWER(TRIM(email)) = ?', [strtolower($email)])->first();
-            if ($byEmail && (! $byEmail->parent_id || (int) $byEmail->parent_id === (int) $parent->id)) {
+            $byEmail = User::query()
+                ->with('roles')
+                ->whereRaw('LOWER(TRIM(email)) = ?', [strtolower($email)])
+                ->orderBy('id')
+                ->get()
+                ->first(fn (User $u) => ! $u->hasElevatedStaffRole());
+            if ($byEmail) {
                 return $byEmail;
             }
         }
@@ -1457,7 +1541,8 @@ class ParentCredentialsService
     }
 
     /**
-     * Slot belonging to the signed-in parent (login phone → father / mother / guardian).
+     * Slot belonging to the signed-in parent (login phone → father / mother only).
+     * Guardian is informational and never an identity slot.
      */
     public function identitySlotForUser(ParentInfo $parent, User $user): string
     {
@@ -1468,14 +1553,14 @@ class ParentCredentialsService
 
         $userPhone = normalize_contact_for_parent_match($user->phone_number ?? '');
         $takenByOther = [];
-        foreach (['father', 'mother', 'guardian'] as $slot) {
+        foreach (['father', 'mother'] as $slot) {
             $contact = $this->slotContact($parent, $slot);
             $slotPhone = normalize_contact_for_parent_match($contact['phone'] ?? '');
             if ($slotPhone !== '' && $userPhone !== '' && $slotPhone !== $userPhone) {
                 $takenByOther[$slot] = true;
             }
         }
-        foreach (['father', 'mother', 'guardian'] as $slot) {
+        foreach (['father', 'mother'] as $slot) {
             if (! isset($takenByOther[$slot])) {
                 return $slot;
             }
@@ -1753,7 +1838,7 @@ class ParentCredentialsService
 
     protected function matchIdentitySlot(ParentInfo $parent, User $user): ?string
     {
-        foreach (['father', 'mother', 'guardian'] as $slot) {
+        foreach (['father', 'mother'] as $slot) {
             $contact = $this->slotContact($parent, $slot);
             $emails = array_filter([(string) ($contact['email'] ?? '')]);
             $phones = array_values(array_filter([
@@ -1761,7 +1846,7 @@ class ParentCredentialsService
                 match ($slot) {
                     'father' => (string) ($parent->father_whatsapp ?? ''),
                     'mother' => (string) ($parent->mother_whatsapp ?? ''),
-                    default => (string) ($parent->guardian_whatsapp ?? ''),
+                    default => '',
                 },
             ]));
             if ($this->userMatchesSlot($user, $emails, $phones)) {

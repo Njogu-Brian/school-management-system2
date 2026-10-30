@@ -781,7 +781,7 @@ class StudentController extends Controller
                 if ($family) {
                     $family->update([
                         'guardian_name' => $parent->guardian_name ?? $parent->father_name ?? $parent->mother_name ?? ($family->guardian_name ?: 'Family'),
-                        'phone' => $parent->guardian_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $family->phone,
+                        'phone' => $parent->mother_phone ?? $parent->father_phone ?? $parent->guardian_phone ?? $family->phone,
                         'email' => $parent->guardian_email ?? $parent->father_email ?? $parent->mother_email ?? $family->email,
                     ]);
                 }

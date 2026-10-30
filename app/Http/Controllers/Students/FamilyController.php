@@ -60,21 +60,21 @@ class FamilyController extends Controller
             $updateData['mother_email'] = $parent->mother_email;
         }
         
-        // Guardian details (fallback to father/mother if guardian not set)
+        // Family label / primary contact: mother first, then father (guardian is info-only on parent_info)
         if (!$family->guardian_name || $family->guardian_name === 'New Family' || $family->guardian_name === 'Family') {
-            $guardianName = $parent->guardian_name ?? $parent->father_name ?? $parent->mother_name;
-            if ($guardianName) {
-                $updateData['guardian_name'] = $guardianName;
+            $familyLabel = $parent->mother_name ?? $parent->father_name ?? $parent->guardian_name;
+            if ($familyLabel) {
+                $updateData['guardian_name'] = $familyLabel;
             }
         }
         if (!$family->phone) {
-            $phone = $parent->guardian_phone ?? $parent->father_phone ?? $parent->mother_phone;
+            $phone = $parent->mother_phone ?? $parent->father_phone ?? $parent->guardian_phone;
             if ($phone) {
                 $updateData['phone'] = $phone;
             }
         }
         if (!$family->email) {
-            $email = $parent->guardian_email ?? $parent->father_email ?? $parent->mother_email;
+            $email = $parent->mother_email ?? $parent->father_email ?? $parent->guardian_email;
             if ($email) {
                 $updateData['email'] = $email;
             }
@@ -351,9 +351,9 @@ class FamilyController extends Controller
             foreach ($students as $student) {
                 $p = $student->parent;
                 $candidates = [
-                    'guardian_name' => $p->guardian_name ?? $p->father_name ?? $p->mother_name,
-                    'phone' => $p->guardian_phone ?? $p->father_phone ?? $p->mother_phone,
-                    'email' => $p->guardian_email ?? $p->father_email ?? $p->mother_email,
+                    'guardian_name' => $p->mother_name ?? $p->father_name ?? $p->guardian_name,
+                    'phone' => $p->mother_phone ?? $p->father_phone ?? $p->guardian_phone,
+                    'email' => $p->mother_email ?? $p->father_email ?? $p->guardian_email,
                     'father_name' => $p->father_name,
                     'father_phone' => $p->father_phone,
                     'father_email' => $p->father_email,

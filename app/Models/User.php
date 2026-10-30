@@ -894,7 +894,14 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
     }
 
     /**
-     * Student IDs a parent/guardian user may access (direct + siblings via family_id).
+     * Student IDs a parent user may access.
+     *
+     * Includes:
+     * - students on this user's parent_id (+ siblings via family_id in that household)
+     * - for father/mother logins: students on other ParentInfo rows that share the same
+     *   father/mother phone or email (same parent across split households)
+     *
+     * Guardian contacts never expand access.
      *
      * @return list<int>
      */
@@ -904,8 +911,27 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
             return [];
         }
 
-        $directIds = Student::where('parent_id', $this->parent_id)->pluck('id');
-        $familyIds = Student::where('parent_id', $this->parent_id)->whereNotNull('family_id')->pluck('family_id')->unique()->filter();
+        $ownParentId = (int) $this->parent_id;
+        $parentIds = [$ownParentId];
+
+        $parent = ParentInfo::query()->find($ownParentId);
+        if ($parent) {
+            $credentials = app(\App\Services\ParentCredentialsService::class);
+            $slot = $credentials->identitySlotForUser($parent, $this);
+            if (in_array($slot, ['father', 'mother'], true)) {
+                $parentIds = $credentials->relatedParentIdsForContactSlot($parent, $slot);
+            }
+        }
+
+        $directIds = Student::whereIn('parent_id', $parentIds)->pluck('id');
+
+        // Family sibling expand stays limited to the user's primary household so a
+        // wrongly linked family on another household cannot leak unrelated children.
+        $familyIds = Student::where('parent_id', $ownParentId)
+            ->whereNotNull('family_id')
+            ->pluck('family_id')
+            ->unique()
+            ->filter();
 
         if ($familyIds->isEmpty()) {
             return $directIds->unique()->values()->all();
