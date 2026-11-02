@@ -9,6 +9,10 @@ use App\Models\OnlineAdmission;
 use App\Models\Student;
 use App\Models\StudentCategory;
 use App\Models\Trip;
+use App\Services\Admissions\AdmissionFormService;
+use App\Services\Admissions\AdmissionInterviewPolicy;
+use App\Services\Admissions\AdmissionInterviewService;
+use App\Services\Admissions\InterviewFeeService;
 use App\Services\Admissions\OnlineAdmissionWorkflowService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -25,7 +29,7 @@ class ApiAdmissionsController extends Controller
     {
         $this->assertAdmissionsAccess($request);
 
-        $statuses = ['pending', 'under_review', 'waitlisted', 'enrolled', 'rejected'];
+        $statuses = OnlineAdmission::STATUSES;
         $counts = [];
         foreach ($statuses as $status) {
             $counts[$status] = OnlineAdmission::query()
@@ -35,14 +39,9 @@ class ApiAdmissionsController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => [
-                'pending' => $counts['pending'],
-                'under_review' => $counts['under_review'],
-                'waitlisted' => $counts['waitlisted'],
-                'enrolled' => $counts['enrolled'],
-                'rejected' => $counts['rejected'],
+            'data' => array_merge($counts, [
                 'total' => array_sum($counts),
-            ],
+            ]),
         ]);
     }
 
@@ -53,7 +52,7 @@ class ApiAdmissionsController extends Controller
         $request->validate([
             'page' => ['sometimes', 'integer', 'min:1'],
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
-            'status' => ['sometimes', 'string', 'in:pending,under_review,waitlisted,enrolled,rejected'],
+            'status' => ['sometimes', 'string', 'in:pending,contacted,under_review,interviewed,ready_to_enroll,waitlisted,enrolled,rejected'],
             'search' => ['sometimes', 'string', 'max:120'],
             'waitlist_only' => ['sometimes', 'boolean'],
         ]);
@@ -111,7 +110,7 @@ class ApiAdmissionsController extends Controller
     {
         $this->assertAdmissionsAccess($request);
 
-        $admission->load(['preferredClassroom', 'classroom', 'stream', 'reviewedBy']);
+        $admission->load(['preferredClassroom', 'classroom', 'stream', 'reviewedBy', 'interviewScores', 'interviewedBy']);
 
         return response()->json([
             'success' => true,
@@ -125,7 +124,7 @@ class ApiAdmissionsController extends Controller
         $this->normalizeStreamId($request);
 
         $data = $request->validate([
-            'application_status' => 'required|in:pending,under_review,rejected,waitlisted',
+            'application_status' => 'required|in:pending,contacted,under_review,interviewed,ready_to_enroll,rejected,waitlisted',
             'review_notes' => 'nullable|string',
             'classroom_id' => 'nullable|exists:classrooms,id',
             'stream_id' => 'nullable|exists:streams,id',
@@ -286,13 +285,20 @@ class ApiAdmissionsController extends Controller
     {
         $this->assertAdmissionsAccess($request);
 
-        $allowed = ['passport_photo', 'birth_certificate', 'father_id_document', 'mother_id_document'];
+        $allowed = ['passport_photo', 'birth_certificate', 'father_id_document', 'mother_id_document', 'parent_id_card', 'signed_admission_form', 'interview_receipt'];
         abort_unless(in_array($field, $allowed, true), 404);
+
+        if ($field === 'interview_receipt') {
+            $path = $admission->interview_receipt_path;
+            abort_unless(filled($path) && Storage::disk('public')->exists($path), 404);
+
+            return Storage::disk('public')->download($path, basename($path));
+        }
 
         $path = $admission->{$field};
         abort_unless(filled($path), 404);
 
-        if ($field === 'passport_photo' && Storage::disk('public')->exists($path)) {
+        if (in_array($field, ['passport_photo', 'signed_admission_form'], true) && Storage::disk('public')->exists($path)) {
             return Storage::disk('public')->response($path, basename($path));
         }
 
@@ -301,7 +307,228 @@ class ApiAdmissionsController extends Controller
             return $disk->download($path, basename($path));
         }
 
+        if (Storage::disk('public')->exists($path)) {
+            return Storage::disk('public')->response($path, basename($path));
+        }
+
         abort(404, 'File not found.');
+    }
+
+    public function interviewSubjects(Request $request, OnlineAdmission $admission)
+    {
+        $this->assertAdmissionsAccess($request);
+
+        $subjects = app(AdmissionInterviewService::class)->subjectsForAdmission($admission);
+
+        return response()->json([
+            'success' => true,
+            'data' => $subjects->map(fn ($s) => [
+                'id' => $s->id ?? null,
+                'name' => $s->name ?? null,
+                'code' => $s->code ?? null,
+            ])->values(),
+        ]);
+    }
+
+    public function recordInterview(Request $request, OnlineAdmission $admission)
+    {
+        $this->assertAdmissionsAccess($request);
+
+        $data = $request->validate([
+            'interview_date' => 'nullable|date',
+            'outcome' => 'required|in:passed,failed,deferred,skipped',
+            'notes' => 'nullable|string',
+            'scores' => 'nullable|array',
+            'scores.*.subject_id' => 'nullable|integer',
+            'scores.*.subject_name' => 'nullable|string|max:255',
+            'scores.*.subject_code' => 'nullable|string|max:40',
+            'scores.*.score' => 'nullable|numeric|min:0',
+            'scores.*.out_of' => 'nullable|numeric|min:1',
+            'scores.*.notes' => 'nullable|string',
+        ]);
+
+        try {
+            $admission = app(AdmissionInterviewService::class)->recordInterview(
+                $admission,
+                $data,
+                (int) $request->user()->id
+            );
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($e->errors())->flatten()->first() ?? 'Validation failed.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
+
+        $admission->load(['preferredClassroom', 'classroom', 'stream', 'reviewedBy', 'interviewScores']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Interview recorded.',
+            'data' => $this->serializeDetail($admission),
+        ]);
+    }
+
+    public function allocateInterviewFee(Request $request, OnlineAdmission $admission)
+    {
+        $this->assertAdmissionsAccess($request);
+
+        $data = $request->validate([
+            'amount' => 'nullable|numeric|min:0',
+            'mpesa_code' => 'required|string|max:64',
+            'payer_name' => 'nullable|string|max:255',
+        ]);
+
+        try {
+            $admission = app(InterviewFeeService::class)->allocatePayment(
+                $admission,
+                $data,
+                (int) $request->user()->id
+            );
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($e->errors())->flatten()->first() ?? 'Validation failed.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
+
+        $admission->load(['preferredClassroom', 'classroom', 'stream', 'reviewedBy', 'interviewScores']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Interview fee allocated.',
+            'data' => $this->serializeDetail($admission),
+        ]);
+    }
+
+    public function updateForm(Request $request, OnlineAdmission $admission)
+    {
+        $this->assertAdmissionsAccess($request);
+
+        $data = $request->validate([
+            'first_name' => 'sometimes|string|max:255',
+            'middle_name' => 'nullable|string|max:255',
+            'last_name' => 'sometimes|string|max:255',
+            'dob' => 'nullable|date',
+            'gender' => 'nullable|in:Male,Female',
+            'preferred_classroom_id' => 'nullable|exists:classrooms,id',
+            'previous_school' => 'nullable|string|max:255',
+            'residential_area' => 'nullable|string|max:255',
+            'father_name' => 'nullable|string|max:255',
+            'father_phone' => 'nullable|string|max:50',
+            'father_email' => 'nullable|email|max:255',
+            'father_id_number' => 'nullable|string|max:50',
+            'mother_name' => 'nullable|string|max:255',
+            'mother_phone' => 'nullable|string|max:50',
+            'mother_email' => 'nullable|email|max:255',
+            'mother_id_number' => 'nullable|string|max:50',
+            'guardian_name' => 'nullable|string|max:255',
+            'guardian_phone' => 'nullable|string|max:50',
+            'emergency_contact_name' => 'nullable|string|max:255',
+            'emergency_contact_phone' => 'nullable|string|max:50',
+            'has_allergies' => 'nullable|boolean',
+            'allergies_notes' => 'nullable|string',
+            'is_fully_immunized' => 'nullable|boolean',
+            'preferred_hospital' => 'nullable|string|max:255',
+            'medical_condition' => 'nullable|string',
+            'nemis_number' => 'nullable|string|max:100',
+            'marital_status' => 'nullable|in:married,single_parent,co_parenting',
+        ]);
+
+        $admission = app(AdmissionFormService::class)->updateAdmissionFields($admission, $data);
+        $admission->load(['preferredClassroom', 'classroom', 'stream', 'reviewedBy', 'interviewScores']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Admission form updated.',
+            'data' => $this->serializeDetail($admission),
+        ]);
+    }
+
+    public function printForm(Request $request, OnlineAdmission $admission)
+    {
+        $this->assertAdmissionsAccess($request);
+
+        $pdf = app(AdmissionFormService::class)->generatePdf($admission);
+
+        return $pdf->download('admission-form-'.$admission->id.'.pdf');
+    }
+
+    public function uploadDocument(Request $request, OnlineAdmission $admission)
+    {
+        $this->assertAdmissionsAccess($request);
+
+        $data = $request->validate([
+            'field' => 'required|in:passport_photo,birth_certificate,father_id_document,mother_id_document,parent_id_card,signed_admission_form',
+            'file' => 'required|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
+        ]);
+
+        $admission = app(AdmissionFormService::class)->storeDocument(
+            $admission,
+            $request->file('file'),
+            $data['field']
+        );
+        $admission->load(['preferredClassroom', 'classroom', 'stream', 'reviewedBy', 'interviewScores']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Document uploaded.',
+            'data' => $this->serializeDetail($admission),
+        ]);
+    }
+
+    public function store(Request $request)
+    {
+        $this->assertAdmissionsAccess($request);
+
+        $data = $request->validate([
+            'first_name' => 'required|string|max:255',
+            'middle_name' => 'nullable|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'dob' => 'nullable|date',
+            'gender' => 'nullable|in:Male,Female',
+            'preferred_classroom_id' => 'nullable|exists:classrooms,id',
+            'father_name' => 'nullable|string|max:255',
+            'father_phone' => 'nullable|string|max:50',
+            'father_email' => 'nullable|email|max:255',
+            'mother_name' => 'nullable|string|max:255',
+            'mother_phone' => 'nullable|string|max:50',
+            'prospectus_parent_name' => 'nullable|string|max:255',
+            'prospectus_phone' => 'nullable|string|max:50',
+            'prospectus_email' => 'nullable|email|max:255',
+            'residential_area' => 'nullable|string|max:255',
+            'application_source' => 'nullable|string|max:40',
+        ]);
+
+        $policy = app(AdmissionInterviewPolicy::class)->forClassroom(
+            ! empty($data['preferred_classroom_id'])
+                ? Classroom::withoutGlobalScope('offered')->find($data['preferred_classroom_id'])
+                : null
+        );
+
+        $admission = OnlineAdmission::create(array_merge($data, [
+            'application_status' => 'pending',
+            'application_date' => now()->toDateString(),
+            'application_source' => $data['application_source'] ?? 'mobile_admin',
+            'pipeline_stage' => 'prospectus',
+            'interview_required' => $policy,
+            'prospectus_parent_name' => $data['prospectus_parent_name'] ?? $data['father_name'] ?? null,
+            'prospectus_phone' => $data['prospectus_phone'] ?? $data['father_phone'] ?? null,
+            'prospectus_email' => $data['prospectus_email'] ?? $data['father_email'] ?? null,
+            'form_status' => 'Not Submitted',
+            'payment_status' => 'Unpaid',
+            'enrolled' => false,
+        ]));
+
+        $admission->load(['preferredClassroom', 'classroom', 'stream', 'reviewedBy', 'interviewScores']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Admission created.',
+            'data' => $this->serializeDetail($admission),
+        ], 201);
     }
 
     protected function normalizeStreamId(Request $request): void
@@ -375,6 +602,11 @@ class ApiAdmissionsController extends Controller
             'passport_photo_url' => $this->resolvePassportUrl($a),
             'reviewed_by_name' => $a->reviewedBy?->name,
             'review_date' => $a->review_date?->toDateString(),
+            'pipeline_stage' => $a->pipeline_stage,
+            'interview_required' => $a->interview_required,
+            'interview_outcome' => $a->interview_outcome,
+            'interview_fee_paid' => (bool) $a->interview_fee_paid,
+            'application_no' => $a->application_no,
         ];
     }
 
@@ -417,8 +649,56 @@ class ApiAdmissionsController extends Controller
             'documents' => $this->serializeDocuments($a),
             'timeline' => $this->buildTimeline($a),
             'enrollment' => $this->serializeEnrollment($a),
+            'interview' => $this->serializeInterview($a),
+            'form_policies' => app(AdmissionFormService::class)->policyBlocks(),
             'duplicate_matches' => $duplicateMatches,
         ]);
+    }
+
+    protected function serializeInterview(OnlineAdmission $a): array
+    {
+        $policy = app(AdmissionInterviewPolicy::class);
+        $requirement = $a->interview_required
+            ?: $policy->forClassroom($a->preferredClassroom ?: $a->classroom);
+        $feeService = app(InterviewFeeService::class);
+        $votehead = $feeService->resolveAssessmentVotehead($a->preferred_classroom_id);
+
+        return [
+            'required' => $requirement,
+            'required_label' => $policy->label($requirement),
+            'date' => $a->interview_date?->toDateString(),
+            'outcome' => $a->interview_outcome,
+            'notes' => $a->interview_notes,
+            'interviewed_by_name' => $a->interviewedBy?->name,
+            'fee_votehead_id' => $a->interview_fee_votehead_id ?: $votehead?->id,
+            'fee_votehead_name' => $votehead?->name,
+            'fee_amount' => $a->interview_fee_amount !== null
+                ? (float) $a->interview_fee_amount
+                : $feeService->resolveFeeAmount($a, $votehead),
+            'fee_paid' => (bool) $a->interview_fee_paid,
+            'fee_paid_at' => $a->interview_fee_paid_at?->toIso8601String(),
+            'mpesa_code' => $a->interview_mpesa_code,
+            'receipt_number' => $a->interview_receipt_number,
+            'receipt_download_path' => $a->interview_receipt_path
+                ? "/admissions/{$a->id}/files/interview_receipt"
+                : null,
+            'scores' => $a->relationLoaded('interviewScores')
+                ? $a->interviewScores->map(fn ($s) => [
+                    'id' => $s->id,
+                    'subject_id' => $s->subject_id,
+                    'subject_name' => $s->subject_name,
+                    'subject_code' => $s->subject_code,
+                    'score' => $s->score !== null ? (float) $s->score : null,
+                    'out_of' => $s->out_of !== null ? (float) $s->out_of : null,
+                    'notes' => $s->notes,
+                ])->values()->all()
+                : [],
+            'subjects' => app(AdmissionInterviewService::class)->subjectsForAdmission($a)->map(fn ($s) => [
+                'id' => $s->id ?? null,
+                'name' => $s->name ?? null,
+                'code' => $s->code ?? null,
+            ])->values()->all(),
+        ];
     }
 
     protected function serializeParentSide(string $side, OnlineAdmission $a): array
@@ -442,6 +722,8 @@ class ApiAdmissionsController extends Controller
             ['field' => 'birth_certificate', 'label' => 'Birth certificate', 'path' => $a->birth_certificate, 'public' => false],
             ['field' => 'father_id_document', 'label' => 'Father ID document', 'path' => $a->father_id_document, 'public' => false],
             ['field' => 'mother_id_document', 'label' => 'Mother ID document', 'path' => $a->mother_id_document, 'public' => false],
+            ['field' => 'parent_id_card', 'label' => 'Parent ID', 'path' => $a->parent_id_card, 'public' => false],
+            ['field' => 'signed_admission_form', 'label' => 'Signed admission form', 'path' => $a->signed_admission_form, 'public' => true],
         ];
 
         return collect($defs)->map(function (array $def) use ($a) {
@@ -565,7 +847,7 @@ class ApiAdmissionsController extends Controller
         return [
             'enrolled' => (bool) $a->enrolled,
             'application_status' => $a->application_status,
-            'can_enroll' => ! $a->enrolled && $a->application_status !== 'rejected',
+            'can_enroll' => ! $a->enrolled && $a->application_status !== 'rejected' && $a->application_status !== 'failed',
             'preferred_classroom_id' => $a->preferred_classroom_id,
             'preferred_class_name' => $a->preferredClassroom?->name,
             'classroom_id' => $a->classroom_id,

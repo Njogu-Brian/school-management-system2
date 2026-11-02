@@ -17,6 +17,10 @@ class AdmissionApplication extends Model
 
     public const STATUS_ASSESSMENT_BOOKED = 'assessment_booked';
 
+    public const STATUS_INTERVIEWED = 'interviewed';
+
+    public const STATUS_READY_TO_ENROLL = 'ready_to_enroll';
+
     public const STATUS_APPROVED = 'approved';
 
     public const STATUS_REJECTED = 'rejected';
@@ -25,6 +29,7 @@ class AdmissionApplication extends Model
 
     protected $fillable = [
         'application_no',
+        'online_admission_id',
         'parent_name',
         'phone',
         'email',
@@ -92,6 +97,8 @@ class AdmissionApplication extends Model
             self::STATUS_PENDING,
             self::STATUS_CONTACTED,
             self::STATUS_ASSESSMENT_BOOKED,
+            self::STATUS_INTERVIEWED,
+            self::STATUS_READY_TO_ENROLL,
             self::STATUS_APPROVED,
             self::STATUS_REJECTED,
             self::STATUS_ENROLLED,
@@ -101,6 +108,11 @@ class AdmissionApplication extends Model
     public function documents(): HasMany
     {
         return $this->hasMany(AdmissionDocument::class, 'application_id');
+    }
+
+    public function onlineAdmission(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\OnlineAdmission::class, 'online_admission_id');
     }
 
     public function preferredClassroom(): BelongsTo

@@ -7,6 +7,16 @@ export interface AdmissionApplication {
   current_step: number;
   parent_name?: string;
   child_name?: string;
+  online_admission_id?: number | null;
+  pipeline?: {
+    application_status?: string;
+    pipeline_stage?: string | null;
+    interview_required?: string | null;
+    interview_outcome?: string | null;
+    interview_date?: string | null;
+    interview_fee_paid?: boolean;
+    stages?: Array<{ key: string; label: string; done: boolean }>;
+  } | null;
 }
 
 export const admissionService = {

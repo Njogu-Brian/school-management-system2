@@ -194,7 +194,7 @@ class AdmissionApplicationApiController extends Controller
     {
         $application = AdmissionApplication::query()
             ->where('application_no', $applicationNo)
-            ->with(['documents', 'preferredClassroom'])
+            ->with(['documents', 'preferredClassroom', 'onlineAdmission'])
             ->firstOrFail();
 
         return response()->json(['data' => AdmissionApplicationResource::make($application)]);

@@ -256,6 +256,9 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
 
     Route::get('/dashboard/stats', [\App\Http\Controllers\Api\ApiDashboardController::class, 'stats']);
     Route::get('/finance/summary', [\App\Http\Controllers\Api\ApiFinanceSummaryController::class, 'show']);
+    Route::get('/finance/fee-balances', [\App\Http\Controllers\Api\ApiFinanceSummaryController::class, 'feeBalances']);
+    Route::get('/parent/family-fees', [\App\Http\Controllers\Api\ApiParentFamilyFeesController::class, 'summary']);
+    Route::post('/parent/family-fees/prompt', [\App\Http\Controllers\Api\ApiParentFamilyFeesController::class, 'prompt']);
     Route::get('/operations/summary', [\App\Http\Controllers\Api\ApiOperationsSummaryController::class, 'show']);
     Route::get('/approvals', [\App\Http\Controllers\Api\ApiApprovalsController::class, 'index']);
     Route::get('/approvals/{compositeId}', [\App\Http\Controllers\Api\ApiApprovalsController::class, 'show'])
@@ -269,11 +272,18 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
         $admissions = \App\Http\Controllers\Api\ApiAdmissionsController::class;
         Route::get('/stats', [$admissions, 'stats']);
         Route::get('/', [$admissions, 'index']);
+        Route::post('/', [$admissions, 'store']);
         Route::get('/{admission}/files/{field}', [$admissions, 'downloadFile']);
         Route::put('/{admission}/status', [$admissions, 'updateStatus']);
         Route::post('/{admission}/waitlist', [$admissions, 'waitlist']);
         Route::post('/{admission}/reject', [$admissions, 'reject']);
         Route::post('/{admission}/enroll', [$admissions, 'enroll']);
+        Route::get('/{admission}/interview-subjects', [$admissions, 'interviewSubjects']);
+        Route::post('/{admission}/interview', [$admissions, 'recordInterview']);
+        Route::post('/{admission}/interview-fee', [$admissions, 'allocateInterviewFee']);
+        Route::put('/{admission}/form', [$admissions, 'updateForm']);
+        Route::get('/{admission}/form/print', [$admissions, 'printForm']);
+        Route::post('/{admission}/documents', [$admissions, 'uploadDocument']);
         Route::get('/{admission}', [$admissions, 'show']);
     });
     Route::get('/student-categories', [\App\Http\Controllers\Api\ApiStudentWriteController::class, 'categories']);

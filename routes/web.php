@@ -1413,6 +1413,8 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     */
     Route::prefix('online-admissions')->middleware('role:Super Admin|Admin|Secretary')->group(function () {
         Route::get('/', [OnlineAdmissionController::class, 'index'])->name('online-admissions.index');
+        Route::get('/form-policies', [OnlineAdmissionController::class, 'editFormPolicies'])->name('online-admissions.form-policies');
+        Route::put('/form-policies', [OnlineAdmissionController::class, 'updateFormPolicies'])->name('online-admissions.form-policies.update');
         Route::get('/{admission}', [OnlineAdmissionController::class, 'show'])
             ->whereNumber('admission')
             ->name('online-admissions.show');
@@ -1431,6 +1433,27 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::put('/{admission}/status', [OnlineAdmissionController::class, 'updateStatus'])
             ->whereNumber('admission')
             ->name('online-admissions.update-status');
+        Route::post('/{admission}/interview', [OnlineAdmissionController::class, 'recordInterview'])
+            ->whereNumber('admission')
+            ->name('online-admissions.interview');
+        Route::post('/{admission}/interview-fee', [OnlineAdmissionController::class, 'allocateInterviewFee'])
+            ->whereNumber('admission')
+            ->name('online-admissions.interview-fee');
+        Route::get('/{admission}/interview-receipt', [OnlineAdmissionController::class, 'downloadInterviewReceipt'])
+            ->whereNumber('admission')
+            ->name('online-admissions.interview-receipt');
+        Route::get('/{admission}/admission-form', [OnlineAdmissionController::class, 'editAdmissionForm'])
+            ->whereNumber('admission')
+            ->name('online-admissions.admission-form');
+        Route::put('/{admission}/admission-form', [OnlineAdmissionController::class, 'updateAdmissionForm'])
+            ->whereNumber('admission')
+            ->name('online-admissions.admission-form.update');
+        Route::get('/{admission}/admission-form/print', [OnlineAdmissionController::class, 'printAdmissionForm'])
+            ->whereNumber('admission')
+            ->name('online-admissions.admission-form.print');
+        Route::post('/{admission}/documents', [OnlineAdmissionController::class, 'uploadDocument'])
+            ->whereNumber('admission')
+            ->name('online-admissions.documents');
         Route::delete('/{admission}', [OnlineAdmissionController::class, 'destroy'])
             ->whereNumber('admission')
             ->name('online-admissions.destroy');

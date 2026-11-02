@@ -60,4 +60,45 @@ export const admissionsApi = {
   ): Promise<ApiResponse<EnrollApplicationResult>> {
     return apiClient.post<EnrollApplicationResult>(`/admissions/${id}/enroll`, payload);
   },
+
+  create(payload: Record<string, unknown>): Promise<ApiResponse<ApplicationDetailRecord>> {
+    return apiClient.post<ApplicationDetailRecord>('/admissions', payload);
+  },
+
+  recordInterview(
+    id: number,
+    payload: {
+      interview_date?: string | null;
+      outcome: string;
+      notes?: string | null;
+      scores?: Array<Record<string, unknown>>;
+    },
+  ): Promise<ApiResponse<ApplicationDetailRecord>> {
+    return apiClient.post<ApplicationDetailRecord>(`/admissions/${id}/interview`, payload);
+  },
+
+  allocateInterviewFee(
+    id: number,
+    payload: { amount?: number | null; mpesa_code: string; payer_name?: string | null },
+  ): Promise<ApiResponse<ApplicationDetailRecord>> {
+    return apiClient.post<ApplicationDetailRecord>(`/admissions/${id}/interview-fee`, payload);
+  },
+
+  updateForm(
+    id: number,
+    payload: Record<string, unknown>,
+  ): Promise<ApiResponse<ApplicationDetailRecord>> {
+    return apiClient.put<ApplicationDetailRecord>(`/admissions/${id}/form`, payload);
+  },
+
+  uploadDocument(id: number, field: string, file: {
+    uri: string;
+    name: string;
+    type: string;
+  }): Promise<ApiResponse<ApplicationDetailRecord>> {
+    const form = new FormData();
+    form.append('field', field);
+    form.append('file', file as unknown as Blob);
+    return apiClient.postMultipart<ApplicationDetailRecord>(`/admissions/${id}/documents`, form);
+  },
 };

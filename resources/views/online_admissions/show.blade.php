@@ -119,31 +119,146 @@
           </div>
         </div>
 
-        @if($admission->passport_photo || $admission->birth_certificate)
         <div class="settings-card mb-3">
-          <div class="card-header">
-            <h5 class="mb-0"><i class="bi bi-file-earmark"></i> Documents</h5>
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-clipboard-check"></i> Interview</h5>
+            <span class="small text-muted">{{ ucfirst(str_replace('_', ' ', $interviewRequirement ?? 'optional')) }}</span>
           </div>
           <div class="card-body">
-            <div class="row g-2">
-              @if($admission->passport_photo)
-              <div class="col-md-4">
-                <a href="{{ route('file.download', ['model'=>'online-admission','id'=>$admission->id,'field'=>'passport_photo']) }}" target="_blank" class="btn btn-ghost-strong w-100">
-                  <i class="bi bi-image"></i> Passport Photo
-                </a>
+            @if($admission->interview_date || $admission->interview_outcome)
+              <div class="mb-3 small">
+                <div><strong>Date:</strong> {{ optional($admission->interview_date)->format('d M Y') ?? '—' }}</div>
+                <div><strong>Outcome:</strong> {{ $admission->interview_outcome ?? '—' }}</div>
+                <div><strong>Notes:</strong> {{ $admission->interview_notes ?? '—' }}</div>
+                @if($admission->interviewScores->isNotEmpty())
+                  <ul class="mt-2 mb-0">
+                    @foreach($admission->interviewScores as $score)
+                      <li>{{ $score->subject_name }}: {{ $score->score }} / {{ $score->out_of }}</li>
+                    @endforeach
+                  </ul>
+                @endif
               </div>
-              @endif
-              @if($admission->birth_certificate)
-              <div class="col-md-4">
-                <a href="{{ route('file.download', ['model'=>'online-admission','id'=>$admission->id,'field'=>'birth_certificate']) }}" target="_blank" class="btn btn-ghost-strong w-100">
-                  <i class="bi bi-file-pdf"></i> Birth Certificate
-                </a>
+            @endif
+            @if(!$admission->enrolled && ($interviewRequirement ?? '') !== 'not_applicable')
+            <form action="{{ route('online-admissions.interview', $admission) }}" method="POST" class="mb-3">
+              @csrf
+              <div class="row g-2">
+                <div class="col-md-4">
+                  <label class="form-label">Interview date</label>
+                  <input type="date" name="interview_date" class="form-control" value="{{ old('interview_date', optional($admission->interview_date)->toDateString() ?? today()->toDateString()) }}">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Outcome</label>
+                  <select name="outcome" class="form-select" required>
+                    <option value="passed" @selected(old('outcome', $admission->interview_outcome)=='passed')>Passed</option>
+                    <option value="failed" @selected(old('outcome', $admission->interview_outcome)=='failed')>Failed</option>
+                    <option value="deferred" @selected(old('outcome', $admission->interview_outcome)=='deferred')>Deferred</option>
+                    <option value="skipped" @selected(old('outcome', $admission->interview_outcome)=='skipped')>Skipped (optional class)</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Notes</label>
+                  <input type="text" name="notes" class="form-control" value="{{ old('notes', $admission->interview_notes) }}">
+                </div>
               </div>
+              @if(($interviewSubjects ?? collect())->isNotEmpty())
+                <div class="table-responsive mt-3">
+                  <table class="table table-sm">
+                    <thead><tr><th>Subject</th><th>Score</th><th>Out of</th></tr></thead>
+                    <tbody>
+                      @foreach($interviewSubjects as $i => $subject)
+                        <tr>
+                          <td>
+                            {{ $subject->name }}
+                            <input type="hidden" name="scores[{{ $i }}][subject_id]" value="{{ $subject->id }}">
+                            <input type="hidden" name="scores[{{ $i }}][subject_name]" value="{{ $subject->name }}">
+                            <input type="hidden" name="scores[{{ $i }}][subject_code]" value="{{ $subject->code }}">
+                          </td>
+                          <td><input type="number" step="0.01" name="scores[{{ $i }}][score]" class="form-control form-control-sm" value="{{ old('scores.'.$i.'.score', optional($admission->interviewScores->firstWhere('subject_name', $subject->name))->score) }}"></td>
+                          <td><input type="number" step="0.01" name="scores[{{ $i }}][out_of]" class="form-control form-control-sm" value="{{ old('scores.'.$i.'.out_of', optional($admission->interviewScores->firstWhere('subject_name', $subject->name))->out_of ?? 100) }}"></td>
+                        </tr>
+                      @endforeach
+                    </tbody>
+                  </table>
+                </div>
               @endif
+              <button type="submit" class="btn btn-settings-primary mt-2"><i class="bi bi-save"></i> Save interview</button>
+            </form>
+            @elseif(($interviewRequirement ?? '') === 'not_applicable')
+              <p class="text-muted small mb-0">Foundation / beginner classes do not require interviews.</p>
+            @endif
+
+            <hr>
+            <h6 class="mb-2">Interview / assessment fee</h6>
+            <p class="small text-muted mb-2">
+              Votehead: {{ $assessmentVotehead?->name ?? 'Not configured (name containing interview/assessment)' }}
+              · Amount: KES {{ number_format((float) ($interviewFeeAmount ?? $admission->interview_fee_amount ?? 0), 2) }}
+              · Paid: {{ $admission->interview_fee_paid ? 'Yes' : 'No' }}
+            </p>
+            @if($admission->interview_fee_paid && $admission->interview_receipt_path)
+              <a href="{{ route('online-admissions.interview-receipt', $admission) }}" class="btn btn-ghost-strong btn-sm mb-2"><i class="bi bi-receipt"></i> Download receipt</a>
+            @endif
+            @if(!$admission->enrolled && !$admission->interview_fee_paid)
+            <form action="{{ route('online-admissions.interview-fee', $admission) }}" method="POST" class="row g-2 align-items-end">
+              @csrf
+              <div class="col-md-4">
+                <label class="form-label">Amount</label>
+                <input type="number" step="0.01" name="amount" class="form-control" value="{{ old('amount', $interviewFeeAmount) }}">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">M-Pesa / paybill code</label>
+                <input type="text" name="mpesa_code" class="form-control" required value="{{ old('mpesa_code') }}">
+              </div>
+              <div class="col-md-4">
+                <button type="submit" class="btn btn-settings-primary w-100"><i class="bi bi-cash"></i> Allocate &amp; receipt</button>
+              </div>
+            </form>
+            @endif
+          </div>
+        </div>
+
+        <div class="settings-card mb-3">
+          <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h5 class="mb-0"><i class="bi bi-file-earmark"></i> Admission form &amp; documents</h5>
+            <div class="d-flex gap-2">
+              <a href="{{ route('online-admissions.admission-form', $admission) }}" class="btn btn-ghost-strong btn-sm">Fill form</a>
+              <a href="{{ route('online-admissions.admission-form.print', $admission) }}" class="btn btn-ghost-strong btn-sm">Print PDF</a>
+              <a href="{{ route('online-admissions.form-policies') }}" class="btn btn-ghost-strong btn-sm">Policies</a>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="row g-2 mb-3">
+              @foreach([
+                'passport_photo' => 'Passport photo',
+                'birth_certificate' => 'Birth certificate',
+                'father_id_document' => 'Father ID',
+                'mother_id_document' => 'Mother ID',
+                'signed_admission_form' => 'Signed admission form',
+              ] as $field => $label)
+                <div class="col-md-6">
+                  <div class="border rounded p-2 h-100">
+                    <div class="small fw-semibold mb-1">{{ $label }}
+                      @if($admission->{$field})
+                        <span class="text-success">· uploaded</span>
+                      @endif
+                    </div>
+                    @if($admission->{$field})
+                      <a class="small" href="{{ route('file.download', ['model'=>'online-admission','id'=>$admission->id,'field'=>$field]) }}" target="_blank">View</a>
+                    @endif
+                    @if(!$admission->enrolled)
+                    <form action="{{ route('online-admissions.documents', $admission) }}" method="POST" enctype="multipart/form-data" class="mt-1">
+                      @csrf
+                      <input type="hidden" name="field" value="{{ $field }}">
+                      <input type="file" name="file" class="form-control form-control-sm" accept="image/*,application/pdf" required>
+                      <button class="btn btn-sm btn-settings-primary mt-1" type="submit">Upload / camera</button>
+                    </form>
+                    @endif
+                  </div>
+                </div>
+              @endforeach
             </div>
           </div>
         </div>
-        @endif
       </div>
 
       <div class="col-md-4">
@@ -155,8 +270,12 @@
             @php
               $statusColors = [
                 'pending' => 'pill-secondary',
+                'contacted' => 'pill-info',
                 'under_review' => 'pill-info',
+                'interviewed' => 'pill-success',
+                'ready_to_enroll' => 'pill-success',
                 'accepted' => 'pill-success',
+                'enrolled' => 'pill-success',
                 'rejected' => 'pill-danger',
                 'waitlisted' => 'pill-warning'
               ];
@@ -166,6 +285,9 @@
               <span class="pill-badge {{ $color }} fs-6 px-3 py-2">
                 {{ ucfirst(str_replace('_', ' ', $admission->application_status)) }}
               </span>
+              @if(!empty($interviewRequirement))
+                <div class="mt-2 small text-muted">Interview: {{ ucfirst(str_replace('_', ' ', $interviewRequirement)) }}</div>
+              @endif
               @if($admission->waitlist_position)
                 <div class="mt-2">
                   <span class="pill-badge pill-warning">Waitlist Position: #{{ $admission->waitlist_position }}</span>
@@ -192,8 +314,11 @@
               <div class="mb-3">
                 <label class="form-label">Update Status</label>
                 <select name="application_status" class="form-select" required>
-                  <option value="pending" @selected(in_array($admission->application_status, ['pending']))>Pending</option>
+                  <option value="pending" @selected($admission->application_status=='pending')>Pending</option>
+                  <option value="contacted" @selected($admission->application_status=='contacted')>Contacted</option>
                   <option value="under_review" @selected($admission->application_status=='under_review')>Under Review</option>
+                  <option value="interviewed" @selected($admission->application_status=='interviewed')>Interviewed</option>
+                  <option value="ready_to_enroll" @selected($admission->application_status=='ready_to_enroll')>Ready to Enroll</option>
                   <option value="rejected" @selected($admission->application_status=='rejected')>Rejected</option>
                   <option value="waitlisted" @selected($admission->application_status=='waitlisted')>Waitlisted</option>
                 </select>

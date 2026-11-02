@@ -8,7 +8,10 @@ import type { ApplicationStatusFilter } from './types';
 const FILTER_OPTIONS: ApplicationStatusFilter[] = [
   'all',
   'pending',
+  'contacted',
   'under_review',
+  'interviewed',
+  'ready_to_enroll',
   'waitlisted',
   'enrolled',
   'rejected',

@@ -12,6 +12,7 @@ import { ActivityIndicator, View } from 'react-native';
 import type { AdmissionsStackParamList } from '../../../navigation/admissionsStackTypes';
 import { DocumentsTab } from '../application360/tabs/DocumentsTab';
 import { EnrollmentTab } from '../application360/tabs/EnrollmentTab';
+import { InterviewTab } from '../application360/tabs/InterviewTab';
 import { OverviewTab } from '../application360/tabs/OverviewTab';
 import { ParentsTab } from '../application360/tabs/ParentsTab';
 import { StudentTab } from '../application360/tabs/StudentTab';
@@ -23,6 +24,7 @@ const TABS: Array<{ id: Admissions360TabId; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'student', label: 'Student' },
   { id: 'parents', label: 'Parents' },
+  { id: 'interview', label: 'Interview' },
   { id: 'documents', label: 'Documents' },
   { id: 'timeline', label: 'Timeline' },
   { id: 'enrollment', label: 'Enrollment' },
@@ -104,6 +106,8 @@ export const ApplicationDetailScreen: React.FC<Props> = ({ route, navigation }) 
         return <StudentTab application={app} />;
       case 'parents':
         return <ParentsTab application={app} />;
+      case 'interview':
+        return <InterviewTab application={app} />;
       case 'documents':
         return <DocumentsTab application={app} />;
       case 'timeline':

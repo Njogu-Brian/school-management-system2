@@ -59,7 +59,14 @@ export function normalizeApplicationDetail(row: ApplicationDetailRecord): Applic
     documents: row.documents,
     timeline: row.timeline,
     enrollment: row.enrollment,
+    interview: row.interview,
+    formPolicies: row.form_policies,
     duplicateMatches: row.duplicate_matches ?? [],
+    pipelineStage: row.pipeline_stage ?? null,
+    interviewRequired: row.interview_required ?? null,
+    interviewOutcome: row.interview_outcome ?? null,
+    interviewFeePaid: row.interview_fee_paid ?? false,
+    applicationNo: row.application_no ?? null,
   };
 }
 
@@ -67,8 +74,14 @@ export function applicationStatusLabel(status: string): string {
   switch (status) {
     case 'pending':
       return 'Pending';
+    case 'contacted':
+      return 'Contacted';
     case 'under_review':
       return 'Under Review';
+    case 'interviewed':
+      return 'Interviewed';
+    case 'ready_to_enroll':
+      return 'Ready to Enroll';
     case 'waitlisted':
       return 'Waitlisted';
     case 'enrolled':

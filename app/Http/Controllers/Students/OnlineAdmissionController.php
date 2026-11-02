@@ -13,6 +13,10 @@ use App\Models\Trip;
 use App\Models\DropOffPoint;
 use App\Models\CommunicationTemplate;
 use App\Models\Setting;
+use App\Services\Admissions\AdmissionFormService;
+use App\Services\Admissions\AdmissionInterviewPolicy;
+use App\Services\Admissions\AdmissionInterviewService;
+use App\Services\Admissions\InterviewFeeService;
 use App\Services\Admissions\OnlineAdmissionWorkflowService;
 use App\Services\FamilyLinkingService;
 use App\Services\PhoneNumberService;
@@ -51,7 +55,7 @@ class OnlineAdmissionController extends Controller
         }
 
         $admissions = $query->paginate(20);
-        $statuses = ['pending', 'under_review', 'enrolled', 'rejected', 'waitlisted'];
+        $statuses = OnlineAdmission::STATUSES;
 
         return view('online_admissions.index', compact('admissions', 'statuses'));
     }
@@ -233,6 +237,12 @@ class OnlineAdmissionController extends Controller
             $data['mother_id_document'] = $request->file('mother_id_document')->store('admissions/documents', 'private');
         }
 
+        if (! empty($data['preferred_classroom_id'])) {
+            $preferred = Classroom::withoutGlobalScope('offered')->find($data['preferred_classroom_id']);
+            $data['interview_required'] = app(AdmissionInterviewPolicy::class)->forClassroom($preferred);
+            $data['pipeline_stage'] = 'full_form';
+        }
+
         $admission = OnlineAdmission::create($data);
         $userId = auth()->id();
         $this->logPhoneNormalization(OnlineAdmission::class, $admission->id, 'father_phone', $request->father_phone, $fatherPhone, $data['father_phone_country_code'], 'online_admission', $userId);
@@ -257,7 +267,7 @@ class OnlineAdmissionController extends Controller
      */
     public function show(OnlineAdmission $admission)
     {
-        $admission->load(['reviewedBy', 'classroom', 'stream']);
+        $admission->load(['reviewedBy', 'classroom', 'stream', 'preferredClassroom', 'interviewScores', 'interviewedBy']);
         $classrooms = Classroom::orderBy('name')->get();
         $streams = Stream::orderBy('name')->get();
         $categories = StudentCategory::orderBy('name')->get();
@@ -287,7 +297,32 @@ class OnlineAdmissionController extends Controller
                 ['online_admission' => $admission->id]
             );
 
-        return view('online_admissions.show', compact('admission', 'classrooms', 'streams', 'categories', 'trips', 'dropOffPoints', 'countryCodes', 'enrollmentTermOptions', 'duplicateMatches'));
+        $interviewService = app(AdmissionInterviewService::class);
+        $interviewSubjects = $interviewService->subjectsForAdmission($admission);
+        $interviewPolicy = app(AdmissionInterviewPolicy::class);
+        $interviewRequirement = $admission->interview_required
+            ?: $interviewPolicy->forClassroom($admission->preferredClassroom ?: $admission->classroom);
+        $feeService = app(InterviewFeeService::class);
+        $assessmentVotehead = $feeService->resolveAssessmentVotehead($admission->preferred_classroom_id);
+        $interviewFeeAmount = $feeService->resolveFeeAmount($admission, $assessmentVotehead);
+        $formPolicies = app(AdmissionFormService::class)->policyBlocks();
+
+        return view('online_admissions.show', compact(
+            'admission',
+            'classrooms',
+            'streams',
+            'categories',
+            'trips',
+            'dropOffPoints',
+            'countryCodes',
+            'enrollmentTermOptions',
+            'duplicateMatches',
+            'interviewSubjects',
+            'interviewRequirement',
+            'assessmentVotehead',
+            'interviewFeeAmount',
+            'formPolicies'
+        ));
     }
 
     /**
@@ -301,7 +336,7 @@ class OnlineAdmissionController extends Controller
             $request->merge(['stream_id' => null]);
         }
         $request->validate([
-            'application_status' => 'required|in:pending,under_review,rejected,waitlisted',
+            'application_status' => 'required|in:pending,contacted,under_review,interviewed,ready_to_enroll,rejected,waitlisted',
             'review_notes' => 'nullable|string',
             'classroom_id' => 'nullable|exists:classrooms,id',
             'stream_id' => 'nullable|exists:streams,id',
@@ -316,23 +351,154 @@ class OnlineAdmissionController extends Controller
             }
         }
 
-        $admission->update([
-            'application_status' => $request->application_status,
-            'review_notes' => $request->review_notes,
-            'reviewed_by' => auth()->id(),
-            'review_date' => now(),
-            'classroom_id' => $request->classroom_id,
-            'stream_id' => $request->stream_id,
-        ]);
-
-        // If waitlisted, assign position
-        if ($request->application_status === 'waitlisted') {
-            $maxPosition = OnlineAdmission::where('application_status', 'waitlisted')
-                ->max('waitlist_position') ?? 0;
-            $admission->update(['waitlist_position' => $maxPosition + 1]);
+        try {
+            app(OnlineAdmissionWorkflowService::class)->updateStatus(
+                $admission,
+                $request->only(['application_status', 'review_notes', 'classroom_id', 'stream_id']),
+                (int) auth()->id()
+            );
+        } catch (ValidationException $e) {
+            return redirect()->back()->with('error', collect($e->errors())->flatten()->first() ?? 'Could not update status.');
         }
 
         return redirect()->back()->with('success', 'Application status updated successfully.');
+    }
+
+    public function recordInterview(Request $request, OnlineAdmission $admission)
+    {
+        $data = $request->validate([
+            'interview_date' => 'nullable|date',
+            'outcome' => 'required|in:passed,failed,deferred,skipped',
+            'notes' => 'nullable|string',
+            'scores' => 'nullable|array',
+            'scores.*.subject_id' => 'nullable|integer',
+            'scores.*.subject_name' => 'nullable|string|max:255',
+            'scores.*.subject_code' => 'nullable|string|max:40',
+            'scores.*.score' => 'nullable|numeric|min:0',
+            'scores.*.out_of' => 'nullable|numeric|min:1',
+            'scores.*.notes' => 'nullable|string',
+        ]);
+
+        try {
+            app(AdmissionInterviewService::class)->recordInterview($admission, $data, (int) auth()->id());
+        } catch (ValidationException $e) {
+            return redirect()->back()->with('error', collect($e->errors())->flatten()->first() ?? 'Could not save interview.');
+        }
+
+        return redirect()->back()->with('success', 'Interview recorded.');
+    }
+
+    public function allocateInterviewFee(Request $request, OnlineAdmission $admission)
+    {
+        $data = $request->validate([
+            'amount' => 'nullable|numeric|min:0',
+            'mpesa_code' => 'required|string|max:64',
+            'payer_name' => 'nullable|string|max:255',
+        ]);
+
+        try {
+            app(InterviewFeeService::class)->allocatePayment($admission, $data, (int) auth()->id());
+        } catch (ValidationException $e) {
+            return redirect()->back()->with('error', collect($e->errors())->flatten()->first() ?? 'Could not allocate payment.');
+        }
+
+        return redirect()->back()->with('success', 'Interview fee allocated and receipt generated.');
+    }
+
+    public function downloadInterviewReceipt(OnlineAdmission $admission)
+    {
+        abort_unless($admission->interview_receipt_path, 404);
+        abort_unless(Storage::disk('public')->exists($admission->interview_receipt_path), 404);
+
+        return Storage::disk('public')->download($admission->interview_receipt_path, 'interview-receipt-'.$admission->id.'.pdf');
+    }
+
+    public function editAdmissionForm(OnlineAdmission $admission)
+    {
+        $admission->load(['preferredClassroom', 'classroom']);
+        $classrooms = Classroom::orderBy('name')->get();
+        $policies = app(AdmissionFormService::class)->policyBlocks();
+
+        return view('online_admissions.edit_form', compact('admission', 'classrooms', 'policies'));
+    }
+
+    public function updateAdmissionForm(Request $request, OnlineAdmission $admission)
+    {
+        $data = $request->validate([
+            'first_name' => 'required|string|max:255',
+            'middle_name' => 'nullable|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'dob' => 'nullable|date',
+            'gender' => 'nullable|in:Male,Female',
+            'preferred_classroom_id' => 'nullable|exists:classrooms,id',
+            'previous_school' => 'nullable|string|max:255',
+            'residential_area' => 'nullable|string|max:255',
+            'father_name' => 'nullable|string|max:255',
+            'father_phone' => 'nullable|string|max:50',
+            'father_email' => 'nullable|email|max:255',
+            'father_id_number' => 'nullable|string|max:50',
+            'mother_name' => 'nullable|string|max:255',
+            'mother_phone' => 'nullable|string|max:50',
+            'mother_email' => 'nullable|email|max:255',
+            'mother_id_number' => 'nullable|string|max:50',
+            'guardian_name' => 'nullable|string|max:255',
+            'guardian_phone' => 'nullable|string|max:50',
+            'emergency_contact_name' => 'nullable|string|max:255',
+            'emergency_contact_phone' => 'nullable|string|max:50',
+            'has_allergies' => 'nullable|boolean',
+            'allergies_notes' => 'nullable|string',
+            'is_fully_immunized' => 'nullable|boolean',
+            'preferred_hospital' => 'nullable|string|max:255',
+            'medical_condition' => 'nullable|string',
+            'nemis_number' => 'nullable|string|max:100',
+            'marital_status' => 'nullable|in:married,single_parent,co_parenting',
+        ]);
+
+        app(AdmissionFormService::class)->updateAdmissionFields($admission, $data);
+
+        return redirect()
+            ->route('online-admissions.show', $admission)
+            ->with('success', 'Admission form saved. You can print it for parent signature.');
+    }
+
+    public function printAdmissionForm(OnlineAdmission $admission)
+    {
+        $pdf = app(AdmissionFormService::class)->generatePdf($admission);
+
+        return $pdf->download('admission-form-'.$admission->id.'.pdf');
+    }
+
+    public function uploadDocument(Request $request, OnlineAdmission $admission)
+    {
+        $data = $request->validate([
+            'field' => 'required|in:passport_photo,birth_certificate,father_id_document,mother_id_document,parent_id_card,signed_admission_form',
+            'file' => 'required|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
+        ]);
+
+        app(AdmissionFormService::class)->storeDocument($admission, $request->file('file'), $data['field']);
+
+        return redirect()->back()->with('success', 'Document uploaded.');
+    }
+
+    public function editFormPolicies()
+    {
+        $policies = app(AdmissionFormService::class)->policyBlocks();
+
+        return view('online_admissions.form_policies', compact('policies'));
+    }
+
+    public function updateFormPolicies(Request $request)
+    {
+        $data = $request->validate([
+            'intro' => 'nullable|string',
+            'fees_policy' => 'nullable|string',
+            'dress_code' => 'nullable|string',
+            'other_policies' => 'nullable|string',
+        ]);
+
+        app(AdmissionFormService::class)->updatePolicies($data);
+
+        return redirect()->back()->with('success', 'Admission form policies updated.');
     }
 
     /**

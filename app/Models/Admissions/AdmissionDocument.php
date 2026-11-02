@@ -15,8 +15,13 @@ class AdmissionDocument extends Model
 
     public const TYPE_TRANSFER_LETTER = 'transfer_letter';
 
+    public const TYPE_PARENT_ID = 'parent_id';
+
+    public const TYPE_SIGNED_ADMISSION_FORM = 'signed_admission_form';
+
     protected $fillable = [
         'application_id',
+        'online_admission_id',
         'document_type',
         'file_path',
         'verified',
@@ -33,6 +38,8 @@ class AdmissionDocument extends Model
             self::TYPE_REPORT_FORM,
             self::TYPE_PASSPORT_PHOTO,
             self::TYPE_TRANSFER_LETTER,
+            self::TYPE_PARENT_ID,
+            self::TYPE_SIGNED_ADMISSION_FORM,
         ];
     }
 

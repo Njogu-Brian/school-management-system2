@@ -29,7 +29,7 @@ class FileDownloadController extends Controller
             ],
             'online-admission' => [
                 'model' => OnlineAdmission::query(),
-                'fields' => ['passport_photo', 'birth_certificate', 'father_id_document', 'mother_id_document'],
+                'fields' => ['passport_photo', 'birth_certificate', 'father_id_document', 'mother_id_document', 'parent_id_card', 'signed_admission_form'],
                 'label' => 'admission',
             ],
         ];

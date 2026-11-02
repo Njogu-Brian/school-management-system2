@@ -2,6 +2,7 @@ export type Admissions360TabId =
   | 'overview'
   | 'student'
   | 'parents'
+  | 'interview'
   | 'documents'
   | 'timeline'
   | 'enrollment';

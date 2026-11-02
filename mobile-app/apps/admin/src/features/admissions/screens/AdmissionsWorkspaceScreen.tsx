@@ -42,6 +42,7 @@ import { summaryToListItem } from '../utils/mapToListItem';
 const KPI_CONFIG = [
   { status: 'pending' as const, label: 'Pending', icon: 'time-outline' as const, field: 'pending' as const },
   { status: 'under_review' as const, label: 'Under Review', icon: 'eye-outline' as const, field: 'under_review' as const },
+  { status: 'interviewed' as const, label: 'Interviewed', icon: 'clipboard-outline' as const, field: 'interviewed' as const },
   { status: 'waitlisted' as const, label: 'Waitlisted', icon: 'list-outline' as const, field: 'waitlisted' as const },
   { status: 'enrolled' as const, label: 'Enrolled', icon: 'school-outline' as const, field: 'enrolled' as const },
   { status: 'rejected' as const, label: 'Rejected', icon: 'close-circle-outline' as const, field: 'rejected' as const },

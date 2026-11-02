@@ -62,6 +62,13 @@ class AdmissionApplicationService
         $application = $application->fresh();
         $this->notifications->notifyOnSubmit($application);
 
+        try {
+            app(ProspectusToOnlineAdmissionSync::class)->syncFromApplication($application);
+            $application = $application->fresh();
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
         return $application;
     }
 

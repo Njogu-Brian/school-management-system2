@@ -1,17 +1,58 @@
 export type ApplicationStatus =
   | 'pending'
+  | 'contacted'
   | 'under_review'
+  | 'interviewed'
+  | 'ready_to_enroll'
   | 'waitlisted'
   | 'enrolled'
   | 'rejected';
 
 export interface AdmissionsStatsRecord {
   pending: number;
+  contacted?: number;
   under_review: number;
+  interviewed?: number;
+  ready_to_enroll?: number;
   waitlisted: number;
   enrolled: number;
   rejected: number;
   total: number;
+}
+
+export interface InterviewScoreRecord {
+  id?: number;
+  subject_id?: number | null;
+  subject_name: string;
+  subject_code?: string | null;
+  score?: number | null;
+  out_of?: number | null;
+  notes?: string | null;
+}
+
+export interface InterviewSubjectOption {
+  id: number | null;
+  name: string | null;
+  code: string | null;
+}
+
+export interface ApplicationInterviewRecord {
+  required: string;
+  required_label: string;
+  date: string | null;
+  outcome: string | null;
+  notes: string | null;
+  interviewed_by_name: string | null;
+  fee_votehead_id: number | null;
+  fee_votehead_name: string | null;
+  fee_amount: number | null;
+  fee_paid: boolean;
+  fee_paid_at: string | null;
+  mpesa_code: string | null;
+  receipt_number: string | null;
+  receipt_download_path: string | null;
+  scores: InterviewScoreRecord[];
+  subjects: InterviewSubjectOption[];
 }
 
 export interface ApplicationListRecord {
@@ -181,7 +222,14 @@ export interface ApplicationDetailRecord extends ApplicationListRecord {
   documents: ApplicationDocumentRecord[];
   timeline: ApplicationTimelineRecord[];
   enrollment: ApplicationEnrollmentRecord;
+  interview?: ApplicationInterviewRecord;
+  form_policies?: Record<string, string>;
   duplicate_matches?: DuplicateMatchRecord[];
+  pipeline_stage?: string | null;
+  interview_required?: string | null;
+  interview_outcome?: string | null;
+  interview_fee_paid?: boolean;
+  application_no?: string | null;
 }
 
 export interface ApplicationListFilters {
@@ -243,5 +291,12 @@ export interface ApplicationDetail {
   documents: ApplicationDocumentRecord[];
   timeline: ApplicationTimelineRecord[];
   enrollment: ApplicationEnrollmentRecord;
+  interview?: ApplicationInterviewRecord;
+  formPolicies?: Record<string, string>;
   duplicateMatches: DuplicateMatchRecord[];
+  pipelineStage?: string | null;
+  interviewRequired?: string | null;
+  interviewOutcome?: string | null;
+  interviewFeePaid?: boolean;
+  applicationNo?: string | null;
 }

@@ -1,7 +1,10 @@
 export type ApplicationStatusFilter =
   | 'all'
   | 'pending'
+  | 'contacted'
   | 'under_review'
+  | 'interviewed'
+  | 'ready_to_enroll'
   | 'waitlisted'
   | 'enrolled'
   | 'rejected';

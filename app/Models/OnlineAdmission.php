@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class OnlineAdmission extends Model
 {
@@ -48,21 +50,49 @@ class OnlineAdmission extends Model
         'father_phone_country_code', 'mother_phone_country_code', 'guardian_phone_country_code',
         'father_id_document', 'mother_id_document',
         'previous_school', 'transfer_reason', 'marital_status',
+        'admission_application_id', 'student_id', 'pipeline_stage', 'interview_required',
+        'interview_date', 'interview_notes', 'interview_outcome', 'interviewed_by',
+        'interview_fee_votehead_id', 'interview_fee_amount', 'interview_fee_paid',
+        'interview_fee_paid_at', 'interview_mpesa_code', 'interview_receipt_number',
+        'interview_receipt_path', 'interview_payment_id', 'signed_admission_form',
+        'admission_form_filled_at', 'prospectus_parent_name', 'prospectus_phone',
+        'prospectus_email', 'application_no',
+    ];
+
+    public const STATUSES = [
+        'pending',
+        'contacted',
+        'under_review',
+        'interviewed',
+        'ready_to_enroll',
+        'waitlisted',
+        'enrolled',
+        'rejected',
     ];
 
     protected $casts = [
         'application_date' => 'date',
         'review_date' => 'date',
         'dob' => 'date',
+        'interview_date' => 'date',
+        'interview_fee_paid_at' => 'datetime',
+        'admission_form_filled_at' => 'datetime',
         'enrolled' => 'boolean',
+        'interview_fee_paid' => 'boolean',
         'transport_needed' => 'boolean',
         'has_special_needs' => 'boolean',
         'learner_interests' => 'array',
+        'interview_fee_amount' => 'decimal:2',
     ];
 
     public function reviewedBy()
     {
         return $this->belongsTo(\App\Models\User::class, 'reviewed_by');
+    }
+
+    public function interviewedBy()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'interviewed_by');
     }
 
     public function preferredClassroom()
@@ -78,5 +108,20 @@ class OnlineAdmission extends Model
     public function stream()
     {
         return $this->belongsTo(\App\Models\Academics\Stream::class);
+    }
+
+    public function interviewScores(): HasMany
+    {
+        return $this->hasMany(\App\Models\Admissions\AdmissionInterviewScore::class, 'online_admission_id');
+    }
+
+    public function prospectusApplication(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Admissions\AdmissionApplication::class, 'admission_application_id');
+    }
+
+    public function student(): BelongsTo
+    {
+        return $this->belongsTo(Student::class);
     }
 }

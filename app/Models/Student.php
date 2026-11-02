@@ -128,6 +128,10 @@ class Student extends Model
         'is_fully_immunized',
         'residential_area',
         'preferred_hospital',
+        'photo_path',
+        'photo',
+        'birth_certificate_path',
+        'marital_status',
     ];
 
     protected $casts = [

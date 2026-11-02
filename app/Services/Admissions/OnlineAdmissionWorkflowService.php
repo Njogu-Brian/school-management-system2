@@ -31,15 +31,37 @@ class OnlineAdmissionWorkflowService
             ]);
         }
 
+        $status = $data['application_status'];
+        $pipeline = match ($status) {
+            'contacted' => 'contacted',
+            'under_review' => 'review',
+            'interviewed' => 'interview',
+            'ready_to_enroll' => 'admission_form',
+            'waitlisted' => 'waitlist',
+            'enrolled' => 'enrolled',
+            'rejected' => 'rejected',
+            default => $admission->pipeline_stage,
+        };
+
+        if (! empty($data['classroom_id']) || ! empty($data['preferred_classroom_id'])) {
+            $classroomId = $data['classroom_id'] ?? $data['preferred_classroom_id'] ?? $admission->preferred_classroom_id;
+            $classroom = $classroomId ? Classroom::withoutGlobalScope('offered')->find($classroomId) : null;
+            if ($classroom && empty($admission->interview_required)) {
+                $data['interview_required'] = app(AdmissionInterviewPolicy::class)->forClassroom($classroom);
+            }
+        }
+
         $admission->update([
-            'application_status' => $data['application_status'],
+            'application_status' => $status,
+            'pipeline_stage' => $pipeline,
             'review_notes' => $data['review_notes'] ?? $admission->review_notes,
             'reviewed_by' => $userId,
             'review_date' => now(),
             'classroom_id' => $data['classroom_id'] ?? $admission->classroom_id,
             'stream_id' => $data['stream_id'] ?? $admission->stream_id,
+            'interview_required' => $data['interview_required'] ?? $admission->interview_required,
             // Leaving waitlist clears position so UI/filters stay accurate.
-            'waitlist_position' => $data['application_status'] === 'waitlisted'
+            'waitlist_position' => $status === 'waitlisted'
                 ? $admission->waitlist_position
                 : null,
         ]);
@@ -117,6 +139,8 @@ class OnlineAdmissionWorkflowService
             ? \Carbon\Carbon::parse($validated['admission_date'])->toDateString()
             : now()->toDateString();
 
+        app(AdmissionInterviewService::class)->assertCanEnroll($admission);
+
         $detector = app(\App\Services\Students\StudentDuplicateDetector::class);
         $detector->assertNoStudentDuplicates(
             $detector->candidateFromOnlineAdmission($admission),
@@ -190,6 +214,10 @@ class OnlineAdmissionWorkflowService
                 'marital_status' => $admission->marital_status,
             ];
 
+            if (empty($parentData['father_id_document']) && empty($parentData['mother_id_document']) && $admission->parent_id_card) {
+                $parentData['father_id_document'] = $admission->parent_id_card;
+            }
+
             $linker = app(FamilyLinkingService::class);
             $matched = $linker->findMatchingParent($parentData);
             $parent = $matched ?: ParentInfo::create($parentData);
@@ -210,6 +238,23 @@ class OnlineAdmissionWorkflowService
                     $photoPath = $newPath;
                 } else {
                     $photoPath = $admission->passport_photo;
+                }
+            }
+
+            $birthCertPath = null;
+            if ($admission->birth_certificate) {
+                try {
+                    $disk = function_exists('storage_private') ? storage_private() : \Illuminate\Support\Facades\Storage::disk('local');
+                    if ($disk->exists($admission->birth_certificate)) {
+                        $newPath = 'students/documents/birth_'.basename($admission->birth_certificate);
+                        $disk->copy($admission->birth_certificate, $newPath);
+                        $birthCertPath = $newPath;
+                    } elseif (storage_public()->exists($admission->birth_certificate)) {
+                        $birthCertPath = $admission->birth_certificate;
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('Failed to copy birth certificate on enroll: '.$e->getMessage());
+                    $birthCertPath = $admission->birth_certificate;
                 }
             }
 
@@ -235,6 +280,7 @@ class OnlineAdmissionWorkflowService
                 'knec_assessment_number' => $admission->knec_assessment_number,
                 'marital_status' => $admission->marital_status,
                 'photo_path' => $photoPath,
+                'birth_certificate_path' => $birthCertPath,
                 'has_allergies' => isset($validated['has_allergies']) ? (bool) $validated['has_allergies'] : (bool) $admission->has_allergies,
                 'allergies_notes' => $validated['allergies_notes'] ?? $admission->allergies_notes,
                 'is_fully_immunized' => isset($validated['is_fully_immunized']) ? (bool) $validated['is_fully_immunized'] : (bool) $admission->is_fully_immunized,
@@ -280,12 +326,23 @@ class OnlineAdmissionWorkflowService
             $admission->update([
                 'enrolled' => true,
                 'application_status' => 'enrolled',
+                'pipeline_stage' => 'enrolled',
+                'student_id' => $student->id,
                 'reviewed_by' => $userId,
                 'review_date' => now(),
                 'classroom_id' => $validated['classroom_id'],
                 'stream_id' => $validated['stream_id'] ?? null,
                 'waitlist_position' => null,
             ]);
+
+            if ($admission->admission_application_id) {
+                \App\Models\Admissions\AdmissionApplication::where('id', $admission->admission_application_id)
+                    ->update([
+                        'status' => \App\Models\Admissions\AdmissionApplication::STATUS_ENROLLED,
+                        'student_id' => $student->id,
+                        'reviewed_at' => now(),
+                    ]);
+            }
 
             try {
                 $this->sendAdmissionCommunication($student->load(['classroom', 'stream']), $parent);
@@ -300,6 +357,7 @@ class OnlineAdmissionWorkflowService
                 $feeYear = $enrollmentYear ?? (get_current_academic_year() ?? (int) date('Y'));
                 $feeTerm = $enrollmentTerm ?? (get_current_term_number() ?? 1);
                 \App\Services\FeePostingService::chargeFeesForNewStudent($student, $feeYear, $feeTerm);
+                app(InterviewFeeService::class)->creditInterviewFeeOnEnroll($admission->fresh(), $student, $feeYear, $feeTerm);
             } catch (\Exception $e) {
                 Log::warning('Failed to charge fees for new student from online admission: '.$e->getMessage(), [
                     'student_id' => $student->id,
