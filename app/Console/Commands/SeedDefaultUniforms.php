@@ -14,7 +14,7 @@ class SeedDefaultUniforms extends Command
         {--force : Skip confirmation}
         {--dry-run : Preview only}';
 
-    protected $description = 'Seed default school uniforms (preschool/primary/junior) with sizes and class links.';
+    protected $description = 'Seed school uniform selling prices (primary+junior sized list, junior-high flat list). Stock starts at 0.';
 
     public function handle(): int
     {
@@ -28,128 +28,39 @@ class SeedDefaultUniforms extends Command
             ->withoutGlobalScope('offered')
             ->orderBy('name')
             ->get(['id', 'name']);
-        $preschoolPrimary = $this->matchGroups($classrooms, [
-            'PP1', 'PP2', 'Foundation', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
-        ]);
+
         $primary = $this->matchGroups($classrooms, [
-            'PP1', 'PP2', 'Foundation', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
-        ]);
-        // Primary-only tracksuit (exclude preschool naming overlap already in list above as requested "primary")
-        $primaryOnly = $this->matchGroups($classrooms, [
             'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
         ]);
         $junior = $this->matchGroups($classrooms, ['Grade 7', 'Grade 8', 'Grade 9']);
         $primaryAndJunior = $primary->merge($junior)->unique('id')->values();
 
-        $this->line('Preschool & primary: '.$preschoolPrimary->pluck('name')->implode(', ') ?: '(none)');
-        $this->line('Primary (G1–6): '.$primaryOnly->pluck('name')->implode(', ') ?: '(none)');
-        $this->line('Junior: '.$junior->pluck('name')->implode(', ') ?: '(none)');
+        $this->line('Primary (G1–6): '.$primary->pluck('name')->implode(', ') ?: '(none)');
+        $this->line('Junior High (G7–9): '.$junior->pluck('name')->implode(', ') ?: '(none)');
 
-        if ($preschoolPrimary->isEmpty() && $junior->isEmpty()) {
+        if ($primaryAndJunior->isEmpty() && $junior->isEmpty()) {
             $this->error('No matching classrooms found.');
 
             return self::FAILURE;
         }
 
-        $catalog = [
-            [
-                'name' => 'Grey Sweater',
-                'color' => 'Grey',
-                'sizes' => $this->rangeEven(20, 38),
-                'classes' => $preschoolPrimary,
-                'selling' => 1500,
-            ],
-            [
-                'name' => 'Black Sweater',
-                'color' => 'Black',
-                'sizes' => $this->rangeEven(30, 38),
-                'classes' => $junior,
-                'selling' => 1800,
-            ],
-            [
-                'name' => 'Black Trouser',
-                'color' => 'Black',
-                'sizes' => $this->rangeEven(30, 38),
-                'classes' => $junior,
-                'selling' => 1500,
-            ],
-            [
-                'name' => 'Grey Trouser',
-                'color' => 'Grey',
-                'sizes' => $this->rangeEven(20, 38),
-                'classes' => $preschoolPrimary,
-                'selling' => 1200,
-            ],
-            [
-                'name' => 'White Shirt',
-                'color' => 'White',
-                'sizes' => ['XS', 'S', 'M', 'L', 'XL'],
-                'classes' => $primaryAndJunior,
-                'selling' => 800,
-            ],
-            [
-                'name' => 'Tracksuit',
-                'color' => null,
-                'sizes' => ['XXS', 'XS', 'S', 'M', 'L', 'XL'],
-                'classes' => $primaryOnly->isNotEmpty() ? $primaryOnly : $preschoolPrimary,
-                'selling' => 2500,
-                'scope' => 'Primary',
-            ],
-            [
-                'name' => 'Tracksuit T-shirt',
-                'color' => null,
-                'sizes' => ['XXS', 'XS', 'S', 'M', 'L', 'XL'],
-                'classes' => $primaryOnly->isNotEmpty() ? $primaryOnly : $preschoolPrimary,
-                'selling' => 800,
-                'scope' => 'Primary',
-            ],
-            [
-                'name' => 'Tracksuit',
-                'color' => null,
-                'sizes' => ['S', 'M', 'L', 'XL'],
-                'classes' => $junior,
-                'selling' => 2800,
-                'scope' => 'Junior',
-            ],
-            [
-                'name' => 'Tracksuit T-shirt',
-                'color' => null,
-                'sizes' => ['S', 'M', 'L', 'XL'],
-                'classes' => $junior,
-                'selling' => 900,
-                'scope' => 'Junior',
-            ],
-            [
-                'name' => 'Socks White',
-                'color' => 'White',
-                'sizes' => [],
-                'classes' => $primaryAndJunior,
-                'selling' => 300,
-            ],
-            [
-                'name' => 'Socks Grey',
-                'color' => 'Grey',
-                'sizes' => [],
-                'classes' => $preschoolPrimary,
-                'selling' => 300,
-            ],
-            [
-                'name' => 'Socks Black',
-                'color' => 'Black',
-                'sizes' => [],
-                'classes' => $junior,
-                'selling' => 300,
-            ],
-        ];
+        // Two-column sized list → Primary + Junior High
+        // One-column flat list → Junior High only
+        $catalog = array_merge(
+            $this->primaryAndJuniorCatalog($primaryAndJunior),
+            $this->juniorHighCatalog($junior),
+        );
 
         foreach ($catalog as $item) {
-            $label = $item['name'].(! empty($item['scope']) ? ' ('.$item['scope'].')' : '');
+            $sizeLabel = empty($item['sizes'])
+                ? '—'
+                : collect($item['sizes'])->map(fn ($s) => $s['value'].'@'.$s['price'])->implode(',');
             $this->line(sprintf(
-                '  %-28s classes=%d sizes=%s sell=%s',
-                $label,
+                '  %-36s classes=%d sell=%s sizes=%s',
+                $item['name'],
                 $item['classes']->count(),
-                $item['sizes'] ? implode(',', $item['sizes']) : '—',
-                $item['selling']
+                $item['selling'],
+                $sizeLabel
             ));
         }
 
@@ -159,7 +70,7 @@ class SeedDefaultUniforms extends Command
             return self::SUCCESS;
         }
 
-        if (! $this->option('force') && ! $this->confirm('Seed/update these default uniforms?', true)) {
+        if (! $this->option('force') && ! $this->confirm('Seed/update these uniforms (stock 0)?', true)) {
             $this->warn('Cancelled.');
 
             return self::SUCCESS;
@@ -167,28 +78,41 @@ class SeedDefaultUniforms extends Command
 
         $created = 0;
         $updated = 0;
+        $deactivated = 0;
+        $keepNames = collect($catalog)->pluck('name')->all();
 
-        DB::transaction(function () use ($catalog, &$created, &$updated) {
+        DB::transaction(function () use ($catalog, $keepNames, &$created, &$updated, &$deactivated) {
+            // Retire previous placeholder default uniforms not on the printed price lists.
+            $old = Product::query()
+                ->where('type', 'uniform')
+                ->where('is_active', true)
+                ->get();
+
+            foreach ($old as $product) {
+                $seeded = data_get($product->specifications, 'seeded');
+                if (in_array($seeded, ['default_uniforms', 'uniform_price_list'], true)
+                    && ! in_array($product->name, $keepNames, true)
+                ) {
+                    $product->update(['is_active' => false, 'is_publicly_visible' => false]);
+                    $deactivated++;
+                }
+            }
+
             foreach ($catalog as $item) {
                 if ($item['classes']->isEmpty()) {
                     continue;
                 }
 
-                $displayName = $item['name'];
-                if (! empty($item['scope'])) {
-                    $displayName .= ' — '.$item['scope'];
-                }
-
                 $product = Product::query()
                     ->where('type', 'uniform')
-                    ->where('name', $displayName)
+                    ->where('name', $item['name'])
                     ->first();
 
                 $payload = [
-                    'name' => $displayName,
+                    'name' => $item['name'],
                     'type' => 'uniform',
                     'category' => 'Uniform',
-                    'brand' => $item['color'],
+                    'brand' => $item['color'] ?? null,
                     'base_price' => $item['selling'],
                     'cost_price' => null,
                     'stock_quantity' => 0,
@@ -198,9 +122,9 @@ class SeedDefaultUniforms extends Command
                     'is_active' => true,
                     'is_publicly_visible' => true,
                     'specifications' => array_filter([
-                        'color' => $item['color'],
+                        'color' => $item['color'] ?? null,
                         'scope' => $item['scope'] ?? null,
-                        'seeded' => 'default_uniforms',
+                        'seeded' => 'uniform_price_list',
                     ]),
                 ];
 
@@ -213,8 +137,6 @@ class SeedDefaultUniforms extends Command
                 }
 
                 $product->classrooms()->sync($item['classes']->pluck('id')->all());
-
-                // Rebuild size/color variants for a clean seed
                 $product->variants()->delete();
 
                 if (! empty($item['color'])) {
@@ -232,29 +154,123 @@ class SeedDefaultUniforms extends Command
                     $product->variants()->create([
                         'variant_type' => 'size',
                         'name' => 'Size',
-                        'value' => (string) $size,
+                        'value' => (string) $size['value'],
                         'stock_quantity' => 0,
-                        'price_adjustment' => 0,
+                        'price_adjustment' => ((float) $size['price']) - ((float) $item['selling']),
                         'is_active' => true,
                     ]);
                 }
             }
         });
 
-        $this->info("Uniforms created: {$created}, updated: {$updated}");
-        $this->comment('Selling prices are placeholders — adjust in POS Uniforms as needed. Buying price left empty.');
+        $this->info("Uniforms created: {$created}, updated: {$updated}, deactivated old: {$deactivated}");
+        $this->comment('All stock set to 0. Buying price left empty.');
 
         return self::SUCCESS;
     }
 
-    private function rangeEven(int $from, int $to): array
+    /**
+     * Sized price list (two-column sheet) — Primary + Junior High.
+     */
+    private function primaryAndJuniorCatalog($classes): array
     {
-        $out = [];
-        for ($n = $from; $n <= $to; $n += 2) {
-            $out[] = (string) $n;
-        }
+        return [
+            $this->item('Shirt', $classes, 'Primary & Junior', null, [
+                ['value' => 'XS', 'price' => 600],
+                ['value' => 'S', 'price' => 600],
+                ['value' => 'M', 'price' => 700],
+                ['value' => 'L', 'price' => 700],
+                ['value' => 'XL', 'price' => 800],
+            ]),
+            $this->item('Tracksuit with T-shirt', $classes, 'Primary & Junior', null, [
+                ['value' => 'XXS', 'price' => 1800],
+                ['value' => 'XS', 'price' => 1800],
+                ['value' => 'S', 'price' => 2000],
+                ['value' => 'M', 'price' => 2000],
+                ['value' => 'L', 'price' => 2200],
+                ['value' => 'XL', 'price' => 2200],
+            ]),
+            $this->item('Dress', $classes, 'Primary & Junior', null, [
+                ['value' => '22', 'price' => 800],
+                ['value' => '24', 'price' => 800],
+                ['value' => '26', 'price' => 900],
+                ['value' => '28', 'price' => 900],
+                ['value' => '30', 'price' => 1000],
+                ['value' => '32', 'price' => 1000],
+                ['value' => '34', 'price' => 1200],
+                ['value' => '36', 'price' => 1200],
+            ]),
+            $this->item('Socks', $classes, 'Primary & Junior', null, [], 200),
+            $this->item('Bow Tie', $classes, 'Primary & Junior', null, [], 200),
+            $this->item('Tie', $classes, 'Primary & Junior', null, [], 200),
+            $this->item('Marvin', $classes, 'Primary & Junior', null, [], 300),
+            $this->item('Trouser', $classes, 'Primary & Junior', null, [
+                ['value' => '22', 'price' => 600],
+                ['value' => '24', 'price' => 600],
+                ['value' => '26', 'price' => 650],
+                ['value' => '28', 'price' => 650],
+                ['value' => '30', 'price' => 700],
+                ['value' => '32', 'price' => 700],
+                ['value' => '34', 'price' => 750],
+                ['value' => '36', 'price' => 750],
+            ]),
+            $this->item('Sweater', $classes, 'Primary & Junior', null, [
+                ['value' => '22', 'price' => 800],
+                ['value' => '24', 'price' => 800],
+                ['value' => '26', 'price' => 850],
+                ['value' => '28', 'price' => 850],
+                ['value' => '30', 'price' => 900],
+                ['value' => '32', 'price' => 900],
+                ['value' => '34', 'price' => 1000],
+                ['value' => '36', 'price' => 1000],
+            ]),
+            $this->item('Fleece Jacket', $classes, 'Primary & Junior', null, [
+                ['value' => '22', 'price' => 2000],
+                ['value' => '24', 'price' => 2000],
+                ['value' => '26', 'price' => 2100],
+                ['value' => '28', 'price' => 2100],
+                ['value' => '30', 'price' => 2200],
+                ['value' => '32', 'price' => 2200],
+                ['value' => '34', 'price' => 2400],
+                ['value' => '36', 'price' => 2400],
+            ]),
+        ];
+    }
 
-        return $out;
+    /**
+     * Flat one-column price list — Junior High only.
+     * Trouser uses handwritten correction 1000 (printed 750 crossed out).
+     */
+    private function juniorHighCatalog($classes): array
+    {
+        return [
+            $this->item('Shirt', $classes, 'Junior High', null, [], 800),
+            $this->item('Trouser', $classes, 'Junior High', null, [], 1000),
+            $this->item('Skirt', $classes, 'Junior High', null, [], 900),
+            $this->item('Sweater', $classes, 'Junior High', null, [], 1000),
+            $this->item('Half Sweater', $classes, 'Junior High', null, [], 900),
+            $this->item('Blazer', $classes, 'Junior High', null, [], 3500),
+            $this->item('Tracksuit', $classes, 'Junior High', null, [], 1600),
+            $this->item('Tracksuit T-shirt', $classes, 'Junior High', null, [], 600),
+            $this->item('Fleece Jacket', $classes, 'Junior High', null, [], 2400),
+            $this->item('Bow Tie & Tie', $classes, 'Junior High', null, [], 250),
+            $this->item('Socks', $classes, 'Junior High', null, [], 250),
+        ];
+    }
+
+    private function item(string $name, $classes, string $scope, ?string $color, array $sizes, ?float $flatPrice = null): array
+    {
+        $displayName = $name.' — '.$scope;
+        $selling = $flatPrice ?? (empty($sizes) ? 0 : min(array_column($sizes, 'price')));
+
+        return [
+            'name' => $displayName,
+            'scope' => $scope,
+            'color' => $color,
+            'classes' => $classes,
+            'selling' => $selling,
+            'sizes' => $sizes,
+        ];
     }
 
     private function matchGroups($classrooms, array $labels)
