@@ -6,6 +6,7 @@ use App\Mail\GenericMail;
 use App\Models\PdfExport;
 use App\Models\User;
 use App\Services\AppChannelNotifyService;
+use App\Services\SystemAlertService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -19,6 +20,7 @@ class PdfExportDeliveryService
 {
     public function __construct(
         protected AppChannelNotifyService $appNotify,
+        protected SystemAlertService $systemAlerts,
     ) {}
 
     /**
@@ -102,6 +104,28 @@ class PdfExportDeliveryService
             ]);
         } catch (\Throwable $e) {
             Log::warning('PDF export app notify failed', ['error' => $e->getMessage(), 'export_id' => $export->id]);
+        }
+
+        // Header "Alerts" inbox only shows SystemAlertNotification (requires_action).
+        try {
+            $this->systemAlerts->raiseForUser(
+                $user,
+                $title,
+                $body,
+                'exports',
+                'info',
+                'pdf_export_ready_'.$export->token,
+                $url,
+                [
+                    'type' => 'pdf_export_ready',
+                    'filename' => $export->original_filename,
+                    'pdf_export_token' => $export->token,
+                    'module' => $export->module,
+                    'item_count' => $export->item_count,
+                ],
+            );
+        } catch (\Throwable $e) {
+            Log::warning('PDF export web alert failed', ['error' => $e->getMessage(), 'export_id' => $export->id]);
         }
 
         if (filled($user->email)) {

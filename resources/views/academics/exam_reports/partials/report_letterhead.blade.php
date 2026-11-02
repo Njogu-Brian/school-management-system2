@@ -5,21 +5,31 @@
   $generatedBy = $generatedBy ?? (auth()->user()?->name ?? 'System');
   $variant = $variant ?? 'web-print';
   $isPdf = $variant === 'pdf';
+  $branding = is_array($branding ?? null) ? $branding : [];
 
-  $schoolName = setting('school_name', config('app.name', 'School'));
-  $address = trim((string) setting('school_address', ''));
-  $phone = trim((string) setting('school_phone', ''));
-  $email = trim((string) setting('school_email', ''));
-  $website = trim((string) setting('school_website', ''));
+  $schoolName = $branding['school_name'] ?? setting('school_name', config('app.name', 'School'));
+  $address = trim((string) ($branding['school_address'] ?? setting('school_address', '')));
+  $phone = trim((string) ($branding['school_phone'] ?? setting('school_phone', '')));
+  $email = trim((string) ($branding['school_email'] ?? setting('school_email', '')));
+  $website = trim((string) ($branding['school_website'] ?? setting('school_website', '')));
 
-  $logoFile = setting('school_logo');
+  $logoFile = $branding['school_logo'] ?? setting('school_logo');
   $logoWebUrl = $logoFile ? public_image_url($logoFile) : null;
-  $logoPdfSrc = null;
-  if ($isPdf && $logoFile) {
-      $path = public_path('images/' . ltrim($logoFile, '/'));
-      if (is_readable($path)) {
+  $logoPdfSrc = $branding['logoBase64'] ?? null;
+  if ($isPdf && ! $logoPdfSrc) {
+      $candidates = array_filter([
+          $branding['logo_path'] ?? null,
+          $logoFile ? public_path('images/' . ltrim((string) $logoFile, '/')) : null,
+          $logoFile ? public_path(ltrim((string) $logoFile, '/')) : null,
+          $logoFile ? storage_path('app/public/' . ltrim((string) $logoFile, '/')) : null,
+      ]);
+      foreach ($candidates as $path) {
+          if (! is_string($path) || ! is_readable($path)) {
+              continue;
+          }
           $mime = @mime_content_type($path) ?: 'image/png';
           $logoPdfSrc = 'data:'.$mime.';base64,'.base64_encode((string) file_get_contents($path));
+          break;
       }
   }
 @endphp

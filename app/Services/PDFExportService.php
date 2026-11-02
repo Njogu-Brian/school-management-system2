@@ -215,6 +215,10 @@ class PDFExportService
             if (is_object($value)) {
                 continue;
             }
+            // Rebuild branding (incl. logoBase64) on the worker — do not queue megabyte payloads.
+            if ($key === 'branding' || $key === 'logoBase64' || $key === 'logo_path') {
+                continue;
+            }
             if (is_array($value)) {
                 $out[$key] = $this->serializeSharedDataForQueue($value);
                 continue;
@@ -223,6 +227,14 @@ class PDFExportService
         }
 
         return $out;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function brandingForPdf(): array
+    {
+        return $this->getBrandingData();
     }
 
     protected function overflowResponse(string $message, bool $isError)
@@ -358,22 +370,44 @@ class PDFExportService
      */
     protected function getBrandingData()
     {
+        $logo = setting('school_logo');
+        $logoPath = null;
+        $logoBase64 = null;
+
+        $candidates = array_filter([
+            $logo && file_exists(public_path('images/' . ltrim((string) $logo, '/')))
+                ? public_path('images/' . ltrim((string) $logo, '/'))
+                : null,
+            $logo && file_exists(public_path(ltrim((string) $logo, '/')))
+                ? public_path(ltrim((string) $logo, '/'))
+                : null,
+            $logo && is_file(storage_path('app/public/' . ltrim((string) $logo, '/')))
+                ? storage_path('app/public/' . ltrim((string) $logo, '/'))
+                : null,
+            setting('pdf_logo_path') && is_file((string) setting('pdf_logo_path'))
+                ? (string) setting('pdf_logo_path')
+                : null,
+        ]);
+
+        foreach ($candidates as $path) {
+            if (! is_readable($path)) {
+                continue;
+            }
+            $logoPath = $path;
+            $mime = @mime_content_type($path) ?: 'image/png';
+            $logoBase64 = 'data:'.$mime.';base64,'.base64_encode((string) file_get_contents($path));
+            break;
+        }
+
         return [
             'school_name' => setting('school_name', 'School Name'),
             'school_email' => setting('school_email', ''),
             'school_phone' => setting('school_phone', ''),
             'school_address' => setting('school_address', ''),
-            'school_logo' => setting('school_logo'),
-            'logo_path' => (function () {
-                $logo = setting('school_logo');
-                if ($logo && storage_public()->exists($logo)) {
-                    return storage_path('app/public/' . $logo);
-                }
-                if ($logo && file_exists(public_path('images/' . $logo))) {
-                    return public_path('images/' . $logo);
-                }
-                return null;
-            })(),
+            'school_website' => setting('school_website', ''),
+            'school_logo' => $logo,
+            'logo_path' => $logoPath,
+            'logoBase64' => $logoBase64,
             'header_html' => setting('pdf_header_html'),
             'footer_html' => setting('pdf_footer_html'),
             'watermark' => setting('pdf_watermark'),

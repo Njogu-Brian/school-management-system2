@@ -388,6 +388,9 @@
         .header-alerts .alert-item.warning {
             border-left: 3px solid #ffc107;
         }
+        .header-alerts .alert-item.info {
+            border-left: 3px solid #0d6efd;
+        }
         .header-sms-balance .dropdown-menu {
             width: min(320px, 92vw);
         }

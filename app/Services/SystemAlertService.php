@@ -234,6 +234,53 @@ class SystemAlertService
         }
     }
 
+    /**
+     * Raise an actionable web alert for a single user (header Alerts inbox).
+     * Does not fan out to all Super Admins or escalate via email/SMS.
+     *
+     * @param  array<string, mixed>  $metadata
+     */
+    public function raiseForUser(
+        User $user,
+        string $title,
+        string $message,
+        string $category = 'exports',
+        string $severity = 'info',
+        ?string $fingerprint = null,
+        ?string $deepLink = null,
+        array $metadata = [],
+    ): void {
+        if (! Schema::hasTable('notifications')) {
+            return;
+        }
+
+        $fingerprint = $fingerprint ?: sha1($category.'|'.$title.'|'.$message.'|'.$user->id);
+        $payload = [
+            'title' => Str::limit($title, 180),
+            'body' => Str::limit($message, 500),
+            'message' => Str::limit($message, 500),
+            'category' => $category,
+            'severity' => $severity,
+            'source_module' => $category,
+            'deep_link' => $deepLink,
+            'fingerprint' => $fingerprint,
+            'requires_action' => true,
+            'escalated_at' => null,
+            'metadata' => $metadata,
+        ];
+
+        Notification::sendNow($user, new SystemAlertNotification($payload));
+
+        $this->audit('system_alert_raised', $title.' — '.$message, $user->id, [
+            'category' => $category,
+            'severity' => $severity,
+            'fingerprint' => $fingerprint,
+            'deep_link' => $deepLink,
+            'metadata' => $metadata,
+            'user_id' => $user->id,
+        ]);
+    }
+
     public function raiseSmsCreditsAlert(float $balance = 0, ?string $trigger = null): void
     {
         $this->raise(
