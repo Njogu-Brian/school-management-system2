@@ -163,6 +163,7 @@ class DailyTransportListController extends Controller
             }, [
                 'filename' => 'transport_list_'.$date.'.pdf',
                 'chunk_size' => 2,
+                'allow_over_sync' => true,
             ]);
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());

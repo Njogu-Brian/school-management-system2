@@ -4,9 +4,9 @@ namespace App\Services\Academics;
 
 use App\Models\Academics\ReportCard;
 use App\Models\User;
-use App\Notifications\PDFGeneratedNotification;
 use App\Services\Pdf\ChunkedDompdfExporter;
 use App\Services\Pdf\PdfBinaryMerger;
+use App\Services\Pdf\PdfExportDeliveryService;
 use App\Services\ReportCardBatchService;
 use App\Support\AcademicContext;
 use App\Support\AcademicScope;
@@ -64,7 +64,7 @@ class ReportCardBulkPdfExporter
                 ->with(
                     'success',
                     "PDF export queued for {$reports->count()} report cards (class/stream batches). ".
-                    'You will get an email/notification with the download link when it is ready.'
+                    'You will get a branded email plus web/mobile alerts with a permanent download link when it is ready.'
                 );
         }
 
@@ -157,23 +157,26 @@ class ReportCardBulkPdfExporter
 
             $zip->close();
 
-            $storagePath = 'pdfs/report-card-exports/'.$zipName;
-            storage_public()->put($storagePath, file_get_contents($zipPath));
-            $url = storage_public_url($storagePath) ?? \Illuminate\Support\Facades\Storage::url($storagePath);
-
-            $user = User::find($userId);
-            if ($user) {
-                $user->notify(new PDFGeneratedNotification($url, $zipName));
-            }
+            $export = app(PdfExportDeliveryService::class)->storeAndNotify(
+                $userId,
+                $zipPath,
+                $zipName,
+                'Report card PDF export (class/stream batches)',
+                'report_cards',
+                $reports->count(),
+                ['batches' => count($groupPdfPaths)],
+                'application/zip',
+            );
 
             Log::info('Queued bulk report-card PDF ready', [
                 'user_id' => $userId,
                 'reports' => $reports->count(),
                 'batches' => count($groupPdfPaths),
-                'path' => $storagePath,
+                'path' => $export->storage_path,
+                'token' => $export->token,
             ]);
 
-            return $storagePath;
+            return $export->storage_path;
         } finally {
             $this->deleteDirectory($runDir);
         }

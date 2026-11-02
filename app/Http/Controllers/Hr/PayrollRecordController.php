@@ -73,6 +73,8 @@ class PayrollRecordController extends Controller
             }, [
                 'filename' => 'payroll-records-'.now()->format('Ymd_His').'.pdf',
                 'chunk_size' => 40,
+                // Already chunked; allow large sync runs under long_pdf_export middleware.
+                'allow_over_sync' => true,
             ]);
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());

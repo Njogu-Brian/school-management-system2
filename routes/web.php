@@ -370,6 +370,11 @@ Route::middleware(['auth'])->group(function () {
 */
 Route::middleware('auth')->group(function () {
 
+    // Permanent PDF export downloads (token never expires; owner-only).
+    Route::get('/pdf-exports/{token}/download', \App\Http\Controllers\PdfExportDownloadController::class)
+        ->where('token', '[A-Za-z0-9]{32,96}')
+        ->name('pdf-exports.download');
+
      /*
     |----------------------------------------------------------------------
     | Attendance  (teachers can access)

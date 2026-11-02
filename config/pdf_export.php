@@ -31,4 +31,10 @@ return [
     /** Temp subdirectory under storage/app */
     'temp_directory' => 'pdf-export-tmp',
 
+    /**
+     * Finished exports are stored on filesystems.public_disk (S3 when
+     * FILESYSTEM_PUBLIC_DISK=s3_public). Download via permanent app token URL.
+     */
+    'storage_prefix' => 'pdf-exports',
+
 ];

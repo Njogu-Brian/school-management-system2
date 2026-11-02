@@ -99,6 +99,8 @@ class PDFExportService
 
     /**
      * Chunked DomPDF export for large row sets / document lists.
+     * Over sync_max → queue automatically (when payload is serializable), store on S3,
+     * and notify via branded email + web/mobile alert with a permanent download link.
      *
      * @param  iterable<int, mixed>  $items
      */
@@ -110,6 +112,32 @@ class PDFExportService
         $orientation = $options['orientation'] ?? 'portrait';
         $filename = $options['filename'] ?? 'document_'.time().'.pdf';
         $disposition = !empty($options['stream']) ? 'inline' : 'attachment';
+        $collection = $items instanceof Collection ? $items->values() : Collection::make($items)->values();
+        $count = $collection->count();
+        $syncMax = (int) ($options['sync_max'] ?? config('pdf_export.sync_max_items', 150));
+        $hardMax = (int) ($options['hard_max'] ?? config('pdf_export.hard_max_items', 2000));
+        $hasPrepareChunk = isset($options['prepare_chunk']) && is_callable($options['prepare_chunk']);
+
+        if ($count > $hardMax) {
+            return $this->overflowResponse(
+                "Too many items for PDF export ({$count}). Maximum is {$hardMax}. Narrow your filters.",
+                true
+            );
+        }
+
+        // Closures cannot be queued — group-key exports keep sync with allow_over_sync.
+        if ($count > $syncMax && empty($options['allow_over_sync']) && ! $hasPrepareChunk) {
+            return $this->queueChunkedViewExport($view, $sharedData, $collection, array_merge($options, [
+                'filename' => $filename,
+                'paper_size' => $paper,
+                'orientation' => $orientation,
+                'chunk_data_key' => $chunkKey,
+            ]));
+        }
+
+        if ($count > $syncMax && $hasPrepareChunk) {
+            $options['allow_over_sync'] = true;
+        }
 
         $render = function (Collection $chunk) use ($exporter, $view, $sharedData, $chunkKey, $paper, $orientation, $options) {
             $data = $sharedData;
@@ -121,21 +149,94 @@ class PDFExportService
             return $exporter->renderView($view, $data, $paper, $orientation);
         };
 
-        if ($disposition === 'inline') {
-            return $exporter->stream($items, $render, [
-                'filename' => $filename,
-                'chunk_size' => $options['chunk_size'] ?? null,
-                'sync_max' => $options['sync_max'] ?? null,
-                'hard_max' => $options['hard_max'] ?? null,
-            ]);
-        }
-
-        return $exporter->download($items, $render, [
+        $exportOptions = [
             'filename' => $filename,
             'chunk_size' => $options['chunk_size'] ?? null,
             'sync_max' => $options['sync_max'] ?? null,
             'hard_max' => $options['hard_max'] ?? null,
-        ]);
+            'allow_over_sync' => ! empty($options['allow_over_sync']),
+        ];
+
+        if ($disposition === 'inline') {
+            return $exporter->stream($collection, $render, $exportOptions);
+        }
+
+        return $exporter->download($collection, $render, $exportOptions);
+    }
+
+    /**
+     * @param  Collection<int, mixed>  $items
+     * @param  array<string, mixed>  $sharedData
+     * @param  array<string, mixed>  $options
+     */
+    protected function queueChunkedViewExport(string $view, array $sharedData, Collection $items, array $options)
+    {
+        $userId = (int) (auth()->id() ?: ($options['user_id'] ?? 0));
+        if ($userId < 1) {
+            return $this->overflowResponse('Sign in to queue a large PDF export.', true);
+        }
+
+        // Drop non-serializable / heavy branding objects that the job rebuilds.
+        $serializable = $this->serializeSharedDataForQueue($sharedData);
+        $title = (string) ($options['export_title'] ?? ($sharedData['title'] ?? 'PDF export'));
+        $module = (string) ($options['export_module'] ?? 'general');
+
+        \App\Jobs\GenerateQueuedViewPdfJob::dispatch(
+            $userId,
+            $view,
+            $serializable,
+            $items->values()->all(),
+            [
+                'filename' => $options['filename'] ?? 'export.pdf',
+                'paper_size' => $options['paper_size'] ?? 'A4',
+                'orientation' => $options['orientation'] ?? 'portrait',
+                'chunk_size' => $options['chunk_size'] ?? 40,
+                'chunk_data_key' => $options['chunk_data_key'] ?? 'rows',
+                'hard_max' => $options['hard_max'] ?? null,
+            ],
+            $title,
+            $module,
+        );
+
+        $message = "PDF export queued for {$items->count()} items. ".
+            'You will get an email and an in-app / mobile alert with a permanent download link when it is ready.';
+
+        return $this->overflowResponse($message, false);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function serializeSharedDataForQueue(array $data): array
+    {
+        $out = [];
+        foreach ($data as $key => $value) {
+            if (is_object($value)) {
+                continue;
+            }
+            if (is_array($value)) {
+                $out[$key] = $this->serializeSharedDataForQueue($value);
+                continue;
+            }
+            $out[$key] = $value;
+        }
+
+        return $out;
+    }
+
+    protected function overflowResponse(string $message, bool $isError)
+    {
+        if (request()->expectsJson() || request()->ajax()) {
+            return response()->json([
+                'success' => ! $isError,
+                'queued' => ! $isError,
+                'message' => $message,
+                'error' => $isError ? $message : null,
+            ], $isError ? 422 : 202);
+        }
+
+        return back()->with($isError ? 'error' : 'success', $message);
     }
 
     /**

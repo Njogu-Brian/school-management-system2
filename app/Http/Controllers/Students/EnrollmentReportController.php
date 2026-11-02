@@ -59,7 +59,7 @@ class EnrollmentReportController extends Controller
   {
     $payload = $this->buildExportPayload($request);
 
-    return $this->pdfService->generatePDF('exports.enrollment_by_class', [
+    $result = $this->pdfService->generatePDF('exports.enrollment_by_class', [
       'title' => 'Enrollment by Class',
       'subtitle' => $payload['subtitle'],
       'headers' => $payload['headings'],
@@ -71,7 +71,15 @@ class EnrollmentReportController extends Controller
       'chunk_items' => $payload['rows'],
       'chunk_data_key' => 'rows',
       'chunk_size' => 40,
+      'export_title' => 'Enrollment by class export',
+      'export_module' => 'enrollment',
     ]);
+
+    if (is_array($result) && ($result['success'] ?? true) === false) {
+      return back()->with('error', $result['error'] ?? 'PDF export failed.');
+    }
+
+    return $result;
   }
 
   /**

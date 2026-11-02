@@ -180,6 +180,7 @@ class ExamReportsController extends Controller
                 [
                     'filename' => $filename,
                     'chunk_size' => 1,
+                    'allow_over_sync' => true,
                 ]
             );
         } catch (\RuntimeException $e) {

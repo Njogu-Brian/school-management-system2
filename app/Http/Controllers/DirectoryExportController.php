@@ -57,18 +57,27 @@ class DirectoryExportController extends Controller
     }
 
     if ($request->input('format') === 'pdf') {
-      return $this->pdfService->generatePDF('exports.directory_table', [
-        'title' => $title . ' Export',
+      $result = $this->pdfService->generatePDF('exports.directory_table', [
+        'title' => $title.' Export',
         'subtitle' => $this->exportService->filterSummary($type, $request),
         'headers' => $labels,
         'recordCount' => count($rows),
       ], [
-        'filename' => $filenameBase . '.pdf',
+        'filename' => $filenameBase.'.pdf',
         'orientation' => count($fields) > 6 ? 'landscape' : 'portrait',
         'chunk_items' => $rows,
         'chunk_data_key' => 'rows',
         'chunk_size' => 40,
+        'export_title' => $title.' directory export',
+        'export_module' => $type === 'staff' ? 'staff_directory' : 'student_directory',
       ]);
+
+      // Queued overflow returns a redirect/JSON; failed generatePDF may return an array.
+      if (is_array($result) && ($result['success'] ?? true) === false) {
+        return back()->with('error', $result['error'] ?? 'PDF export failed.');
+      }
+
+      return $result;
     }
 
     return Excel::download(new ArrayExport($rows, $labels), $filenameBase . '.xlsx');

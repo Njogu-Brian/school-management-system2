@@ -5,9 +5,9 @@ namespace App\Services\Finance;
 use App\Models\Invoice;
 use App\Models\PaymentAllocation;
 use App\Models\User;
-use App\Notifications\PDFGeneratedNotification;
 use App\Services\Pdf\ChunkedDompdfExporter;
 use App\Services\Pdf\PdfBinaryMerger;
+use App\Services\Pdf\PdfExportDeliveryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -53,7 +53,7 @@ class InvoiceBulkPdfExporter
             return back()->with(
                 'success',
                 "PDF export queued for {$invoices->count()} invoices (class/stream batches). ".
-                'You will get an email/notification with the download link when it is ready.'
+                'You will get a branded email plus web/mobile alerts with a permanent download link when it is ready.'
             );
         }
 
@@ -162,23 +162,26 @@ class InvoiceBulkPdfExporter
 
             $zip->close();
 
-            $storagePath = 'pdfs/invoice-exports/'.$zipName;
-            storage_public()->put($storagePath, file_get_contents($zipPath));
-            $url = storage_public_url($storagePath) ?? \Illuminate\Support\Facades\Storage::url($storagePath);
-
-            $user = User::find($userId);
-            if ($user) {
-                $user->notify(new PDFGeneratedNotification($url, $zipName));
-            }
+            $export = app(PdfExportDeliveryService::class)->storeAndNotify(
+                $userId,
+                $zipPath,
+                $zipName,
+                'Invoice PDF export (class/stream batches)',
+                'invoices',
+                $invoices->count(),
+                ['batches' => count($groupPdfPaths)],
+                'application/zip',
+            );
 
             Log::info('Queued bulk invoice PDF ready', [
                 'user_id' => $userId,
                 'invoices' => $invoices->count(),
                 'batches' => count($groupPdfPaths),
-                'path' => $storagePath,
+                'path' => $export->storage_path,
+                'token' => $export->token,
             ]);
 
-            return $storagePath;
+            return $export->storage_path;
         } finally {
             $this->deleteDirectory($runDir);
         }

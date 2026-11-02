@@ -76,6 +76,7 @@ class ExpenseReportController extends Controller
             }, [
                 'filename' => 'expense-report-'.now()->format('YmdHis').'.pdf',
                 'chunk_size' => 50,
+                'allow_over_sync' => true,
             ]);
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
