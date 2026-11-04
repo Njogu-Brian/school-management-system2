@@ -1,0 +1,42 @@
+---
+description: What "deploy to production / prd" means — commit, push, SSH ERP, run deploy script
+alwaysApply: true
+---
+
+# Deploy to production
+
+When the user asks to **deploy to production**, **deploy to prd**, or equivalent:
+
+## Required sequence
+
+1. **Commit** all intended local changes (ask only if scope is unclear; if they said sync everything, include the full dirty tree).
+2. **Push** to `origin main` (`git push -u origin HEAD` when on `main`).
+3. **SSH** to the ERP host and run the production deploy script.
+
+Do not stop after push and wait for GitHub Actions alone unless the user explicitly asks for Actions-only deploy.
+
+## SSH + script
+
+```bash
+ssh school-erp
+# Host alias resolves to ubuntu@13.245.211.78 with C:/Users/brian/keys/erp-key.pem
+
+cd /var/www/erp
+git fetch origin main
+git reset --hard origin/main
+bash scripts/deploy-production.sh
+```
+
+Non-interactive equivalent from the laptop:
+
+```bash
+ssh school-erp 'cd /var/www/erp && git fetch origin main && git reset --hard origin/main && bash scripts/deploy-production.sh'
+```
+
+## Notes
+
+- App root on server: `/var/www/erp`
+- `deploy-production.sh` runs Laravel (`deploy-ec2.sh`) then the public Next.js site.
+- Pushing `main` also triggers `.github/workflows/deploy-production.yml`; still run the SSH deploy when the user asked for a full sync so production matches this session immediately.
+- Never force-push `main`. Never skip hooks unless the user asks.
+- Do not commit `.env`, PEM keys, or other secrets.

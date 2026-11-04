@@ -603,6 +603,9 @@ class StudentFeeStatementService
                 'model_id' => $payment->id,
                 'entity_type' => 'payment',
                 'entity_id' => $payment->id,
+                // Keep year/grade section headers stable without grouping payments away from invoices.
+                'term_year' => $year,
+                'term_name' => '',
             ];
         }
 

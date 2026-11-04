@@ -17,7 +17,7 @@
     $brandDanger = $brandDanger ?? setting('finance_danger_color', '#dc3545');
     $brandMuted = $brandMuted ?? setting('finance_muted_color', '#6b7280');
     
-    // Calculate running balance
+    // Calculate running balance in chronological order (bank-statement flow).
     $runningBalance = ($hasBalanceBroughtForwardInInvoices ?? false) ? 0 : ($balanceBroughtForward ?? 0);
     $transactionsWithBalance = [];
     foreach ($detailedTransactions ?? [] as $txn) {
@@ -30,14 +30,9 @@
         $txn['narration'] = $txn['narration'] ?? $txn['description'] ?? 'N/A';
         $transactionsWithBalance[] = $txn;
     }
-    
-    // Group by year/term/grade in format: "2024 / SEP - DEC - GRADE 6"
-    $grouped = collect($transactionsWithBalance)->groupBy(function($item) use ($year) {
-        $termName = $item['term_name'] ?? '';
-        $grade = $item['grade'] ?? '';
-        $yr = $item['term_year'] ?? $year;
-        return $yr . ' / ' . ($termName ? $termName . ' - ' : '') . ($grade ? $grade : '');
-    });
+
+    // Soft year/grade dividers only — do NOT regroup by term_name (that splits
+    // invoices and payments into separate blocks). Term ends stay as "closed at X" rows.
 @endphp
 <!DOCTYPE html>
 <html>
@@ -353,22 +348,30 @@
             </tr>
         </thead>
         <tbody>
-            @foreach($grouped as $groupKey => $groupTransactions)
-                <tr class="section-header">
-                    <td colspan="{{ ($showStudentColumn ?? false) ? 6 : 5 }}">{{ $groupKey }}</td>
-                </tr>
-                @foreach($groupTransactions as $txn)
-                    <tr @if(($txn['kind'] ?? '') === 'term_close') class="section-header" @endif>
-                        <td>{{ \Carbon\Carbon::parse($txn['date'])->format('d-M-Y') }}</td>
-                        @if($showStudentColumn ?? false)
-                            <td>{{ $txn['student_name'] ?? 'N/A' }}</td>
-                        @endif
-                        <td class="narration-col">{{ $txn['narration'] ?? $txn['description'] ?? 'N/A' }}</td>
-                        <td class="amount-col">{{ $txn['debit'] > 0 ? number_format($txn['debit'], 2) : '-' }}</td>
-                        <td class="amount-col">{{ $txn['credit'] > 0 ? number_format($txn['credit'], 2) : '-' }}</td>
-                        <td class="balance-col">{{ number_format($txn['running_balance'], 2) }}</td>
+            @php $lastSectionKey = null; @endphp
+            @foreach($transactionsWithBalance as $txn)
+                @php
+                    $kind = $txn['kind'] ?? '';
+                    $yr = $txn['term_year'] ?? $year;
+                    $grade = trim((string) ($txn['grade'] ?? ''));
+                    $sectionKey = trim($yr . ($grade !== '' ? ' / ' . $grade : ''));
+                @endphp
+                @if($kind !== 'term_close' && $sectionKey !== '' && $sectionKey !== $lastSectionKey)
+                    <tr class="section-header">
+                        <td colspan="{{ ($showStudentColumn ?? false) ? 6 : 5 }}">{{ $sectionKey }}</td>
                     </tr>
-                @endforeach
+                    @php $lastSectionKey = $sectionKey; @endphp
+                @endif
+                <tr @if($kind === 'term_close') class="section-header" @endif>
+                    <td>{{ \Carbon\Carbon::parse($txn['date'])->format('d-M-Y') }}</td>
+                    @if($showStudentColumn ?? false)
+                        <td>{{ $txn['student_name'] ?? 'N/A' }}</td>
+                    @endif
+                    <td class="narration-col">{{ $txn['narration'] ?? $txn['description'] ?? 'N/A' }}</td>
+                    <td class="amount-col">{{ ($txn['debit'] ?? 0) > 0 ? number_format($txn['debit'], 2) : '-' }}</td>
+                    <td class="amount-col">{{ ($txn['credit'] ?? 0) > 0 ? number_format($txn['credit'], 2) : '-' }}</td>
+                    <td class="balance-col">{{ number_format($txn['running_balance'], 2) }}</td>
+                </tr>
             @endforeach
             <tr class="totals-row">
                 <td colspan="{{ ($showStudentColumn ?? false) ? 3 : 2 }}" style="text-align: right;">Totals:</td>

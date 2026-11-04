@@ -128,6 +128,56 @@ class StudentFeeStatementServiceTest extends TestCase
     }
 
     /** @test */
+    public function statement_interleaves_invoices_and_payments_chronologically_like_a_bank_statement(): void
+    {
+        $student = Student::factory()->create();
+
+        $this->makeBilledInvoice($student, 30000, '2026-01-08', 'Term 1', '2026-04-10');
+        Payment::factory()->create([
+            'student_id' => $student->id,
+            'amount' => 15650,
+            'payment_date' => '2026-01-08',
+        ]);
+        Payment::factory()->create([
+            'student_id' => $student->id,
+            'amount' => 3500,
+            'payment_date' => '2026-02-18',
+        ]);
+        $this->makeBilledInvoice($student, 26700, '2026-05-02', 'Term 2', '2026-08-15');
+        Payment::factory()->create([
+            'student_id' => $student->id,
+            'amount' => 14550,
+            'payment_date' => '2026-03-04',
+        ]);
+        Payment::factory()->create([
+            'student_id' => $student->id,
+            'amount' => 3000,
+            'payment_date' => '2026-05-05',
+        ]);
+
+        $pack = $this->statements->forStudent($student->fresh(), 2026);
+        $rows = collect($pack['transactions'])->filter(
+            fn (array $row) => in_array($row['kind'], ['invoice', 'payment', 'term_close'], true)
+        )->values();
+
+        $this->assertSame(
+            ['invoice', 'payment', 'payment', 'payment', 'term_close', 'invoice', 'payment', 'term_close'],
+            $rows->pluck('kind')->all()
+        );
+
+        $dates = $rows->map(fn (array $row) => Carbon::parse($row['date'])->toDateString())->all();
+        $sorted = $dates;
+        sort($sorted);
+        $this->assertSame($sorted, $dates);
+
+        $closeRows = $rows->where('kind', 'term_close');
+        $this->assertCount(2, $closeRows);
+        foreach ($closeRows as $close) {
+            $this->assertStringContainsString('closed at', strtolower($close['description']));
+        }
+    }
+
+    /** @test */
     public function backdated_payment_that_clears_a_later_invoice_does_not_freeze_false_credit(): void
     {
         $student = Student::factory()->create();
