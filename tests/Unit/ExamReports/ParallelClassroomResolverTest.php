@@ -29,4 +29,5 @@ class ParallelClassroomResolverTest extends TestCase
         $this->assertSame('grade 8', $resolver->gradeKey($classroom));
         $this->assertSame('Grade 8', $resolver->gradeLabel($classroom));
     }
+
 }

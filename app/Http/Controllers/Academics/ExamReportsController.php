@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Academics;
 
 use App\Exports\ClassSheetExport;
 use App\Exports\ClassSheetsWorkbookExport;
+use App\Exports\TeacherPerformanceExport;
 use App\Exports\TermWorkbookExport;
 use App\Http\Controllers\Controller;
 use App\Models\Academics\Classroom;
@@ -452,14 +453,9 @@ class ExamReportsController extends Controller
         $notice = null;
 
         if ($request->filled('load')) {
-            if ($scope === 'school' && $request->filled('exam_id')) {
+            if ($scope === 'school') {
                 ExamReportsAccess::assertSchoolWideReportsAllowed($u);
-                $exam = Exam::find($request->exam_id);
-                if ($exam) {
-                    $cache = new ReportCache();
-                    $subjectId = $request->integer('subject_id') ?: null;
-                    $payload = $cache->rememberSchoolTeacherPerformance($exam, $subjectId, fn () => $schoolRankings->rankingsForExam($exam, $subjectId));
-                }
+                [$payload, $notice] = $this->buildSchoolTeacherPerformancePayload($request, $schoolRankings, $analysisFlow);
             } else {
                 [$payload, $notice] = $this->buildTeacherPerformancePayload($request, $u, $analytics, $analysisFlow);
             }
@@ -473,6 +469,99 @@ class ExamReportsController extends Controller
             'examReportsFullAccess',
             'subjectScopedTeacher'
         )));
+    }
+
+    public function exportTeacherPerformance(Request $request, AnalyticsService $analytics, SchoolWideTeacherRankingService $schoolRankings)
+    {
+        $request->merge(['load' => 1]);
+        $request->validate([
+            'scope' => 'nullable|in:class,school',
+            'analysis_flow' => 'nullable|in:by_exam_type,term',
+            'academic_year_id' => 'nullable|exists:academic_years,id',
+            'term_id' => 'nullable|exists:terms,id',
+            'exam_type_id' => 'nullable|exists:exam_types,id',
+            'classroom_id' => 'nullable|exists:classrooms,id',
+            'stream_id' => 'nullable|exists:streams,id',
+            'exam_id' => 'nullable|exists:exams,id',
+            'subject_id' => 'nullable|exists:subjects,id',
+        ]);
+
+        $user = $request->user();
+        $u = $user instanceof User ? $user : null;
+        $scope = $request->input('scope', 'class');
+        if (! ExamReportsAccess::userHasFullAccess($u)) {
+            $scope = 'class';
+        }
+        $analysisFlow = $request->input('analysis_flow', 'by_exam_type');
+
+        if ($scope === 'school') {
+            ExamReportsAccess::assertSchoolWideReportsAllowed($u);
+            [$payload, $notice] = $this->buildSchoolTeacherPerformancePayload($request, $schoolRankings, $analysisFlow);
+        } else {
+            [$payload, $notice] = $this->buildTeacherPerformancePayload($request, $u, $analytics, $analysisFlow);
+        }
+
+        if (! $payload || (! empty($notice) && empty($payload['per_teacher']) && empty($payload['per_subject']) && empty($payload['per_subject_teacher']))) {
+            abort(422, $notice ?: 'Nothing to export. Generate teacher performance first.');
+        }
+
+        $title = $scope === 'school' ? 'All Teachers' : 'Class Teachers';
+        $filename = 'teacher-performance-'.now()->format('Ymd-His').'.xlsx';
+
+        return Excel::download(
+            new TeacherPerformanceExport($payload, $title, (string) ($u?->name ?? 'System')),
+            $filename
+        );
+    }
+
+    /**
+     * @return array{0: ?array, 1: ?string}
+     */
+    private function buildSchoolTeacherPerformancePayload(
+        Request $request,
+        SchoolWideTeacherRankingService $schoolRankings,
+        string $analysisFlow
+    ): array {
+        $subjectId = $request->integer('subject_id') ?: null;
+
+        if ($request->filled('exam_id')) {
+            $exam = Exam::find($request->exam_id);
+            if (! $exam) {
+                return [null, 'Exam not found.'];
+            }
+            $payload = $schoolRankings->rankingsForExam($exam, $subjectId);
+            if (empty($payload['per_teacher']) && empty($payload['per_subject_teacher'])) {
+                return [$payload, 'No teacher marks found for this exam.'];
+            }
+
+            return [$payload, null];
+        }
+
+        $request->validate([
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'term_id' => 'required|exists:terms,id',
+        ]);
+
+        $ay = (int) $request->academic_year_id;
+        $termId = (int) $request->term_id;
+
+        if ($analysisFlow === 'term') {
+            $payload = $schoolRankings->rankingsForTerm($ay, $termId, $subjectId);
+        } else {
+            $request->validate(['exam_type_id' => 'required|exists:exam_types,id']);
+            $payload = $schoolRankings->rankingsForExamType(
+                (int) $request->exam_type_id,
+                $ay,
+                $termId,
+                $subjectId
+            );
+        }
+
+        if (empty($payload['per_teacher']) && empty($payload['per_subject_teacher'])) {
+            return [$payload, 'No school-wide teacher marks found for these filters.'];
+        }
+
+        return [$payload, null];
     }
 
     public function subjectPerformance(Request $request, AnalyticsService $analytics)

@@ -12,7 +12,7 @@
       <div>
         <div class="crumb">Academics · Exam Reports &amp; Analysis</div>
         <h1 class="mb-1">Teacher Performance</h1>
-        <p class="text-muted mb-0">Rank subject teachers by class performance for one exam or a full term.</p>
+        <p class="text-muted mb-0">Rank subject teachers by class or school-wide performance for one exam type or a full term. Use <strong>School-wide</strong> to include all teachers, then export.</p>
       </div>
       <div class="d-flex gap-2">
         <a class="btn btn-outline-secondary" href="{{ route('academics.exam-reports.class-sheet') }}">Class Sheet</a>
@@ -36,6 +36,11 @@
 
     @if($payload)
       <div class="d-flex justify-content-end mb-2 no-print gap-2">
+        @php $exportQ = request()->query(); $exportQ['load'] = 1; @endphp
+        <a class="btn btn-outline-secondary btn-sm" href="{{ route('academics.exam-reports.export.teacher-performance', $exportQ) }}">
+          <i class="bi bi-file-earmark-spreadsheet"></i>
+          @if(($scope ?? 'class') === 'school') Export all teachers (XLSX) @else Export XLSX @endif
+        </a>
         <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer"></i> Print</button>
       </div>
       <div id="exam-report-print-area" class="exam-report-print-root">

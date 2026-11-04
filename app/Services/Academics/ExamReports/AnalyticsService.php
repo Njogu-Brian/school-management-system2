@@ -175,25 +175,36 @@ class AnalyticsService
             }
         }
 
-        $students = Student::query()
+        // Include alumni still sitting papers this year (e.g. Grade 9 active in 2026).
+        $students = Student::withAlumni()
             ->where('classroom_id', $classroom->id)
+            ->where('archive', 0)
+            ->whereNull('archived_at')
             ->when($streamId, fn ($q) => $q->where('stream_id', $streamId))
             ->pluck('id');
+
+        if ($students->isEmpty() && $paperIds !== []) {
+            $students = ExamMark::query()
+                ->whereIn('exam_id', $paperIds)
+                ->distinct()
+                ->pluck('student_id');
+        }
 
         $marks = ExamMark::query()
             ->whereIn('exam_id', $paperIds)
             ->whereIn('student_id', $students)
             ->whereIn('subject_id', $subjects->pluck('id'))
-            ->get(['student_id', 'subject_id', 'score_raw', 'score_moderated', 'grade_label', 'is_absent'])
+            ->get(['student_id', 'subject_id', 'teacher_id', 'score_raw', 'score_moderated', 'grade_label', 'is_absent'])
             ->map(fn (ExamMark $m) => $m->applyMarksObtained());
 
+        // Stream-specific assignments count as teaching that stream; class-wide (null stream) covers all.
         $assignments = ClassroomSubject::query()
             ->where('classroom_id', $classroom->id)
             ->when($streamId, function ($q) use ($streamId) {
                 $q->where(function ($q2) use ($streamId) {
                     $q2->whereNull('stream_id')->orWhere('stream_id', $streamId);
                 });
-            }, fn ($q) => $q->whereNull('stream_id'))
+            })
             ->when($academicYearId, function ($q) use ($academicYearId) {
                 $q->where(function ($q2) use ($academicYearId) {
                     $q2->whereNull('academic_year_id')->orWhere('academic_year_id', $academicYearId);
@@ -212,12 +223,38 @@ class AnalyticsService
                 }
             })
             ->whereIn('subject_id', $subjects->pluck('id'))
-            ->get(['subject_id', 'staff_id']);
+            ->whereNotNull('staff_id')
+            ->get(['subject_id', 'staff_id', 'stream_id']);
 
-        $teacherBySubject = $assignments
-            ->filter(fn ($a) => ! empty($a->staff_id))
+        // Prefer stream-matched assignment, then class-wide, then any stream assignment for the subject.
+        $teacherBySubject = $subjects->mapWithKeys(function (Subject $sub) use ($assignments, $streamId) {
+            $forSubject = $assignments->where('subject_id', $sub->id)->values();
+            if ($forSubject->isEmpty()) {
+                return [];
+            }
+            $pick = null;
+            if ($streamId) {
+                $pick = $forSubject->first(fn ($a) => (int) $a->stream_id === (int) $streamId)
+                    ?? $forSubject->first(fn ($a) => $a->stream_id === null);
+            }
+            $pick = $pick ?? $forSubject->first(fn ($a) => $a->stream_id === null) ?? $forSubject->first();
+
+            return $pick?->staff_id ? [$sub->id => (int) $pick->staff_id] : [];
+        });
+
+        // Fallback: teacher stamped on marks when classroom_subjects has no staff.
+        $markTeacherBySubject = $marks
+            ->filter(fn (ExamMark $m) => ! empty($m->teacher_id))
             ->groupBy('subject_id')
-            ->map(fn ($g) => $g->first()->staff_id);
+            ->map(function (Collection $rows) {
+                return (int) $rows->groupBy('teacher_id')->sortByDesc(fn ($g) => $g->count())->keys()->first();
+            });
+
+        foreach ($markTeacherBySubject as $subjectId => $staffId) {
+            if (! $teacherBySubject->has($subjectId)) {
+                $teacherBySubject->put($subjectId, $staffId);
+            }
+        }
 
         $teacherIds = $teacherBySubject->values()->unique()->filter()->values();
         $teachers = Staff::query()
@@ -236,12 +273,13 @@ class AnalyticsService
 
             $teacherId = $teacherBySubject->get($sub->id);
             $t = $teacherId ? $teachers->get($teacherId) : null;
+            $teacherName = $t ? trim(($t->first_name ?? '').' '.($t->middle_name ?? '').' '.($t->last_name ?? '')) : null;
 
             return [
                 'subject_id' => $sub->id,
                 'subject' => $sub->name,
                 'teacher_id' => $teacherId,
-                'teacher' => $t ? trim(($t->first_name ?? '').' '.($t->middle_name ?? '').' '.($t->last_name ?? '')) : null,
+                'teacher' => ($teacherName !== null && $teacherName !== '') ? $teacherName : null,
                 'count' => $subMarks->count(),
                 'mean' => $subMarks->count() ? round($subMarks->avg(), 2) : null,
                 'max' => $subMarks->count() ? $subMarks->max() : null,

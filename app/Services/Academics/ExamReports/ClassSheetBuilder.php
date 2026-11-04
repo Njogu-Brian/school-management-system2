@@ -563,7 +563,7 @@ class ClassSheetBuilder
                 'classroom_names' => [$classroom->name],
             ];
         } else {
-            $parallel = $this->attachParallelGradeRanks($rows, $academicYearId, $termId, $classroom);
+            $parallel = $this->attachParallelGradeRanks($rows, $academicYearId, $termId, $classroom, $streamId);
             $rows = $parallel['rows'];
             $parallelMeta = $parallel['meta'];
             $rows = $rows->map(function ($row) {
@@ -613,7 +613,8 @@ class ClassSheetBuilder
     }
 
     /**
-     * Rank this class's students against parallel classes at the same grade/level.
+     * Rank this class's students against parallel classes/streams at the same grade.
+     * Streamed classes count as separate sections (East/West = 2 classes).
      *
      * @param  Collection<int, array<string, mixed>>  $rows
      * @return array{rows: Collection<int, array<string, mixed>>, meta: array{grade_label: ?string, classroom_count: int, classroom_names: list<string>}}
@@ -622,14 +623,15 @@ class ClassSheetBuilder
         Collection $rows,
         int $academicYearId,
         int $termId,
-        Classroom $classroom
+        Classroom $classroom,
+        ?int $streamId = null
     ): array {
         $resolver = new ParallelClassroomResolver();
-        $peers = $resolver->peers($classroom);
+        $sections = $resolver->peerSections($classroom);
         $gradeLabel = $resolver->gradeLabel($classroom);
-        $peerNames = $peers->pluck('name')->values()->all();
+        $sectionLabels = $sections->pluck('label')->values()->all();
 
-        if ($peers->count() <= 1) {
+        if ($sections->count() <= 1) {
             $rows = $rows->map(function (array $row) {
                 $row['grade_position'] = $row['position'] ?? null;
 
@@ -641,27 +643,40 @@ class ClassSheetBuilder
                 'meta' => [
                     'grade_label' => $gradeLabel,
                     'classroom_count' => 1,
-                    'classroom_names' => $peerNames !== [] ? $peerNames : [$classroom->name],
+                    'classroom_names' => $sectionLabels !== [] ? $sectionLabels : [$classroom->name],
                 ],
             ];
         }
 
         $cohort = collect();
-        foreach ($peers as $peer) {
-            if ((int) $peer->id === (int) $classroom->id) {
+        foreach ($sections as $section) {
+            $peer = $section['classroom'];
+            $sectionStreamId = $section['stream_id'];
+            $sameClassroom = (int) $peer->id === (int) $classroom->id;
+
+            // When a stream filter is applied, skip other streams of the same classroom.
+            if ($sameClassroom && $streamId && $sectionStreamId && (int) $sectionStreamId !== (int) $streamId) {
+                continue;
+            }
+
+            if ($sameClassroom) {
                 foreach ($rows as $row) {
+                    if ($sectionStreamId !== null && (int) ($row['stream_id'] ?? 0) !== (int) $sectionStreamId) {
+                        continue;
+                    }
                     $cohort->push([
                         'student_id' => $row['student_id'],
                         'admission_number' => $row['admission_number'] ?? '',
                         'total' => $row['total'] ?? null,
                         'average' => $row['average'] ?? null,
                         'classroom_id' => (int) $classroom->id,
+                        'stream_id' => $sectionStreamId,
                     ]);
                 }
                 continue;
             }
 
-            $peerSheet = $this->buildTermTotalsOnly($academicYearId, $termId, $peer, null);
+            $peerSheet = $this->buildTermTotalsOnly($academicYearId, $termId, $peer, $sectionStreamId);
             foreach ($peerSheet as $peerRow) {
                 $cohort->push([
                     'student_id' => $peerRow['student_id'],
@@ -669,6 +684,7 @@ class ClassSheetBuilder
                     'total' => $peerRow['total'] ?? null,
                     'average' => $peerRow['average'] ?? null,
                     'classroom_id' => (int) $peer->id,
+                    'stream_id' => $sectionStreamId,
                 ]);
             }
         }
@@ -684,8 +700,8 @@ class ClassSheetBuilder
             'rows' => $rows,
             'meta' => [
                 'grade_label' => $gradeLabel,
-                'classroom_count' => $peers->count(),
-                'classroom_names' => $peerNames,
+                'classroom_count' => $sections->count(),
+                'classroom_names' => $sectionLabels,
             ],
         ];
     }
@@ -899,6 +915,17 @@ class ClassSheetBuilder
 
         $currentIds = $placement->studentsInClassroom((int) $classroom->id, $year, $streamId)->pluck('id');
 
+        // Grade 9 / leaving classes may already be flagged alumni for next year while
+        // still analysing the current year — keep learners still pointed at this class.
+        $liveAlumniIds = Student::withAlumni()
+            ->where('classroom_id', $classroom->id)
+            ->where('is_alumni', true)
+            ->where('archive', 0)
+            ->whereNull('archived_at')
+            ->when($streamId, fn ($q) => $q->where('stream_id', $streamId))
+            ->pluck('id');
+        $currentIds = $currentIds->merge($liveAlumniIds)->unique()->values();
+
         $markIds = $examIdList->isEmpty()
             ? collect()
             : ExamMark::query()
@@ -953,9 +980,13 @@ class ClassSheetBuilder
                 ->pluck('id');
         }
 
-        return Student::query()
+        // Keep alumni who sat these papers (e.g. Grade 9 still active for the analysis year).
+        return Student::withAlumni()
             ->with('stream')
             ->whereIn('id', $ids)
+            ->where(function ($q) {
+                $q->where('archive', 0)->orWhereNull('archive');
+            })
             ->orderBy('first_name')
             ->orderBy('middle_name')
             ->orderBy('last_name')

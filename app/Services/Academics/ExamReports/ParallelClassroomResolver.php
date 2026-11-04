@@ -3,10 +3,12 @@
 namespace App\Services\Academics\ExamReports;
 
 use App\Models\Academics\Classroom;
+use App\Models\Academics\Stream;
 use Illuminate\Support\Collection;
 
 /**
  * Resolve parallel classes at the same grade/level for cross-class ranking.
+ * Streamed classes are treated as separate sections (e.g. Grade 7 East + West = 2 classes).
  */
 final class ParallelClassroomResolver
 {
@@ -40,6 +42,57 @@ final class ParallelClassroomResolver
             ->get()
             ->filter(fn (Classroom $peer) => $this->gradeKey($peer) === $key)
             ->values();
+    }
+
+    /**
+     * Peer sections for ranking. A classroom with 2+ streams becomes one section per stream.
+     *
+     * @return Collection<int, array{classroom: Classroom, stream_id: ?int, label: string, key: string}>
+     */
+    public function peerSections(Classroom $classroom): Collection
+    {
+        $sections = collect();
+
+        foreach ($this->peers($classroom) as $peer) {
+            $streams = $this->streamsForClassroom($peer);
+            if ($streams->count() >= 2) {
+                foreach ($streams as $stream) {
+                    $sections->push([
+                        'classroom' => $peer,
+                        'stream_id' => (int) $stream->id,
+                        'label' => trim($peer->name.' — '.$stream->name),
+                        'key' => $peer->id.':'.$stream->id,
+                    ]);
+                }
+            } else {
+                $sections->push([
+                    'classroom' => $peer,
+                    'stream_id' => null,
+                    'label' => (string) $peer->name,
+                    'key' => $peer->id.':0',
+                ]);
+            }
+        }
+
+        return $sections->values();
+    }
+
+    /**
+     * @return Collection<int, Stream>
+     */
+    public function streamsForClassroom(Classroom $classroom): Collection
+    {
+        $primary = Stream::query()
+            ->where('classroom_id', $classroom->id)
+            ->orderBy('name')
+            ->get(['id', 'name', 'classroom_id']);
+
+        $pivot = Stream::query()
+            ->whereHas('classrooms', fn ($q) => $q->where('classrooms.id', $classroom->id))
+            ->orderBy('name')
+            ->get(['id', 'name', 'classroom_id']);
+
+        return $primary->concat($pivot)->unique('id')->sortBy('name')->values();
     }
 
     /**

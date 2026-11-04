@@ -56,7 +56,7 @@
 
       <div class="col-md-3">
         <label class="form-label">Class</label>
-        <select name="classroom_id" class="form-select" id="analysis_classroom_id" required>
+        <select name="classroom_id" class="form-select" id="analysis_classroom_id">
           <option value="">Select class</option>
         </select>
         <div class="form-text text-muted small d-none" id="analysis_class_hint">Pick year and term to list classes with exam data.</div>

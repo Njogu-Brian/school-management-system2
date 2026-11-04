@@ -28,7 +28,18 @@ final class ExamReportsAccess
      */
     public static function classroomsQueryFor(?User $user): Builder
     {
-        $q = Classroom::query()->orderBy('name');
+        // Include leaving / wrongly flagged alumni classes (e.g. Grade 9 still active this year).
+        $q = Classroom::query()
+            ->where(function ($inner) {
+                $inner->where('is_alumni', false)
+                    ->orWhereNull('is_alumni')
+                    ->orWhereHas('students', function ($sq) {
+                        $sq->withoutGlobalScope('active')
+                            ->where('archive', 0)
+                            ->whereNull('archived_at');
+                    });
+            })
+            ->orderBy('name');
 
         if ($user && ! self::userHasFullAccess($user)) {
             $ids = $user->getDashboardClassroomIds();
