@@ -48,6 +48,11 @@
         $subjects = $payload['subjects'] ?? [];
         $rows = $payload['rows'] ?? [];
         $meta = $payload['meta'] ?? [];
+        $sittings = $payload['sittings'] ?? ($meta['sittings'] ?? []);
+        $isTermSittings = ($meta['mode'] ?? '') === 'term' && ($meta['layout'] ?? '') === 'term_sittings' && ! empty($sittings);
+        $parallel = $meta['parallel'] ?? [];
+        $showGrade = ! empty($parallel['classroom_count']) && (int) $parallel['classroom_count'] > 1;
+        $sittingClassAverages = $meta['sitting_class_averages'] ?? [];
         $subjectAverages = collect($subjects)->mapWithKeys(function ($s) use ($rows) {
             $sid = $s['id'] ?? null;
             if (! $sid) return [];
@@ -58,6 +63,11 @@
             $avg = $vals->count() ? round($vals->avg(), 2) : null;
             return [$sid => $avg];
         });
+        $classMeanValues = collect($rows)
+            ->pluck('average')
+            ->filter(fn ($v) => $v !== null && $v !== '' && is_numeric($v))
+            ->map(fn ($v) => (float) $v);
+        $classMean = $classMeanValues->count() ? round($classMeanValues->avg(), 2) : null;
         $sub = null;
         if (($meta['mode'] ?? '') === 'exam_session') {
             $sub = $meta['exam_session']['name'] ?? null;
@@ -76,6 +86,70 @@
           'generatedAt' => $generatedAt ?? now(),
           'generatedBy' => $generatedBy ?? 'System',
         ])
+        @if($isTermSittings)
+          <table class="exam-report-marks-table">
+            <thead>
+              <tr>
+                <th rowspan="2">#</th>
+                <th rowspan="2">Adm<br>No</th>
+                <th class="left" rowspan="2">Stud<br>ent</th>
+                @foreach($sittings as $sitting)
+                  <th colspan="2">{{ $sitting['label'] }}</th>
+                @endforeach
+                <th colspan="2">Term</th>
+                <th rowspan="2">Cls</th>
+                @if($showGrade)
+                  <th rowspan="2">Grade</th>
+                @endif
+              </tr>
+              <tr>
+                @foreach($sittings as $sitting)
+                  <th>Tot</th>
+                  <th>Avg</th>
+                @endforeach
+                <th>Tot</th>
+                <th>Avg</th>
+              </tr>
+            </thead>
+            <tbody>
+              @foreach($rows as $i => $r)
+                <tr>
+                  <td class="num">{{ $i + 1 }}</td>
+                  <td class="num">{{ $r['admission_number'] ?? '' }}</td>
+                  <td class="left">{{ $r['name'] ?? '' }}</td>
+                  @foreach($sittings as $sitting)
+                    @php $sit = data_get($r, 'sitting_scores.'.$sitting['key'], []); @endphp
+                    <td class="num">{{ $sit['total'] ?? '' }}</td>
+                    <td class="num">{{ $sit['average'] ?? '' }}</td>
+                  @endforeach
+                  <td class="num">{{ $r['total'] ?? '' }}</td>
+                  <td class="num">{{ $r['average'] ?? '' }}</td>
+                  <td class="num">{{ $r['class_position'] ?? $r['position'] ?? '' }}</td>
+                  @if($showGrade)
+                    <td class="num">{{ $r['grade_position'] ?? '' }}</td>
+                  @endif
+                </tr>
+              @endforeach
+            </tbody>
+            @if(!empty($rows))
+              <tfoot>
+                <tr>
+                  <td colspan="3" style="font-weight:bold;">Class average</td>
+                  @foreach($sittings as $sitting)
+                    <td class="num"></td>
+                    <td class="num" style="font-weight:bold;">{{ $sittingClassAverages[$sitting['key']] ?? '' }}</td>
+                  @endforeach
+                  <td class="num"></td>
+                  <td class="num" style="font-weight:bold;">{{ $classMean ?? '' }}</td>
+                  <td class="num"></td>
+                  @if($showGrade)
+                    <td class="num"></td>
+                  @endif
+                </tr>
+              </tfoot>
+            @endif
+          </table>
+        @else
         <table class="exam-report-marks-table">
           <colgroup>
             <col style="width:3%;">
@@ -136,6 +210,7 @@
           </tfoot>
           @endif
         </table>
+        @endif
 
         @if(in_array($meta['mode'] ?? '', ['exam_session', 'term'], true) && ! empty($payload['most_improved']))
           @php $mi = $payload['most_improved']; $miRows = collect($mi['rows'] ?? []); @endphp

@@ -25,7 +25,7 @@
       <div>
         <div class="crumb">Academics · Exam Reports &amp; Analysis</div>
         <h1 class="mb-1">Class Mark Sheet</h1>
-        <p class="mb-0">Choose year and term first, then class. For streamed classes, pick a stream or leave <strong>All streams</strong>.</p>
+        <p class="mb-0">Choose year and term first, then class. Whole term shows every core exam (Opener / Mid / End), class averages, and grade rank vs parallel classes. For streamed classes, pick a stream or leave <strong>All streams</strong>.</p>
       </div>
       <div class="d-flex gap-2 flex-wrap">
         <a class="btn btn-outline-secondary" href="{{ route('academics.exam-reports.teacher-performance') }}">Teacher Performance</a>
@@ -265,6 +265,7 @@
                   @include('academics.exam_reports.partials.most_improved_panel', [
                     'payload' => $bundle['payload'],
                     'showStreamColumn' => $showStreamCol,
+                    'allowSittingPicker' => ($bundle['payload']['meta']['mode'] ?? '') === 'term',
                   ])
                 @endif
               @endif

@@ -133,34 +133,13 @@
 
         <div class="col-lg-6">
           <div class="settings-card h-100">
-            <div class="card-header d-flex align-items-center gap-2 flex-wrap d-print-none">
-              <i class="bi bi-graph-up-arrow"></i>
-              <h5 class="mb-0">Improvement Scale</h5>
-              @if(!empty($payload['meta']['comparison_label']))
-                <span class="badge text-bg-light border">{{ $payload['meta']['comparison_label'] }}</span>
-              @endif
-              <span class="text-muted small ms-1">All students by overall total marks between exam sittings</span>
-            </div>
             <div class="card-body p-0">
-              <div class="table-responsive">
-                <table class="table table-modern align-middle mb-0 exam-report-marks-table">
-                  <thead class="table-light"><tr><th>Adm No</th><th>Student</th><th>Prev</th><th>Current</th><th>+/-</th></tr></thead>
-                  <tbody>
-                    @foreach(($payload['most_improved'] ?? []) as $row)
-                      <tr>
-                        <td>{{ $row['admission_number'] }}</td>
-                        <td class="fw-semibold">{{ $row['name'] }}</td>
-                        <td>{{ $row['prev_total'] }}</td>
-                        <td>{{ $row['curr_total'] }}</td>
-                        <td class="fw-semibold">{{ $row['improvement'] }}</td>
-                      </tr>
-                    @endforeach
-                    @if(empty($payload['most_improved']))
-                      <tr><td colspan="5" class="text-center text-muted py-4">No comparison data available.</td></tr>
-                    @endif
-                  </tbody>
-                </table>
-              </div>
+              @include('academics.exam_reports.partials.most_improved_panel', [
+                'payload' => $payload,
+                'showStreamColumn' => false,
+                'withBorder' => false,
+                'allowSittingPicker' => ($mode ?? 'exam') === 'term',
+              ])
             </div>
           </div>
         </div>

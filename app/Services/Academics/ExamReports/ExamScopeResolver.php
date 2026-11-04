@@ -80,7 +80,25 @@ final class ExamScopeResolver
     }
 
     /**
+     * KNEC CBA / Next CBA / SBA — side sittings excluded from exam-report analysis.
+     */
+    public static function isSideExamType(?string $name, ?string $code = null): bool
+    {
+        $hay = strtolower(trim(($name ?? '').' '.($code ?? '')));
+
+        if ($hay === '' || $hay === '0') {
+            return false;
+        }
+
+        return str_contains($hay, 'knec')
+            || str_contains($hay, 'next cba')
+            || str_contains($hay, 'next cb')
+            || (bool) preg_match('/\b(cba|sba)\b/', $hay);
+    }
+
+    /**
      * Sort order for in-term exam sittings (Opener → Mid Term → End Term).
+     * Side sittings (KNEC CBA) sort last and are excluded from improvement analysis.
      */
     public static function examTypeSortOrder(?string $name, ?string $code = null): int
     {
@@ -89,11 +107,7 @@ final class ExamScopeResolver
         if ($hay === '' || $hay === '0') {
             return 0;
         }
-        if (
-            str_contains($hay, 'knec')
-            || str_contains($hay, 'next cba')
-            || preg_match('/\b(cba|sba)\b/', $hay)
-        ) {
+        if (self::isSideExamType($name, $code)) {
             return 90;
         }
         if (str_contains($hay, 'open') || preg_match('/\bopn\b/', $hay)) {
@@ -110,11 +124,17 @@ final class ExamScopeResolver
     }
 
     /**
-     * Previous exam sitting in the same term/class (e.g. Mid Term before End Term).
+     * Previous core exam sitting in the same term/class (e.g. Mid Term before End Term).
+     * KNEC CBA / side sittings are never used as previous.
      */
     public function findPreviousExamSession(ExamSession $session, ?int $streamId = null): ?ExamSession
     {
         $session->loadMissing('examType');
+
+        if (self::isSideExamType($session->examType?->name, $session->examType?->code)) {
+            return null;
+        }
+
         $currentOrder = self::examTypeSortOrder($session->examType?->name, $session->examType?->code);
 
         if ($currentOrder <= 1) {
@@ -122,7 +142,7 @@ final class ExamScopeResolver
         }
 
         $effectiveStreamId = $session->stream_id ?? $streamId;
-        $candidates = $this->examSessionsForTermScope(
+        $candidates = $this->coreExamSessionsForTerm(
             (int) $session->academic_year_id,
             (int) $session->term_id,
             (int) $session->classroom_id,
@@ -130,7 +150,7 @@ final class ExamScopeResolver
         );
 
         if ($candidates->isEmpty() && $effectiveStreamId) {
-            $candidates = $this->examSessionsForTermScope(
+            $candidates = $this->coreExamSessionsForTerm(
                 (int) $session->academic_year_id,
                 (int) $session->term_id,
                 (int) $session->classroom_id,
@@ -156,7 +176,8 @@ final class ExamScopeResolver
     }
 
     /**
-     * Latest exam sitting in a term for a class (e.g. End Term after Mid Term).
+     * Latest core exam sitting in a term for a class (e.g. End Term after Mid Term).
+     * KNEC CBA is never treated as the latest analysis sitting.
      */
     public function findLatestExamSessionInTerm(
         int $academicYearId,
@@ -164,10 +185,10 @@ final class ExamScopeResolver
         int $classroomId,
         ?int $streamId = null
     ): ?ExamSession {
-        $candidates = $this->examSessionsForTermScope($academicYearId, $termId, $classroomId, $streamId);
+        $candidates = $this->coreExamSessionsForTerm($academicYearId, $termId, $classroomId, $streamId);
 
         if ($candidates->isEmpty() && $streamId) {
-            $candidates = $this->examSessionsForTermScope($academicYearId, $termId, $classroomId, null);
+            $candidates = $this->coreExamSessionsForTerm($academicYearId, $termId, $classroomId, null);
         }
 
         return $candidates
@@ -176,6 +197,61 @@ final class ExamScopeResolver
                 $session->examType?->code
             ))
             ->first();
+    }
+
+    /**
+     * Core (non–KNEC CBA) sitting for a term/class, optionally by exam type.
+     */
+    public function findCoreExamSessionInTerm(
+        int $academicYearId,
+        int $termId,
+        int $classroomId,
+        ?int $streamId = null,
+        ?int $examTypeId = null
+    ): ?ExamSession {
+        if ($examTypeId) {
+            $session = $this->findExamSession($examTypeId, $academicYearId, $termId, $classroomId, $streamId);
+            if ($session) {
+                $session->loadMissing('examType');
+                if (! self::isSideExamType($session->examType?->name, $session->examType?->code)) {
+                    return $session;
+                }
+            }
+
+            return null;
+        }
+
+        return $this->findLatestExamSessionInTerm($academicYearId, $termId, $classroomId, $streamId);
+    }
+
+    /**
+     * Core exam sittings in a term (Opener / Mid Term / End Term — not KNEC CBA).
+     *
+     * @return Collection<int, ExamSession>
+     */
+    public function coreExamSessionsForTerm(
+        int $academicYearId,
+        int $termId,
+        int $classroomId,
+        ?int $streamId = null
+    ): Collection {
+        $candidates = $this->examSessionsForTermScope($academicYearId, $termId, $classroomId, $streamId);
+
+        if ($candidates->isEmpty() && $streamId) {
+            $candidates = $this->examSessionsForTermScope($academicYearId, $termId, $classroomId, null);
+        }
+
+        return $candidates
+            ->filter(function (ExamSession $session) {
+                $session->loadMissing('examType');
+
+                return ! self::isSideExamType($session->examType?->name, $session->examType?->code);
+            })
+            ->sortBy(fn (ExamSession $session) => self::examTypeSortOrder(
+                $session->examType?->name,
+                $session->examType?->code
+            ))
+            ->values();
     }
 
     /**
@@ -215,14 +291,21 @@ final class ExamScopeResolver
 
     /**
      * All subject papers for a class in a term (handles duplicate term rows).
+     * KNEC CBA / side sittings are excluded from exam-report analysis by default.
      *
      * @return Collection<int, Exam>
      */
-    public function papersForTerm(int $academicYearId, int $termId, int $classroomId, ?int $streamId = null): Collection
-    {
+    public function papersForTerm(
+        int $academicYearId,
+        int $termId,
+        int $classroomId,
+        ?int $streamId = null,
+        bool $excludeSideSittings = true
+    ): Collection {
         $termIds = $this->terms->termIdsForScope($termId, $academicYearId, null, $classroomId, $streamId);
 
         $base = Exam::query()
+            ->with(['examType', 'examSession.examType'])
             ->where('academic_year_id', $academicYearId)
             ->whereIn('term_id', $termIds)
             ->where('classroom_id', $classroomId)
@@ -236,15 +319,38 @@ final class ExamScopeResolver
                 ->get();
 
             if ($streamPapers->isNotEmpty()) {
-                return $streamPapers;
+                return $excludeSideSittings
+                    ? $this->rejectSideSittingPapers($streamPapers)
+                    : $streamPapers;
             }
         }
 
-        return $base
+        $papers = $base
             ->whereNull('stream_id')
             ->orderBy('starts_on')
             ->orderBy('created_at')
             ->get();
+
+        return $excludeSideSittings
+            ? $this->rejectSideSittingPapers($papers)
+            : $papers;
+    }
+
+    /**
+     * @param  Collection<int, Exam>  $papers
+     * @return Collection<int, Exam>
+     */
+    private function rejectSideSittingPapers(Collection $papers): Collection
+    {
+        return $papers
+            ->reject(function (Exam $exam) {
+                $typeName = $exam->examType?->name ?? $exam->examSession?->examType?->name;
+                $typeCode = $exam->examType?->code ?? $exam->examSession?->examType?->code;
+
+                return self::isSideExamType($typeName, $typeCode)
+                    || self::isSideExamType($exam->name, null);
+            })
+            ->values();
     }
 
     /**

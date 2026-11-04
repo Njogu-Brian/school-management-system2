@@ -19,4 +19,14 @@ class ExamScopeResolverTest extends TestCase
         $this->assertSame(50, ExamScopeResolver::examTypeSortOrder('Mock Exam', 'MOCK'));
         $this->assertSame(0, ExamScopeResolver::examTypeSortOrder(null, null));
     }
+
+    public function test_knec_cba_is_side_exam_and_sorts_after_core_sittings(): void
+    {
+        $this->assertTrue(ExamScopeResolver::isSideExamType('KNEC CBA', 'CBA'));
+        $this->assertTrue(ExamScopeResolver::isSideExamType('Next CBA', null));
+        $this->assertTrue(ExamScopeResolver::isSideExamType('KNEC SBA', 'SBA'));
+        $this->assertFalse(ExamScopeResolver::isSideExamType('Mid Term', 'MID'));
+        $this->assertFalse(ExamScopeResolver::isSideExamType('End Term', 'END'));
+        $this->assertSame(90, ExamScopeResolver::examTypeSortOrder('KNEC CBA', 'CBA'));
+    }
 }

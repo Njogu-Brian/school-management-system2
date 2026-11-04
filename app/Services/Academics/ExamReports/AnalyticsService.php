@@ -378,12 +378,29 @@ class AnalyticsService
         ?array $currentSheet = null,
         ?int $limit = null
     ): array {
+        $session->loadMissing('examType');
+        $currentLabel = trim($session->examType?->name ?? $session->name ?? 'Current');
+
+        // KNEC CBA / side sittings are excluded from improvement analysis.
+        if (ExamScopeResolver::isSideExamType($session->examType?->name, $session->examType?->code)) {
+            return [
+                'comparison_label' => null,
+                'previous' => null,
+                'current' => [
+                    'id' => (int) $session->id,
+                    'name' => (string) $session->name,
+                    'exam_type' => $currentLabel,
+                    'exam_type_id' => (int) $session->exam_type_id,
+                ],
+                'available_sittings' => [],
+                'rows' => collect(),
+                'excluded' => 'knec_cba',
+            ];
+        }
+
         $builder = new ClassSheetBuilder();
         $current = $currentSheet ?? $builder->buildForExamSession($session, $classroom, $streamId);
         $prevSession = $this->examScope->findPreviousExamSession($session, $streamId);
-
-        $session->loadMissing('examType');
-        $currentLabel = trim($session->examType?->name ?? $session->name ?? 'Current');
 
         if (! $prevSession) {
             return [
@@ -393,7 +410,9 @@ class AnalyticsService
                     'id' => (int) $session->id,
                     'name' => (string) $session->name,
                     'exam_type' => $currentLabel,
+                    'exam_type_id' => (int) $session->exam_type_id,
                 ],
+                'available_sittings' => $this->availableCoreSittingsForSession($session, $streamId),
                 'rows' => collect(),
             ];
         }
@@ -432,23 +451,28 @@ class AnalyticsService
                 'id' => (int) $prevSession->id,
                 'name' => (string) $prevSession->name,
                 'exam_type' => $prevLabel,
+                'exam_type_id' => (int) $prevSession->exam_type_id,
             ],
             'current' => [
                 'id' => (int) $session->id,
                 'name' => (string) $session->name,
                 'exam_type' => $currentLabel,
+                'exam_type_id' => (int) $session->exam_type_id,
             ],
+            'available_sittings' => $this->availableCoreSittingsForSession($session, $streamId),
             'rows' => $rows,
         ];
     }
 
     /**
-     * Most improved for whole-term analysis: latest sitting vs previous sitting in the same term.
+     * Most improved for whole-term analysis: selectable core sitting vs previous in the same term.
+     * KNEC CBA is never included. Defaults to the latest core sitting (usually End Term).
      *
      * @return array{
      *     comparison_label: ?string,
      *     previous: ?array{id: int, name: string, exam_type: string},
      *     current: ?array{id: int, name: string, exam_type: string},
+     *     available_sittings: list<array{exam_type_id: int, exam_type: string, session_id: int}>,
      *     rows: Collection<int, array<string, mixed>>
      * }
      */
@@ -457,25 +481,81 @@ class AnalyticsService
         int $termId,
         Classroom $classroom,
         ?int $streamId = null,
-        ?int $limit = null
+        ?int $limit = null,
+        ?int $examTypeId = null
     ): array {
-        $latest = $this->examScope->findLatestExamSessionInTerm(
+        $available = $this->availableCoreSittingsForTerm($academicYearId, $termId, $classroom->id, $streamId);
+
+        $focus = $this->examScope->findCoreExamSessionInTerm(
             $academicYearId,
             $termId,
             $classroom->id,
-            $streamId
+            $streamId,
+            $examTypeId
         );
 
-        if (! $latest) {
+        // If a requested type is missing/invalid, fall back to latest core sitting.
+        if (! $focus && $examTypeId) {
+            $focus = $this->examScope->findLatestExamSessionInTerm(
+                $academicYearId,
+                $termId,
+                $classroom->id,
+                $streamId
+            );
+        }
+
+        if (! $focus) {
             return [
                 'comparison_label' => null,
                 'previous' => null,
                 'current' => null,
+                'available_sittings' => $available,
                 'rows' => collect(),
             ];
         }
 
-        return $this->mostImprovedForExamSession($latest, $classroom, $streamId, null, $limit);
+        $block = $this->mostImprovedForExamSession($focus, $classroom, $streamId, null, $limit);
+        $block['available_sittings'] = $available;
+
+        return $block;
+    }
+
+    /**
+     * @return list<array{exam_type_id: int, exam_type: string, session_id: int}>
+     */
+    private function availableCoreSittingsForTerm(
+        int $academicYearId,
+        int $termId,
+        int $classroomId,
+        ?int $streamId = null
+    ): array {
+        return $this->examScope
+            ->coreExamSessionsForTerm($academicYearId, $termId, $classroomId, $streamId)
+            ->unique('exam_type_id')
+            ->map(function (ExamSession $session) {
+                $session->loadMissing('examType');
+
+                return [
+                    'exam_type_id' => (int) $session->exam_type_id,
+                    'exam_type' => trim($session->examType?->name ?? $session->name ?? 'Exam'),
+                    'session_id' => (int) $session->id,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<array{exam_type_id: int, exam_type: string, session_id: int}>
+     */
+    private function availableCoreSittingsForSession(ExamSession $session, ?int $streamId = null): array
+    {
+        return $this->availableCoreSittingsForTerm(
+            (int) $session->academic_year_id,
+            (int) $session->term_id,
+            (int) $session->classroom_id,
+            $session->stream_id ?? $streamId
+        );
     }
 
     public function studentInsightsForExamSession(ExamSession $session, Classroom $classroom, ?int $streamId = null): array
@@ -495,7 +575,7 @@ class AnalyticsService
                 'comparison_label' => $improvedBlock['comparison_label'],
             ],
             'top_students' => $top,
-            'most_improved' => $improvedBlock['rows'],
+            'most_improved' => $improvedBlock,
         ];
     }
 
@@ -550,17 +630,43 @@ class AnalyticsService
                 'stream_id' => $streamId,
             ],
             'top_students' => $top,
-            'most_improved' => $improved,
+            'most_improved' => [
+                'comparison_label' => null,
+                'previous' => $prevExam ? [
+                    'id' => (int) $prevExam->id,
+                    'name' => (string) $prevExam->name,
+                    'exam_type' => (string) $prevExam->name,
+                ] : null,
+                'current' => [
+                    'id' => (int) $exam->id,
+                    'name' => (string) $exam->name,
+                    'exam_type' => (string) $exam->name,
+                ],
+                'available_sittings' => [],
+                'rows' => $improved,
+            ],
         ];
     }
 
-    public function studentInsightsForTerm(int $academicYearId, int $termId, Classroom $classroom, ?int $streamId = null): array
-    {
+    public function studentInsightsForTerm(
+        int $academicYearId,
+        int $termId,
+        Classroom $classroom,
+        ?int $streamId = null,
+        ?int $improvementExamTypeId = null
+    ): array {
         $sheet = (new ClassSheetBuilder())->buildForTerm($academicYearId, $termId, $classroom, $streamId);
         $rows = collect($sheet['rows']);
 
         $top = $rows->whereNotNull('total')->sortByDesc('total')->take(10)->values();
-        $improvedBlock = $this->mostImprovedForTermScope($academicYearId, $termId, $classroom, $streamId);
+        $improvedBlock = $this->mostImprovedForTermScope(
+            $academicYearId,
+            $termId,
+            $classroom,
+            $streamId,
+            null,
+            $improvementExamTypeId
+        );
 
         return [
             'meta' => [
@@ -574,7 +680,8 @@ class AnalyticsService
                 'comparison_label' => $improvedBlock['comparison_label'],
             ],
             'top_students' => $top,
-            'most_improved' => $improvedBlock['rows'],
+            // Full block so the UI can switch Mid Term / End Term sittings.
+            'most_improved' => $improvedBlock,
         ];
     }
 

@@ -408,7 +408,9 @@ class ClassSheetBuilder
     }
 
     /**
-     * Termly sheet = simple average across exams in term (equal weight), per subject.
+     * Whole-term analysis: every core sitting in the term (Opener / Mid / End),
+     * term subject averages, class rank, and rank against parallel classes.
+     * KNEC CBA / side sittings are excluded.
      */
     public function buildForTerm(int $academicYearId, int $termId, Classroom $classroom, ?int $streamId = null): array
     {
@@ -420,7 +422,6 @@ class ClassSheetBuilder
         );
 
         $exams = $this->examScope->papersForTerm($academicYearId, $termId, $classroom->id, $streamId);
-
         $examIds = $exams->pluck('id');
         $students = $this->studentsForExamContext(
             $classroom,
@@ -434,6 +435,7 @@ class ClassSheetBuilder
         $weights = $exams->mapWithKeys(function (Exam $e) {
             $w = $e->weight;
             $w = is_numeric($w) ? (float) $w : 1.0;
+
             return [$e->id => ($w > 0 ? $w : 1.0)];
         });
 
@@ -444,23 +446,59 @@ class ClassSheetBuilder
             ->get(['exam_id', 'student_id', 'subject_id', 'score_raw', 'score_moderated', 'is_absent'])
             ->map(fn (ExamMark $m) => $m->applyMarksObtained());
 
-        $byStudentSubject = $marks->groupBy(fn (ExamMark $m) => $m->student_id . ':' . $m->subject_id);
+        $byStudentSubject = $marks->groupBy(fn (ExamMark $m) => $m->student_id.':'.$m->subject_id);
 
-        $rows = $students->map(function (Student $s) use ($subjects, $byStudentSubject, $weights, $streamNames) {
+        $sessions = $this->examScope->coreExamSessionsForTerm(
+            $academicYearId,
+            $termId,
+            $classroom->id,
+            $streamId
+        );
+
+        $sittings = [];
+        $sittingRowsByStudent = [];
+        foreach ($sessions as $session) {
+            $session->loadMissing('examType');
+            $sheet = $this->buildForExamSession($session, $classroom, $streamId);
+            $label = trim($session->examType?->name ?? $session->name ?? 'Exam');
+            $key = 'et_'.(int) $session->exam_type_id;
+            $sittings[] = [
+                'key' => $key,
+                'exam_type_id' => (int) $session->exam_type_id,
+                'session_id' => (int) $session->id,
+                'label' => $label,
+                'sort_order' => ExamScopeResolver::examTypeSortOrder($session->examType?->name, $session->examType?->code),
+            ];
+            foreach ($sheet['rows'] ?? [] as $sittingRow) {
+                $sid = (int) ($sittingRow['student_id'] ?? 0);
+                if ($sid <= 0) {
+                    continue;
+                }
+                $sittingRowsByStudent[$sid][$key] = [
+                    'total' => $sittingRow['total'] ?? null,
+                    'average' => $sittingRow['average'] ?? null,
+                    'class_position' => $sittingRow['class_position'] ?? $sittingRow['position'] ?? null,
+                    'subjects_taken' => $sittingRow['subjects_taken'] ?? null,
+                ];
+            }
+        }
+
+        $rows = $students->map(function (Student $s) use ($subjects, $byStudentSubject, $weights, $streamNames, $sittingRowsByStudent, $sittings) {
             $subjectScores = [];
             $total = 0.0;
             $taken = 0;
 
             foreach ($subjects as $subject) {
-                $key = $s->id . ':' . $subject->id;
-                $items = $byStudentSubject->get($key, collect());
+                $mapKey = $s->id.':'.$subject->id;
+                $items = $byStudentSubject->get($mapKey, collect());
 
-                // Weighted average across exams (falls back to equal when all weights = 1)
                 $sumW = 0.0;
                 $sum = 0.0;
                 foreach ($items as $m) {
                     $v = $m->marks_obtained;
-                    if ($v === null) continue;
+                    if ($v === null) {
+                        continue;
+                    }
                     $w = (float) ($weights->get($m->exam_id) ?? 1.0);
                     $sumW += $w;
                     $sum += ((float) $v) * $w;
@@ -475,6 +513,15 @@ class ClassSheetBuilder
             }
 
             $avg = $taken > 0 ? ($total / $taken) : null;
+            $sittingScores = [];
+            foreach ($sittings as $sitting) {
+                $sittingScores[$sitting['key']] = $sittingRowsByStudent[(int) $s->id][$sitting['key']] ?? [
+                    'total' => null,
+                    'average' => null,
+                    'class_position' => null,
+                    'subjects_taken' => null,
+                ];
+            }
 
             return [
                 'student_id' => $s->id,
@@ -483,6 +530,7 @@ class ClassSheetBuilder
                 'stream_id' => $s->stream_id,
                 'stream_name' => $this->studentStreamName($s, $streamNames),
                 'subject_scores' => $subjectScores,
+                'sitting_scores' => $sittingScores,
                 'total' => $taken > 0 ? round($total, 2) : null,
                 'average' => $avg !== null ? round($avg, 2) : null,
                 'subjects_taken' => $taken,
@@ -492,6 +540,7 @@ class ClassSheetBuilder
         $subjectPositions = $this->subjectPositions($rows, $subjects->pluck('id')->all());
         $rows = $rows->map(function (array $row) use ($subjectPositions) {
             $row['subject_positions'] = $subjectPositions[$row['student_id']] ?? [];
+
             return $row;
         });
 
@@ -500,22 +549,44 @@ class ClassSheetBuilder
         if ($streamId) {
             $classwide = $this->buildForTerm($academicYearId, $termId, $classroom, null);
             $classPos = collect($classwide['rows'])->keyBy('student_id')->map(fn ($r) => $r['position']);
-            $rows = $rows->map(function ($row) use ($classPos) {
+            $gradePos = collect($classwide['rows'])->keyBy('student_id')->map(fn ($r) => $r['grade_position'] ?? null);
+            $rows = $rows->map(function ($row) use ($classPos, $gradePos) {
                 $row['stream_position'] = $row['position'];
                 $row['class_position'] = $classPos->get($row['student_id']);
+                $row['grade_position'] = $gradePos->get($row['student_id']);
+
                 return $row;
             });
+            $parallelMeta = $classwide['meta']['parallel'] ?? [
+                'grade_label' => null,
+                'classroom_count' => 1,
+                'classroom_names' => [$classroom->name],
+            ];
         } else {
+            $parallel = $this->attachParallelGradeRanks($rows, $academicYearId, $termId, $classroom);
+            $rows = $parallel['rows'];
+            $parallelMeta = $parallel['meta'];
             $rows = $rows->map(function ($row) {
                 $row['class_position'] = $row['position'];
                 $row['stream_position'] = null;
+
                 return $row;
             });
+        }
+
+        $sittingAverages = [];
+        foreach ($sittings as $sitting) {
+            $vals = $rows
+                ->map(fn ($r) => data_get($r, 'sitting_scores.'.$sitting['key'].'.average'))
+                ->filter(fn ($v) => $v !== null && $v !== '' && is_numeric($v))
+                ->map(fn ($v) => (float) $v);
+            $sittingAverages[$sitting['key']] = $vals->count() ? round($vals->avg(), 2) : null;
         }
 
         return [
             'meta' => [
                 'mode' => 'term',
+                'layout' => 'term_sittings',
                 'academic_year_id' => $academicYearId,
                 'term_id' => $termId,
                 'classroom' => [
@@ -527,14 +598,174 @@ class ClassSheetBuilder
                 'stream_names_by_id' => $streamNames,
                 'exam_ids' => $examIds->values(),
                 'exam_weights' => $weights->all(),
+                'sittings' => $sittings,
+                'sitting_class_averages' => $sittingAverages,
+                'parallel' => $parallelMeta,
             ],
             'subjects' => $subjects->map(fn (Subject $sub) => [
                 'id' => $sub->id,
                 'name' => $sub->name,
                 'code' => $sub->code,
             ])->values(),
+            'sittings' => $sittings,
             'rows' => $rows->values(),
         ];
+    }
+
+    /**
+     * Rank this class's students against parallel classes at the same grade/level.
+     *
+     * @param  Collection<int, array<string, mixed>>  $rows
+     * @return array{rows: Collection<int, array<string, mixed>>, meta: array{grade_label: ?string, classroom_count: int, classroom_names: list<string>}}
+     */
+    private function attachParallelGradeRanks(
+        Collection $rows,
+        int $academicYearId,
+        int $termId,
+        Classroom $classroom
+    ): array {
+        $resolver = new ParallelClassroomResolver();
+        $peers = $resolver->peers($classroom);
+        $gradeLabel = $resolver->gradeLabel($classroom);
+        $peerNames = $peers->pluck('name')->values()->all();
+
+        if ($peers->count() <= 1) {
+            $rows = $rows->map(function (array $row) {
+                $row['grade_position'] = $row['position'] ?? null;
+
+                return $row;
+            });
+
+            return [
+                'rows' => $rows,
+                'meta' => [
+                    'grade_label' => $gradeLabel,
+                    'classroom_count' => 1,
+                    'classroom_names' => $peerNames !== [] ? $peerNames : [$classroom->name],
+                ],
+            ];
+        }
+
+        $cohort = collect();
+        foreach ($peers as $peer) {
+            if ((int) $peer->id === (int) $classroom->id) {
+                foreach ($rows as $row) {
+                    $cohort->push([
+                        'student_id' => $row['student_id'],
+                        'admission_number' => $row['admission_number'] ?? '',
+                        'total' => $row['total'] ?? null,
+                        'average' => $row['average'] ?? null,
+                        'classroom_id' => (int) $classroom->id,
+                    ]);
+                }
+                continue;
+            }
+
+            $peerSheet = $this->buildTermTotalsOnly($academicYearId, $termId, $peer, null);
+            foreach ($peerSheet as $peerRow) {
+                $cohort->push([
+                    'student_id' => $peerRow['student_id'],
+                    'admission_number' => $peerRow['admission_number'] ?? '',
+                    'total' => $peerRow['total'] ?? null,
+                    'average' => $peerRow['average'] ?? null,
+                    'classroom_id' => (int) $peer->id,
+                ]);
+            }
+        }
+
+        $ranked = (new RowRanker())->rankByTotal($cohort)->keyBy('student_id');
+        $rows = $rows->map(function (array $row) use ($ranked) {
+            $row['grade_position'] = $ranked->get($row['student_id'])['position'] ?? null;
+
+            return $row;
+        });
+
+        return [
+            'rows' => $rows,
+            'meta' => [
+                'grade_label' => $gradeLabel,
+                'classroom_count' => $peers->count(),
+                'classroom_names' => $peerNames,
+            ],
+        ];
+    }
+
+    /**
+     * Lightweight term totals for parallel-class ranking (no sitting merge / no recursion).
+     *
+     * @return Collection<int, array{student_id: int, admission_number: mixed, total: ?float, average: ?float}>
+     */
+    private function buildTermTotalsOnly(
+        int $academicYearId,
+        int $termId,
+        Classroom $classroom,
+        ?int $streamId = null
+    ): Collection {
+        $subjects = $this->subjectsForContext(
+            classroomId: $classroom->id,
+            streamId: $streamId,
+            academicYearId: $academicYearId,
+            termId: $termId
+        );
+        $exams = $this->examScope->papersForTerm($academicYearId, $termId, $classroom->id, $streamId);
+        $examIds = $exams->pluck('id');
+        if ($examIds->isEmpty() || $subjects->isEmpty()) {
+            return collect();
+        }
+
+        $students = $this->studentsForExamContext(
+            $classroom,
+            $streamId,
+            academicYearId: $academicYearId,
+            termId: $termId,
+            examIds: $examIds->all(),
+        );
+
+        $weights = $exams->mapWithKeys(function (Exam $e) {
+            $w = $e->weight;
+            $w = is_numeric($w) ? (float) $w : 1.0;
+
+            return [$e->id => ($w > 0 ? $w : 1.0)];
+        });
+
+        $marks = ExamMark::query()
+            ->whereIn('exam_id', $examIds)
+            ->whereIn('student_id', $students->pluck('id'))
+            ->whereIn('subject_id', $subjects->pluck('id'))
+            ->get(['exam_id', 'student_id', 'subject_id', 'score_raw', 'score_moderated', 'is_absent'])
+            ->map(fn (ExamMark $m) => $m->applyMarksObtained())
+            ->groupBy(fn (ExamMark $m) => $m->student_id.':'.$m->subject_id);
+
+        return $students->map(function (Student $s) use ($subjects, $marks, $weights) {
+            $total = 0.0;
+            $taken = 0;
+            foreach ($subjects as $subject) {
+                $items = $marks->get($s->id.':'.$subject->id, collect());
+                $sumW = 0.0;
+                $sum = 0.0;
+                foreach ($items as $m) {
+                    $v = $m->marks_obtained;
+                    if ($v === null) {
+                        continue;
+                    }
+                    $w = (float) ($weights->get($m->exam_id) ?? 1.0);
+                    $sumW += $w;
+                    $sum += ((float) $v) * $w;
+                }
+                if ($sumW > 0) {
+                    $total += round($sum / $sumW, 2);
+                    $taken++;
+                }
+            }
+            $avg = $taken > 0 ? ($total / $taken) : null;
+
+            return [
+                'student_id' => $s->id,
+                'admission_number' => $s->admission_number,
+                'total' => $taken > 0 ? round($total, 2) : null,
+                'average' => $avg !== null ? round($avg, 2) : null,
+            ];
+        })->values();
     }
 
     private function subjectsForContext(int $classroomId, ?int $streamId, ?int $academicYearId, ?int $termId, ?array $limitSubjectIds = null): Collection

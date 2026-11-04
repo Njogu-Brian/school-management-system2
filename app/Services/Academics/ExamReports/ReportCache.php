@@ -87,7 +87,7 @@ class ReportCache
             'stream',
             $streamId ?: 0,
             'schema',
-            3,
+            4, // term sittings + parallel grade rank
             'v',
             $stamp ? strtotime((string) $stamp) : 0,
         ]);

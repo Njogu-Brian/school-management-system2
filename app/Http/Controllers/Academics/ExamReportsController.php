@@ -57,15 +57,17 @@ class ExamReportsController extends Controller
             }
         }
 
-        $examTypes = ExamType::orderBy('name')->get();
+        $examTypes = $this->analysisExamTypes();
         $subjects = Subject::query()->where('is_active', true)->orderBy('name')->get();
         $classrooms = ExamReportsAccess::classroomsQueryFor($u)->get();
         $allowedClassIds = $classrooms->pluck('id')->all();
+        $coreExamTypeIds = $examTypes->pluck('id')->all();
 
         $classroomExamTypeIds = $allowedClassIds === [] ? [] : Exam::query()
             ->whereNotNull('exam_type_id')
             ->whereNotNull('classroom_id')
             ->whereIn('classroom_id', $allowedClassIds)
+            ->when($coreExamTypeIds !== [], fn ($q) => $q->whereIn('exam_type_id', $coreExamTypeIds))
             ->select('classroom_id', 'exam_type_id')
             ->distinct()
             ->get()
@@ -276,6 +278,14 @@ class ExamReportsController extends Controller
             );
 
             $session->loadMissing('examType');
+            if (ExamScopeResolver::isSideExamType($session->examType?->name, $session->examType?->code)) {
+                return [[
+                    'classroom' => $classroom,
+                    'payload' => null,
+                    'notice' => 'KNEC CBA is excluded from exam report analysis. Choose Mid Term, End Term, or another core exam type.',
+                ]];
+            }
+
             $payload['most_improved'] = (new AnalyticsService())->mostImprovedForExamSession(
                 $session,
                 $classroom,
@@ -356,7 +366,9 @@ class ExamReportsController extends Controller
             $ay,
             $termId,
             $classroom,
-            $streamId
+            $streamId,
+            null,
+            $request->integer('improvement_exam_type_id') ?: null
         );
 
         return [['classroom' => $classroom, 'payload' => $payload, 'notice' => $notice]];
@@ -509,7 +521,16 @@ class ExamReportsController extends Controller
         $u = $user instanceof User ? $user : null;
 
         $mode = $request->input('mode', 'exam');
-        $exams = Exam::with(['academicYear', 'term'])->orderByDesc('created_at')->limit(60)->get();
+        $exams = Exam::with(['academicYear', 'term', 'examType'])
+            ->orderByDesc('created_at')
+            ->limit(80)
+            ->get()
+            ->reject(fn (Exam $exam) => ExamScopeResolver::isSideExamType(
+                $exam->examType?->name,
+                $exam->examType?->code
+            ) || ExamScopeResolver::isSideExamType($exam->name, null))
+            ->take(60)
+            ->values();
         $classrooms = ExamReportsAccess::classroomsQueryFor($u)->get();
         $streams = Stream::orderBy('name')->get();
         $academic = AcademicContext::forFilterRequest(
@@ -526,16 +547,27 @@ class ExamReportsController extends Controller
             if ($classroom) {
                 $cache = new ReportCache();
                 $streamId = $request->integer('stream_id') ?: null;
+                $improvementExamTypeId = $request->integer('improvement_exam_type_id') ?: null;
 
                 if ($mode === 'term' && $request->filled('academic_year_id') && $request->filled('term_id')) {
                     $ay = (int) $request->academic_year_id;
                     $termId = (int) $request->term_id;
+                    // Top students are cacheable; improvement scale depends on selected sitting.
                     $payload = $cache->rememberTermStudentInsights($ay, $termId, $classroom, $streamId, fn () => $analytics->studentInsightsForTerm($ay, $termId, $classroom, $streamId));
+                    $payload['most_improved'] = $analytics->mostImprovedForTermScope(
+                        $ay,
+                        $termId,
+                        $classroom,
+                        $streamId,
+                        null,
+                        $improvementExamTypeId
+                    );
                 }
 
                 if ($mode === 'exam' && $request->filled('exam_id')) {
-                    $exam = Exam::find($request->exam_id);
-                    if ($exam) {
+                    $exam = Exam::with('examType')->find($request->exam_id);
+                    if ($exam && ! ExamScopeResolver::isSideExamType($exam->examType?->name, $exam->examType?->code)
+                        && ! ExamScopeResolver::isSideExamType($exam->name, null)) {
                         $payload = $cache->rememberExamStudentInsights($exam, $classroom, $streamId, fn () => $analytics->studentInsightsForExam($exam, $classroom, $streamId));
                     }
                 }
@@ -563,15 +595,37 @@ class ExamReportsController extends Controller
             termValue: $request && $request->filled('term_id') ? (int) $request->term_id : null,
         );
 
+        $examTypes = $this->analysisExamTypes();
+        $coreExamTypeIds = $examTypes->pluck('id')->all();
+        $classroomExamTypeIds = $filterScopes['classroomExamTypeIds'];
+        if ($coreExamTypeIds !== []) {
+            $allowed = array_flip($coreExamTypeIds);
+            $classroomExamTypeIds = collect($classroomExamTypeIds)
+                ->map(fn ($ids) => array_values(array_filter($ids, fn ($id) => isset($allowed[(int) $id]))))
+                ->all();
+        }
+
         return array_merge([
-            'examTypes' => ExamType::orderBy('name')->get(),
+            'examTypes' => $examTypes,
             'classrooms' => $classrooms,
-            'classroomExamTypeIds' => $filterScopes['classroomExamTypeIds'],
+            'classroomExamTypeIds' => $classroomExamTypeIds,
             'termYearClassScopes' => $filterScopes['termYearClassScopes'],
             'streamsByClassroom' => $this->streamsByClassroomForFilters($allowedClassIds),
         ], $academic, [
             'academicYears' => $academic['years'],
         ]);
+    }
+
+    /**
+     * Exam types available in exam-report analysis (excludes KNEC CBA / side sittings).
+     *
+     * @return Collection<int, ExamType>
+     */
+    private function analysisExamTypes(): Collection
+    {
+        return ExamType::orderBy('name')->get()
+            ->reject(fn (ExamType $type) => ExamScopeResolver::isSideExamType($type->name, $type->code))
+            ->values();
     }
 
     /**
@@ -706,7 +760,14 @@ class ExamReportsController extends Controller
             $ay = (int) $request->academic_year_id;
             $termId = (int) $request->term_id;
             $payload = $cache->rememberTermSubjectPerformance($ay, $termId, $classroom, $streamId, fn () => $analytics->subjectPerformanceForTerm($ay, $termId, $classroom, $streamId, $subjectLimit));
-            $payload['most_improved'] = $analytics->mostImprovedForTermScope($ay, $termId, $classroom, $streamId);
+            $payload['most_improved'] = $analytics->mostImprovedForTermScope(
+                $ay,
+                $termId,
+                $classroom,
+                $streamId,
+                null,
+                $request->integer('improvement_exam_type_id') ?: null
+            );
             if (empty($payload['subjects'])) {
                 return [$payload, 'No mark data found for this class and term. Check that exams exist and marks have been entered.'];
             }
@@ -730,6 +791,11 @@ class ExamReportsController extends Controller
 
         if (! $session) {
             return [null, 'No exam sitting found for this exam type, class, year, and term.'];
+        }
+
+        $session->loadMissing('examType');
+        if (ExamScopeResolver::isSideExamType($session->examType?->name, $session->examType?->code)) {
+            return [null, 'KNEC CBA is excluded from exam report analysis. Choose Mid Term, End Term, or another core exam type.'];
         }
 
         $payload = $cache->rememberExamSessionSubjectPerformance($session, $classroom, $streamId, fn () => $analytics->subjectPerformanceForExamSession($session, $classroom, $streamId, $subjectLimit));
@@ -764,7 +830,14 @@ class ExamReportsController extends Controller
             $ay = (int) $request->academic_year_id;
             $termId = (int) $request->term_id;
             $payload = $cache->rememberTermTeacherPerformance($ay, $termId, $classroom, $streamId, fn () => $analytics->teacherPerformanceForTerm($ay, $termId, $classroom, $streamId, $subjectLimit));
-            $payload['most_improved'] = $analytics->mostImprovedForTermScope($ay, $termId, $classroom, $streamId);
+            $payload['most_improved'] = $analytics->mostImprovedForTermScope(
+                $ay,
+                $termId,
+                $classroom,
+                $streamId,
+                null,
+                $request->integer('improvement_exam_type_id') ?: null
+            );
             if (empty($payload['per_teacher']) && empty($payload['per_subject'])) {
                 return [$payload, 'No teacher performance data for this class and term. Check subject assignments and marks.'];
             }
@@ -788,6 +861,11 @@ class ExamReportsController extends Controller
 
         if (! $session) {
             return [null, 'No exam sitting found for this exam type, class, year, and term.'];
+        }
+
+        $session->loadMissing('examType');
+        if (ExamScopeResolver::isSideExamType($session->examType?->name, $session->examType?->code)) {
+            return [null, 'KNEC CBA is excluded from exam report analysis. Choose Mid Term, End Term, or another core exam type.'];
         }
 
         $payload = $cache->rememberExamSessionTeacherPerformance($session, $classroom, $streamId, fn () => $analytics->teacherPerformanceForExamSession($session, $classroom, $streamId, $subjectLimit));

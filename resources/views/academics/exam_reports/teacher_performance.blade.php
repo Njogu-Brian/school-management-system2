@@ -122,6 +122,7 @@
               @include('academics.exam_reports.partials.most_improved_panel', [
                 'payload' => $payload,
                 'showStreamColumn' => $showStreamCol,
+                'allowSittingPicker' => true,
               ])
             </div>
           </div>
