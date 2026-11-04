@@ -14,12 +14,12 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-mkdir -p storage/framework/{cache,sessions,views,testing} storage/logs bootstrap/cache
+mkdir -p storage/framework/{cache,sessions,views,testing} storage/logs bootstrap/cache public/images
 
-chown -R "${WEB_USER}:${WEB_USER}" storage bootstrap/cache
-chmod -R ug+rwx storage bootstrap/cache
+chown -R "${WEB_USER}:${WEB_USER}" storage bootstrap/cache public/images
+chmod -R ug+rwx storage bootstrap/cache public/images
 
-echo "Ownership set to ${WEB_USER} for storage/ and bootstrap/cache/"
+echo "Ownership set to ${WEB_USER} for storage/, bootstrap/cache/, and public/images/"
 
 if command -v sudo >/dev/null 2>&1 && id "${WEB_USER}" >/dev/null 2>&1; then
   sudo -u "${WEB_USER}" php artisan view:clear

@@ -36,8 +36,15 @@ class GalleryController extends Controller
         ]);
 
         $targetDir = public_images_path();
-        if (! is_dir($targetDir)) {
-            @mkdir($targetDir, 0755, true);
+        if (! is_dir($targetDir) && ! @mkdir($targetDir, 0775, true) && ! is_dir($targetDir)) {
+            return redirect()->route('settings.index')
+                ->withErrors('Upload failed — could not create public/images. Run: sudo bash scripts/fix-storage-perms.sh')
+                ->withFragment('tab-gallery');
+        }
+        if (! is_writable($targetDir)) {
+            return redirect()->route('settings.index')
+                ->withErrors('Upload failed — public/images is not writable by the web user. Run: sudo bash scripts/fix-storage-perms.sh')
+                ->withFragment('tab-gallery');
         }
 
         $maxOrder = GalleryImage::max('sort_order') ?? 0;

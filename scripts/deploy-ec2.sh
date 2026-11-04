@@ -73,13 +73,13 @@ echo "✓ Migrations done"
 WEB_USER="${WEB_USER:-www-data}"
 
 fix_storage_perms() {
-  mkdir -p storage/framework/{cache,sessions,views,testing} storage/logs bootstrap/cache
+  mkdir -p storage/framework/{cache,sessions,views,testing} storage/logs bootstrap/cache public/images
   if [ "$(id -u)" -eq 0 ]; then
-    chown -R "${WEB_USER}:${WEB_USER}" storage bootstrap/cache
-    chmod -R ug+rwx storage bootstrap/cache
+    chown -R "${WEB_USER}:${WEB_USER}" storage bootstrap/cache public/images
+    chmod -R ug+rwx storage bootstrap/cache public/images
   else
-    sudo chown -R "${WEB_USER}:${WEB_USER}" storage bootstrap/cache
-    sudo chmod -R ug+rwx storage bootstrap/cache
+    sudo chown -R "${WEB_USER}:${WEB_USER}" storage bootstrap/cache public/images
+    sudo chmod -R ug+rwx storage bootstrap/cache public/images
   fi
 }
 

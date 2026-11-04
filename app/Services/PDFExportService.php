@@ -89,10 +89,19 @@ class PDFExportService
             // Return PDF download response
             return $pdf->download($filename);
         } catch (\Exception $e) {
-            Log::error('PDF generation failed: ' . $e->getMessage());
+            // Sync-cap overflows should queue via generateChunkedPDF; if an older
+            // call path still throws, treat as a user-facing overflow (not a 500).
+            $message = $e->getMessage();
+            $isSyncCap = str_contains($message, 'Too many items for a synchronous PDF');
+            if ($isSyncCap) {
+                Log::warning('PDF sync cap hit without auto-queue', ['error' => $message]);
+            } else {
+                Log::error('PDF generation failed: ' . $message);
+            }
+
             return [
                 'success' => false,
-                'error' => $e->getMessage(),
+                'error' => $message,
             ];
         }
     }

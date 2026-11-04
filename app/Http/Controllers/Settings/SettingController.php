@@ -84,10 +84,7 @@ class SettingController extends Controller
             foreach (['school_logo', 'login_background'] as $imageKey) {
                 if ($request->hasFile($imageKey)) {
                     $filename = time() . '_' . $request->file($imageKey)->getClientOriginalName();
-                    $targetDir = public_images_path();
-                    if (!is_dir($targetDir)) {
-                        @mkdir($targetDir, 0755, true);
-                    }
+                    $targetDir = $this->ensurePublicImagesDirectory();
                     $request->file($imageKey)->move($targetDir, $filename);
 
                     [$maxWidth, $maxHeight] = $bounds[$imageKey];
@@ -256,21 +253,29 @@ class SettingController extends Controller
             'login_background' => [1920, 1080],
         ];
 
-        foreach (['school_logo', 'login_background'] as $imageKey) {
-            if ($request->hasFile($imageKey)) {
-                $file = $request->file($imageKey);
-                $filename = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $file->getClientOriginalName());
-                $targetDir = public_images_path();
-                if (!is_dir($targetDir)) {
-                    @mkdir($targetDir, 0755, true);
+        try {
+            foreach (['school_logo', 'login_background'] as $imageKey) {
+                if ($request->hasFile($imageKey)) {
+                    $file = $request->file($imageKey);
+                    $filename = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $file->getClientOriginalName());
+                    $targetDir = $this->ensurePublicImagesDirectory();
+                    $file->move($targetDir, $filename);
+
+                    [$maxWidth, $maxHeight] = $bounds[$imageKey];
+                    $this->imageOptimizer->optimize($targetDir . DIRECTORY_SEPARATOR . $filename, $maxWidth, $maxHeight);
+
+                    Setting::updateOrCreate(['key' => $imageKey], ['value' => $filename]);
                 }
-                $file->move($targetDir, $filename);
-
-                [$maxWidth, $maxHeight] = $bounds[$imageKey];
-                $this->imageOptimizer->optimize($targetDir . DIRECTORY_SEPARATOR . $filename, $maxWidth, $maxHeight);
-
-                Setting::updateOrCreate(['key' => $imageKey], ['value' => $filename]);
             }
+        } catch (\Throwable $e) {
+            Log::error('Branding image upload failed', [
+                'path' => public_images_path(),
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withErrors(
+                'Could not save branding images. On the server, ensure the web user can write to public/images (see scripts/fix-storage-perms.sh).'
+            );
         }
 
         // Handle finance color settings
@@ -300,6 +305,24 @@ class SettingController extends Controller
         }
 
         return back()->with('success', 'Branding settings updated successfully.');
+    }
+
+    /**
+     * Ensure the public images directory exists and is writable by PHP-FPM.
+     */
+    protected function ensurePublicImagesDirectory(): string
+    {
+        $targetDir = public_images_path();
+
+        if (! is_dir($targetDir) && ! @mkdir($targetDir, 0775, true) && ! is_dir($targetDir)) {
+            throw new \RuntimeException("Unable to create images directory: {$targetDir}");
+        }
+
+        if (! is_writable($targetDir)) {
+            throw new \RuntimeException("Unable to write in the \"{$targetDir}\" directory.");
+        }
+
+        return $targetDir;
     }
 
     /**
