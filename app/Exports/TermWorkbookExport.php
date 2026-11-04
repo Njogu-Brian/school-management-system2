@@ -27,7 +27,7 @@ class TermWorkbookExport implements WithMultipleSheets
         $usedTitles = [];
         $sheets = [];
 
-        $teacherPayload = (new SchoolWideTeacherRankingService())->rankingsForTerm(
+        $teacherPayload = (new SchoolWideTeacherRankingService())->rankingsForTermWithImprovement(
             $this->academicYearId,
             $this->termId
         );

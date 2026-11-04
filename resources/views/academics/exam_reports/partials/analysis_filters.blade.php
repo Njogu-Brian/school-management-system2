@@ -4,13 +4,41 @@
     'classroomExamTypeIds' => $classroomExamTypeIds ?? [],
     'termYearClassScopes' => $termYearClassScopes ?? [],
     'streamsByClassroom' => $streamsByClassroom ?? [],
+    'teachers' => collect($teachersForFilter ?? [])->map(fn ($t) => [
+      'id' => is_array($t) ? ($t['id'] ?? null) : ($t->id ?? null),
+      'name' => is_array($t) ? ($t['name'] ?? '') : ($t->name ?? ''),
+    ])->filter(fn ($t) => ! empty($t['id']))->values(),
+    'showTeacherViews' => ! empty($showTeacherViews),
   ];
+  $reportView = $reportView ?? request('view', 'class');
 @endphp
 <script type="application/json" id="analysis-filter-data">@json($analysisFilterData)</script>
 
 <div class="settings-card mb-3">
   <div class="card-body">
     <form method="GET" id="analysisFilterForm" class="row g-3 align-items-end">
+      @if(!empty($showTeacherViews))
+        <div class="col-12">
+          <label class="form-label d-block mb-2">Report mode</label>
+          <div class="btn-group flex-wrap" role="group">
+            <input type="radio" class="btn-check" name="view" id="tp_view_class" value="class" autocomplete="off"
+                   @checked($reportView === 'class')>
+            <label class="btn btn-outline-primary" for="tp_view_class">Class performance</label>
+            @if(!empty($examReportsFullAccess))
+              <input type="radio" class="btn-check" name="view" id="tp_view_school" value="school" autocomplete="off"
+                     @checked($reportView === 'school')>
+              <label class="btn btn-outline-primary" for="tp_view_school">All teachers</label>
+            @endif
+            <input type="radio" class="btn-check" name="view" id="tp_view_teacher" value="teacher" autocomplete="off"
+                   @checked($reportView === 'teacher')>
+            <label class="btn btn-outline-primary" for="tp_view_teacher">Individual teacher</label>
+          </div>
+          <div class="form-text text-muted small mt-1">
+            Class: teachers in one class. All teachers: school-wide by section. Individual: one teacher across classes.
+          </div>
+        </div>
+      @endif
+
       <div class="col-12">
         <label class="form-label d-block mb-2">Analysis scope</label>
         <div class="btn-group flex-wrap" role="group">
@@ -54,7 +82,7 @@
         </select>
       </div>
 
-      <div class="col-md-3">
+      <div class="col-md-3 tp-class-only">
         <label class="form-label">Class</label>
         <select name="classroom_id" class="form-select" id="analysis_classroom_id">
           <option value="">Select class</option>
@@ -62,14 +90,30 @@
         <div class="form-text text-muted small d-none" id="analysis_class_hint">Pick year and term to list classes with exam data.</div>
       </div>
 
-      <div class="col-md-3 d-none" id="analysisStreamWrap">
+      <div class="col-md-3 d-none tp-class-only" id="analysisStreamWrap">
         <label class="form-label">Stream</label>
         <select name="stream_id" class="form-select" id="analysis_stream_id">
           <option value="">All streams</option>
         </select>
       </div>
 
-      @if(!empty($showSchoolScope))
+      @if(!empty($showTeacherViews))
+        <div class="col-md-4 d-none" id="analysisTeacherWrap">
+          <label class="form-label">Teacher</label>
+          <select name="teacher_id" class="form-select" id="analysis_teacher_id">
+            <option value="">Select teacher</option>
+            @foreach(($teachersForFilter ?? []) as $t)
+              @php
+                $tid = is_array($t) ? ($t['id'] ?? null) : ($t->id ?? null);
+                $tname = is_array($t) ? ($t['name'] ?? '') : ($t->name ?? '');
+              @endphp
+              @if($tid)
+                <option value="{{ $tid }}" @selected((int) request('teacher_id') === (int) $tid)>{{ $tname }}</option>
+              @endif
+            @endforeach
+          </select>
+        </div>
+      @elseif(!empty($showSchoolScope))
         <div class="col-md-2">
           <label class="form-label">Scope</label>
           <select name="scope" class="form-select" id="analysis_scope">
@@ -111,9 +155,17 @@
   const streamWrap = document.getElementById('analysisStreamWrap');
   const streamSel = document.getElementById('analysis_stream_id');
   const scopeSel = document.getElementById('analysis_scope');
+  const teacherWrap = document.getElementById('analysisTeacherWrap');
+  const teacherSel = document.getElementById('analysis_teacher_id');
+  const showTeacherViews = !!DATA.showTeacherViews;
 
   function currentFlow() {
     return form.querySelector('input[name="analysis_flow"]:checked')?.value || 'by_exam_type';
+  }
+
+  function currentReportView() {
+    if (!showTeacherViews) return 'class';
+    return form.querySelector('input[name="view"]:checked')?.value || 'class';
   }
 
   function filterTermsByYear() {
@@ -223,20 +275,49 @@
     });
     const examType = document.getElementById('analysis_exam_type_id');
     if (examType) examType.disabled = flow !== 'by_exam_type';
-    if (scopeSel) {
-      const school = scopeSel.value === 'school';
-      classSel.disabled = school;
-      streamSel.disabled = school;
+
+    const reportView = currentReportView();
+    const classMode = !showTeacherViews
+      ? (!scopeSel || scopeSel.value !== 'school')
+      : reportView === 'class';
+    const schoolMode = showTeacherViews ? reportView === 'school' : (scopeSel && scopeSel.value === 'school');
+    const teacherMode = showTeacherViews && reportView === 'teacher';
+
+    document.querySelectorAll('.tp-class-only').forEach(function (el) {
+      if (el.id === 'analysisStreamWrap') return;
+      el.classList.toggle('d-none', !classMode);
+    });
+    if (teacherWrap) teacherWrap.classList.toggle('d-none', !teacherMode);
+
+    if (classSel) {
+      classSel.disabled = !classMode;
+      if (!classMode) classSel.value = '';
     }
-    syncClasses();
+    if (streamSel) {
+      streamSel.disabled = !classMode;
+      if (!classMode) streamSel.value = '';
+    }
+    if (teacherSel) {
+      teacherSel.disabled = !teacherMode;
+      if (!teacherMode) teacherSel.value = '';
+    }
+
+    if (classMode) {
+      syncClasses();
+    } else if (streamWrap) {
+      streamWrap.classList.add('d-none');
+    }
   }
 
-  yearSel?.addEventListener('change', function () { filterTermsByYear(); syncClasses(); });
-  termSel?.addEventListener('change', syncClasses);
-  document.getElementById('analysis_exam_type_id')?.addEventListener('change', syncClasses);
+  yearSel?.addEventListener('change', function () { filterTermsByYear(); syncFlow(); });
+  termSel?.addEventListener('change', syncFlow);
+  document.getElementById('analysis_exam_type_id')?.addEventListener('change', syncFlow);
   classSel?.addEventListener('change', syncStreams);
   scopeSel?.addEventListener('change', syncFlow);
   form.querySelectorAll('input[name="analysis_flow"]').forEach(function (r) {
+    r.addEventListener('change', syncFlow);
+  });
+  form.querySelectorAll('input[name="view"]').forEach(function (r) {
     r.addEventListener('change', syncFlow);
   });
 

@@ -476,13 +476,15 @@ class ExamReportsController extends Controller
     public function teacherPerformance(Request $request, AnalyticsService $analytics, SchoolWideTeacherRankingService $schoolRankings)
     {
         $request->validate([
-            'scope' => 'nullable|in:class,school',
+            'view' => 'nullable|in:class,school,teacher',
+            'scope' => 'nullable|in:class,school', // legacy alias
             'analysis_flow' => 'nullable|in:by_exam_type,term',
             'academic_year_id' => 'nullable|exists:academic_years,id',
             'term_id' => 'nullable|exists:terms,id',
             'exam_type_id' => 'nullable|exists:exam_types,id',
             'classroom_id' => 'nullable|exists:classrooms,id',
             'stream_id' => 'nullable|exists:streams,id',
+            'teacher_id' => 'nullable|exists:staff,id',
             'exam_id' => 'nullable|exists:exams,id',
             'subject_id' => 'nullable|exists:subjects,id',
         ]);
@@ -492,32 +494,37 @@ class ExamReportsController extends Controller
         $examReportsFullAccess = ExamReportsAccess::userHasFullAccess($u);
         $subjectScopedTeacher = ExamReportsAccess::userIsSubjectScoped($u);
 
-        $scope = $request->input('scope', 'class');
-        if (! $examReportsFullAccess) {
-            $scope = 'class';
-        }
-
+        $reportView = $this->resolveTeacherReportView($request, $examReportsFullAccess);
         $analysisFlow = $request->input('analysis_flow', 'by_exam_type');
         $filterData = $this->analysisFilterViewData($u, $request);
+        $teachersForFilter = $this->teachersForTeacherPerformanceFilter($request, $schoolRankings, $analysisFlow);
         $payload = null;
         $notice = null;
 
         if ($request->filled('load')) {
-            if ($scope === 'school') {
-                ExamReportsAccess::assertSchoolWideReportsAllowed($u);
-                [$payload, $notice] = $this->buildSchoolTeacherPerformancePayload($request, $schoolRankings, $analysisFlow);
-            } else {
-                [$payload, $notice] = $this->buildTeacherPerformancePayload($request, $u, $analytics, $analysisFlow);
-            }
+            [$payload, $notice] = $this->buildTeacherPerformanceByView(
+                $request,
+                $u,
+                $analytics,
+                $schoolRankings,
+                $reportView,
+                $analysisFlow
+            );
         }
+
+        $showTeacherViews = true;
+        $scope = $reportView === 'school' ? 'school' : 'class';
 
         return view('academics.exam_reports.teacher_performance', array_merge($filterData, compact(
             'scope',
+            'reportView',
             'analysisFlow',
             'payload',
             'notice',
             'examReportsFullAccess',
-            'subjectScopedTeacher'
+            'subjectScopedTeacher',
+            'showTeacherViews',
+            'teachersForFilter'
         )));
     }
 
@@ -525,6 +532,7 @@ class ExamReportsController extends Controller
     {
         $request->merge(['load' => 1]);
         $request->validate([
+            'view' => 'nullable|in:class,school,teacher',
             'scope' => 'nullable|in:class,school',
             'analysis_flow' => 'nullable|in:by_exam_type,term',
             'academic_year_id' => 'nullable|exists:academic_years,id',
@@ -532,36 +540,112 @@ class ExamReportsController extends Controller
             'exam_type_id' => 'nullable|exists:exam_types,id',
             'classroom_id' => 'nullable|exists:classrooms,id',
             'stream_id' => 'nullable|exists:streams,id',
+            'teacher_id' => 'nullable|exists:staff,id',
             'exam_id' => 'nullable|exists:exams,id',
             'subject_id' => 'nullable|exists:subjects,id',
         ]);
 
         $user = $request->user();
         $u = $user instanceof User ? $user : null;
-        $scope = $request->input('scope', 'class');
-        if (! ExamReportsAccess::userHasFullAccess($u)) {
-            $scope = 'class';
-        }
+        $examReportsFullAccess = ExamReportsAccess::userHasFullAccess($u);
+        $reportView = $this->resolveTeacherReportView($request, $examReportsFullAccess);
         $analysisFlow = $request->input('analysis_flow', 'by_exam_type');
 
-        if ($scope === 'school') {
-            ExamReportsAccess::assertSchoolWideReportsAllowed($u);
-            [$payload, $notice] = $this->buildSchoolTeacherPerformancePayload($request, $schoolRankings, $analysisFlow);
-        } else {
-            [$payload, $notice] = $this->buildTeacherPerformancePayload($request, $u, $analytics, $analysisFlow);
-        }
+        [$payload, $notice] = $this->buildTeacherPerformanceByView(
+            $request,
+            $u,
+            $analytics,
+            $schoolRankings,
+            $reportView,
+            $analysisFlow
+        );
 
-        if (! $payload || (! empty($notice) && empty($payload['per_teacher']) && empty($payload['per_subject']) && empty($payload['per_subject_teacher']))) {
+        $hasRows = $payload && (
+            ! empty($payload['per_teacher'])
+            || ! empty($payload['per_subject'])
+            || ! empty($payload['per_subject_teacher'])
+            || ! empty($payload['rows'])
+            || ! empty($payload['by_category'])
+        );
+        if (! $hasRows) {
             abort(422, $notice ?: 'Nothing to export. Generate teacher performance first.');
         }
 
-        $title = $scope === 'school' ? 'All Teachers' : 'Class Teachers';
+        $title = match ($reportView) {
+            'school' => 'All Teachers',
+            'teacher' => 'Individual Teacher',
+            default => 'Class Teachers',
+        };
         $filename = 'teacher-performance-'.now()->format('Ymd-His').'.xlsx';
 
         return Excel::download(
             new TeacherPerformanceExport($payload, $title, (string) ($u?->name ?? 'System')),
             $filename
         );
+    }
+
+    private function resolveTeacherReportView(Request $request, bool $examReportsFullAccess): string
+    {
+        $view = $request->input('view');
+        if (! $view) {
+            $view = $request->input('scope', 'class') === 'school' ? 'school' : 'class';
+        }
+        if (! $examReportsFullAccess && $view === 'school') {
+            return 'class';
+        }
+
+        return in_array($view, ['class', 'school', 'teacher'], true) ? $view : 'class';
+    }
+
+    /**
+     * @return array{0: ?array, 1: ?string}
+     */
+    private function buildTeacherPerformanceByView(
+        Request $request,
+        ?User $user,
+        AnalyticsService $analytics,
+        SchoolWideTeacherRankingService $schoolRankings,
+        string $reportView,
+        string $analysisFlow
+    ): array {
+        if ($reportView === 'school') {
+            ExamReportsAccess::assertSchoolWideReportsAllowed($user);
+
+            return $this->buildSchoolTeacherPerformancePayload($request, $schoolRankings, $analysisFlow);
+        }
+
+        if ($reportView === 'teacher') {
+            return $this->buildIndividualTeacherPerformancePayload($request, $schoolRankings, $analysisFlow);
+        }
+
+        return $this->buildTeacherPerformancePayload($request, $user, $analytics, $analysisFlow);
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, array{id: int, name: string}>
+     */
+    private function teachersForTeacherPerformanceFilter(
+        Request $request,
+        SchoolWideTeacherRankingService $schoolRankings,
+        string $analysisFlow
+    ) {
+        if (! $request->filled('academic_year_id') || ! $request->filled('term_id')) {
+            return collect();
+        }
+
+        $examTypeId = ($analysisFlow === 'by_exam_type' && $request->filled('exam_type_id'))
+            ? (int) $request->exam_type_id
+            : null;
+
+        try {
+            return $schoolRankings->teachersForScope(
+                (int) $request->academic_year_id,
+                (int) $request->term_id,
+                $examTypeId
+            );
+        } catch (\Throwable) {
+            return collect();
+        }
     }
 
     /**
@@ -596,10 +680,10 @@ class ExamReportsController extends Controller
         $termId = (int) $request->term_id;
 
         if ($analysisFlow === 'term') {
-            $payload = $schoolRankings->rankingsForTerm($ay, $termId, $subjectId);
+            $payload = $schoolRankings->rankingsForTermWithImprovement($ay, $termId, $subjectId);
         } else {
             $request->validate(['exam_type_id' => 'required|exists:exam_types,id']);
-            $payload = $schoolRankings->rankingsForExamType(
+            $payload = $schoolRankings->rankingsForExamTypeWithImprovement(
                 (int) $request->exam_type_id,
                 $ay,
                 $termId,
@@ -607,8 +691,40 @@ class ExamReportsController extends Controller
             );
         }
 
-        if (empty($payload['per_teacher']) && empty($payload['per_subject_teacher'])) {
+        if (empty($payload['per_teacher']) && empty($payload['per_subject_teacher']) && empty($payload['by_category'])) {
             return [$payload, 'No school-wide teacher marks found for these filters.'];
+        }
+
+        return [$payload, null];
+    }
+
+    /**
+     * @return array{0: ?array, 1: ?string}
+     */
+    private function buildIndividualTeacherPerformancePayload(
+        Request $request,
+        SchoolWideTeacherRankingService $schoolRankings,
+        string $analysisFlow
+    ): array {
+        $request->validate([
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'term_id' => 'required|exists:terms,id',
+            'teacher_id' => 'required|exists:staff,id',
+        ]);
+
+        $ay = (int) $request->academic_year_id;
+        $termId = (int) $request->term_id;
+        $teacherId = (int) $request->teacher_id;
+        $examTypeId = null;
+
+        if ($analysisFlow !== 'term') {
+            $request->validate(['exam_type_id' => 'required|exists:exam_types,id']);
+            $examTypeId = (int) $request->exam_type_id;
+        }
+
+        $payload = $schoolRankings->detailForTeacher($teacherId, $ay, $termId, $examTypeId);
+        if (empty($payload['rows']) && empty($payload['per_subject_teacher'])) {
+            return [$payload, 'No performance data found for this teacher with the selected filters.'];
         }
 
         return [$payload, null];
@@ -977,6 +1093,15 @@ class ExamReportsController extends Controller
                 null,
                 $request->integer('improvement_exam_type_id') ?: null
             );
+            $payload = $analytics->attachPriorTermTeacherImprovement(
+                $payload,
+                $classroom,
+                $streamId,
+                $ay,
+                $termId,
+                null,
+                $subjectLimit
+            );
             if (empty($payload['per_teacher']) && empty($payload['per_subject'])) {
                 return [$payload, 'No teacher performance data for this class and term. Check subject assignments and marks.'];
             }
@@ -1008,6 +1133,15 @@ class ExamReportsController extends Controller
         }
 
         $payload = $cache->rememberExamSessionTeacherPerformance($session, $classroom, $streamId, fn () => $analytics->teacherPerformanceForExamSession($session, $classroom, $streamId, $subjectLimit));
+        $payload = $analytics->attachPriorTermTeacherImprovement(
+            $payload,
+            $classroom,
+            $streamId,
+            (int) $request->academic_year_id,
+            (int) $request->term_id,
+            (int) $request->exam_type_id,
+            $subjectLimit
+        );
         if (empty($payload['per_teacher']) && empty($payload['per_subject'])) {
             return [$payload, 'No teacher performance data for this exam sitting. Check subject assignments and marks.'];
         }

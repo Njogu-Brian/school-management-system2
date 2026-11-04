@@ -318,6 +318,103 @@ class AnalyticsService
         ];
     }
 
+    /**
+     * Attach previous-term means/improvement onto a class teacher-performance payload.
+     */
+    public function attachPriorTermTeacherImprovement(
+        array $payload,
+        Classroom $classroom,
+        ?int $streamId,
+        int $academicYearId,
+        int $termId,
+        ?int $examTypeId = null,
+        ?array $limitSubjectIds = null
+    ): array {
+        $prev = (new PreviousTermResolver())->resolve($academicYearId, $termId);
+        if (! $prev) {
+            $payload['meta'] = array_merge($payload['meta'] ?? [], [
+                'previous_term' => null,
+                'has_improvement' => false,
+            ]);
+            $payload['most_improved_teachers'] = [];
+
+            return $payload;
+        }
+
+        if ($examTypeId) {
+            $session = $this->examScope->findExamSession(
+                $examTypeId,
+                (int) $prev['academic_year_id'],
+                (int) $prev['term_id'],
+                $classroom->id,
+                $streamId
+            );
+            $previous = $session
+                ? $this->teacherPerformanceForExamSession($session, $classroom, $streamId, $limitSubjectIds)
+                : ['per_teacher' => collect(), 'per_subject' => collect()];
+        } else {
+            $previous = $this->teacherPerformanceForTerm(
+                (int) $prev['academic_year_id'],
+                (int) $prev['term_id'],
+                $classroom,
+                $streamId,
+                $limitSubjectIds
+            );
+        }
+
+        $attacher = new TeacherImprovementAttacher();
+        $perTeacher = $attacher->attach(
+            collect($payload['per_teacher'] ?? [])->map(function (array $row) {
+                $row['match_key'] = (string) ($row['teacher_id'] ?? '');
+                $row['mean'] = $row['mean_of_subject_means'] ?? null;
+
+                return $row;
+            }),
+            collect($previous['per_teacher'] ?? [])->map(function (array $row) {
+                $row['match_key'] = (string) ($row['teacher_id'] ?? '');
+                $row['mean'] = $row['mean_of_subject_means'] ?? null;
+
+                return $row;
+            }),
+            'match_key',
+            'mean'
+        )->map(function (array $row) {
+            $row['mean_of_subject_means'] = $row['mean'] ?? $row['mean_of_subject_means'] ?? null;
+            unset($row['mean'], $row['match_key']);
+
+            return $row;
+        });
+
+        $perSubject = $attacher->attach(
+            collect($payload['per_subject'] ?? [])->map(function (array $row) {
+                $row['match_key'] = ($row['subject_id'] ?? '').':'.($row['teacher_id'] ?? '');
+
+                return $row;
+            }),
+            collect($previous['per_subject'] ?? [])->map(function (array $row) {
+                $row['match_key'] = ($row['subject_id'] ?? '').':'.($row['teacher_id'] ?? '');
+
+                return $row;
+            }),
+            'match_key',
+            'mean'
+        )->map(function (array $row) {
+            unset($row['match_key']);
+
+            return $row;
+        });
+
+        $payload['per_teacher'] = $perTeacher;
+        $payload['per_subject'] = $perSubject;
+        $payload['meta'] = array_merge($payload['meta'] ?? [], [
+            'previous_term' => $prev,
+            'has_improvement' => true,
+        ]);
+        $payload['most_improved_teachers'] = $attacher->topImproved($perTeacher, 10);
+
+        return $payload;
+    }
+
     public function subjectPerformanceForExam(Exam $exam, Classroom $classroom, ?int $streamId = null, ?array $limitSubjectIds = null): array
     {
         $paperIds = $this->examScope->paperExamIdsForExam($exam);
