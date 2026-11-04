@@ -453,6 +453,60 @@ export function useExamClassSheet(
   });
 }
 
+export function useMyTeachingScope(
+  params?: { academic_year_id?: number; term_id?: number } | null,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: [...queryKeys.academics.all, 'my-teaching-scope', params ?? {}],
+    queryFn: async () => {
+      const res = await examReportsApi.getMyTeachingScope(params ?? undefined);
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load teaching scope.');
+      }
+      return res.data;
+    },
+    enabled: options?.enabled !== false,
+    staleTime: 60_000,
+  });
+}
+
+export function useMySubjectAnalysis(
+  params: {
+    classroom_id: number;
+    subject_id: number;
+    academic_year_id: number;
+    term_id: number;
+    mode?: 'term' | 'exam_type' | 'by_exam_type';
+    exam_type_id?: number;
+    stream_id?: number;
+  } | null,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: [...queryKeys.academics.all, 'my-subject-analysis', params ?? {}],
+    queryFn: async () => {
+      if (!params) throw new Error('Subject analysis params required.');
+      const res = await examReportsApi.getMySubjectAnalysis(params);
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load subject analysis.');
+      }
+      return res.data;
+    },
+    enabled:
+      options?.enabled !== false &&
+      params != null &&
+      params.classroom_id > 0 &&
+      params.subject_id > 0 &&
+      params.academic_year_id > 0 &&
+      params.term_id > 0 &&
+      (params.mode !== 'exam_type' && params.mode !== 'by_exam_type'
+        ? true
+        : (params.exam_type_id ?? 0) > 0),
+    staleTime: 60_000,
+  });
+}
+
 export function useExamSessions(
   filters: {
     academic_year_id?: number;

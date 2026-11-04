@@ -573,6 +573,8 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::get('/reports/exams/trends', [ApiExamReportsController::class, 'trends']);
     Route::get('/reports/exams/insights', [ApiExamReportsController::class, 'insights']);
     Route::get('/reports/exams/mastery-profile', [ApiExamReportsController::class, 'masteryProfile']);
+    Route::get('/reports/exams/my-teaching-scope', [ApiExamReportsController::class, 'myTeachingScope']);
+    Route::get('/reports/exams/my-subject-analysis', [ApiExamReportsController::class, 'mySubjectAnalysis']);
     Route::get('/reports/exams/export/class-sheet.xlsx', [ApiExamReportsController::class, 'exportClassSheet']);
     Route::get('/reports/exams/export/term-workbook.xlsx', [ApiExamReportsController::class, 'exportTermWorkbook']);
 

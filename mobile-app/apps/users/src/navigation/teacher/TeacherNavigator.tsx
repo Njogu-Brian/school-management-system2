@@ -42,6 +42,8 @@ import { MarksMatrixEntryScreen } from '../../features/teacher/screens/MarksMatr
 import { MarksMatrixSetupScreen } from '../../features/teacher/screens/MarksMatrixSetupScreen';
 import { RequirementDetailScreen } from '../../features/teacher/screens/RequirementDetailScreen';
 import { RequirementsHubScreen } from '../../features/teacher/screens/RequirementsHubScreen';
+import { SubjectAnalysisDetailScreen } from '../../features/teacher/screens/SubjectAnalysisDetailScreen';
+import { SubjectAnalysisHubScreen } from '../../features/teacher/screens/SubjectAnalysisHubScreen';
 import { TeacherAcademicsHubScreen } from '../../features/teacher/screens/TeacherAcademicsHubScreen';
 import { TeacherClassesScreen } from '../../features/teacher/screens/TeacherClassesScreen';
 import { TeacherHomeScreen } from '../../features/teacher/screens/TeacherHomeScreen';
@@ -71,6 +73,8 @@ function teacherSharedScreens() {
       <Stack.Screen name="Academics" component={TeacherAcademicsHubScreen} />
       <Stack.Screen name="ActivityAttendance" component={ActivityAttendanceScreen} />
       <Stack.Screen name="MarksHub" component={MarksHubScreen} />
+      <Stack.Screen name="SubjectAnalysisHub" component={SubjectAnalysisHubScreen} />
+      <Stack.Screen name="SubjectAnalysisDetail" component={SubjectAnalysisDetailScreen} />
       <Stack.Screen name="MarksMatrixSetup" component={MarksMatrixSetupScreen} />
       <Stack.Screen name="MarksMatrixEntry" component={MarksMatrixEntryScreen} />
       <Stack.Screen name="MarksExamSetup" component={MarksExamSetupScreen} />

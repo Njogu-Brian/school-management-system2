@@ -18,3 +18,5 @@ export * from './MarksStudentCard';
 export * from './ReportCardCard';
 export * from './AssessmentCard';
 export * from './ModerationCard';
+export * from './SubjectAnalysisHubView';
+export * from './SubjectAnalysisDetailView';

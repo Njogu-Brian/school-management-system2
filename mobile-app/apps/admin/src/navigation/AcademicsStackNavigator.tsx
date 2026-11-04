@@ -24,6 +24,8 @@ import {
   MarkAttendanceScreen,
   MarkAbsentScreen,
   TimetableScreen,
+  SubjectAnalysisHubScreen,
+  SubjectAnalysisDetailScreen,
 } from '../features/academics';
 import { SpeedTestsScreen } from '../features/academics/screens/SpeedTestsScreen';
 import { SpeedTestDetailScreen } from '../features/academics/screens/SpeedTestDetailScreen';
@@ -58,5 +60,7 @@ export const AcademicsStackNavigator: React.FC = () => (
     <Stack.Screen name="Timetable" component={TimetableScreen} />
     <Stack.Screen name="SpeedTests" component={SpeedTestsScreen} />
     <Stack.Screen name="SpeedTestDetail" component={SpeedTestDetailScreen} />
+    <Stack.Screen name="SubjectAnalysisHub" component={SubjectAnalysisHubScreen} />
+    <Stack.Screen name="SubjectAnalysisDetail" component={SubjectAnalysisDetailScreen} />
   </Stack.Navigator>
 );

@@ -20,11 +20,18 @@ const ITEMS: Array<{
     | 'book-outline'
     | 'chatbubbles-outline'
     | 'flash-outline'
-    | 'clipboard-outline';
+    | 'clipboard-outline'
+    | 'stats-chart-outline';
 }> = [
   { title: 'Homework', subtitle: 'Assign and track class homework', route: 'AssignmentsHub', icon: 'book-outline' },
   { title: 'Speed tests', subtitle: 'Create short quizzes and enter marks', route: 'SpeedTestsHub', icon: 'flash-outline' },
   { title: 'Marks entry', subtitle: 'Enter exam marks for your subjects', route: 'MarksHub', icon: 'create-outline' },
+  {
+    title: 'Subject analysis',
+    subtitle: 'Student scores, averages, and improvement by term/exam',
+    route: 'SubjectAnalysisHub',
+    icon: 'stats-chart-outline',
+  },
   { title: 'Report forms', subtitle: 'View report forms to confirm marks', route: 'ReportCardsHub', icon: 'school-outline' },
   { title: 'Lesson plans', subtitle: 'Create and submit lesson plans', route: 'LessonPlansHub', icon: 'document-text-outline' },
   { title: 'Student diary', subtitle: 'Message parents about students', route: 'DiaryList', icon: 'chatbubbles-outline' },

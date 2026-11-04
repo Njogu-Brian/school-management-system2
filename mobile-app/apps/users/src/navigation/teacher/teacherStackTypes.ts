@@ -69,4 +69,15 @@ export type TeacherStackParamList = {
   ReportCardsHub: undefined;
   StudentReportCards: { studentId: number; studentName?: string };
   TeacherReportCardDetail: { studentId: number; reportCardId: number };
+  SubjectAnalysisHub: undefined;
+  SubjectAnalysisDetail: {
+    classroomId: number;
+    subjectId: number;
+    streamId?: number;
+    academicYearId: number;
+    termId: number;
+    classroomName?: string;
+    subjectName?: string;
+    streamName?: string;
+  };
 };

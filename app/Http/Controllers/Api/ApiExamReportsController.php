@@ -14,6 +14,7 @@ use App\Services\Academics\ExamReports\ClassSheetBuilder;
 use App\Services\Academics\ExamReports\ExamReportsAccess;
 use App\Services\Academics\ExamReports\ReportCache;
 use App\Services\Academics\ExamReports\SchoolWideTeacherRankingService;
+use App\Services\Academics\ExamReports\TeacherSubjectAnalysisService;
 use App\Services\Academics\ExamReports\TrendsService;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
@@ -39,6 +40,7 @@ class ApiExamReportsController extends Controller
         $mode = $data['mode'] ?? 'exam';
         $classroom = Classroom::findOrFail($data['classroom_id']);
         $streamId = isset($data['stream_id']) ? (int) $data['stream_id'] : null;
+        $subjectLimit = ExamReportsAccess::subjectIdsForUserInClass($u, (int) $classroom->id, $streamId);
 
         $builder = new ClassSheetBuilder();
         if ($mode === 'term') {
@@ -55,6 +57,76 @@ class ApiExamReportsController extends Controller
             $cache = new ReportCache();
             $payload = $cache->rememberExamClassSheet($exam, $classroom, $streamId, fn () => $builder->buildForExam($exam, $classroom, $streamId));
         }
+
+        if (is_array($subjectLimit) && $subjectLimit !== []) {
+            $allowed = array_flip($subjectLimit);
+            $payload['subjects'] = collect($payload['subjects'] ?? [])
+                ->filter(fn ($s) => isset($allowed[(int) ($s['id'] ?? 0)]))
+                ->values()
+                ->all();
+            $payload['meta']['subject_scoped'] = true;
+        }
+
+        return response()->json(['success' => true, 'data' => $payload]);
+    }
+
+    public function myTeachingScope(Request $request, TeacherSubjectAnalysisService $analysis)
+    {
+        $data = $request->validate([
+            'academic_year_id' => 'nullable|exists:academic_years,id',
+            'term_id' => 'nullable|exists:terms,id',
+        ]);
+
+        $user = $request->user();
+        $u = $user instanceof User ? $user : null;
+        if (! $u) {
+            return response()->json(['success' => false, 'message' => 'Authentication required.'], 401);
+        }
+
+        $slots = $analysis->teachingScope(
+            $u,
+            isset($data['academic_year_id']) ? (int) $data['academic_year_id'] : null,
+            isset($data['term_id']) ? (int) $data['term_id'] : null,
+        );
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'full_access' => ExamReportsAccess::userHasFullAccess($u),
+                'slots' => $slots,
+            ],
+        ]);
+    }
+
+    public function mySubjectAnalysis(Request $request, TeacherSubjectAnalysisService $analysis)
+    {
+        $data = $request->validate([
+            'classroom_id' => 'required|exists:classrooms,id',
+            'subject_id' => 'required|exists:subjects,id',
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'term_id' => 'required|exists:terms,id',
+            'mode' => 'nullable|in:term,exam_type,by_exam_type',
+            'exam_type_id' => 'nullable|exists:exam_types,id',
+            'stream_id' => 'nullable|exists:streams,id',
+        ]);
+
+        $user = $request->user();
+        $u = $user instanceof User ? $user : null;
+        if (! $u) {
+            return response()->json(['success' => false, 'message' => 'Authentication required.'], 401);
+        }
+
+        $mode = $data['mode'] ?? 'term';
+        $payload = $analysis->analyze(
+            user: $u,
+            classroomId: (int) $data['classroom_id'],
+            subjectId: (int) $data['subject_id'],
+            academicYearId: (int) $data['academic_year_id'],
+            termId: (int) $data['term_id'],
+            mode: $mode,
+            examTypeId: isset($data['exam_type_id']) ? (int) $data['exam_type_id'] : null,
+            streamId: isset($data['stream_id']) ? (int) $data['stream_id'] : null,
+        );
 
         return response()->json(['success' => true, 'data' => $payload]);
     }

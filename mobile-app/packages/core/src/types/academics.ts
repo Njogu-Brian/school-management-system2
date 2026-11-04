@@ -231,9 +231,76 @@ export interface ExamClassSheetRecord {
     classroom: { id: number; name: string };
     stream_id: number | null;
     stream_name: string | null;
+    subject_scoped?: boolean;
   };
   subjects: ExamClassSheetSubject[];
   rows: ExamClassSheetRow[];
+}
+
+/** `GET /reports/exams/my-teaching-scope` */
+export interface TeachingScopeSlot {
+  classroom_id: number;
+  classroom_name: string | null;
+  stream_id: number | null;
+  stream_name: string | null;
+  subject_id: number;
+  subject_name: string | null;
+  subject_code: string | null;
+  category_key: string;
+  category: string;
+  teacher_id?: number | null;
+  teacher_name?: string | null;
+}
+
+export interface TeachingScopePayload {
+  full_access: boolean;
+  slots: TeachingScopeSlot[];
+}
+
+/** `GET /reports/exams/my-subject-analysis` */
+export interface SubjectAnalysisStudentRow {
+  student_id: number;
+  admission_number: string | null;
+  name: string;
+  stream_id: number | null;
+  score: number | null;
+  percentage: number | null;
+  grade_label?: string | null;
+  position?: number | null;
+  prev_score?: number | null;
+  improvement?: number | null;
+  sitting_scores?: Record<string, { score: number | null; count: number }>;
+}
+
+export interface SubjectAnalysisPayload {
+  meta: {
+    mode: string;
+    classroom: { id: number; name: string };
+    subject: { id: number; name: string; code: string | null };
+    stream_id: number | null;
+    category?: string;
+    previous_term?: {
+      academic_year_id: number;
+      term_id: number;
+      term_name: string;
+      academic_year: string | number | null;
+    } | null;
+    notice?: string | null;
+    exam_session_name?: string | null;
+    max_marks?: number;
+  };
+  summary: {
+    count: number;
+    mean: number | null;
+    max: number | null;
+    min: number | null;
+    pass_rate: number | null;
+    prev_mean: number | null;
+    improvement: number | null;
+  };
+  sittings: Array<{ key: string; label: string; exam_type_id: number; session_id: number }>;
+  students: SubjectAnalysisStudentRow[];
+  most_improved_students?: SubjectAnalysisStudentRow[];
 }
 
 /** `GET /timetables/teacher/{staffId}` and `/timetables/student/{studentId}`. */

@@ -50,4 +50,16 @@ export type AcademicsStackParamList = {
   Timetable: undefined;
   SpeedTests: undefined;
   SpeedTestDetail: { batchKey: string; title?: string };
+  SubjectAnalysisHub: undefined;
+  SubjectAnalysisDetail: {
+    classroomId: number;
+    subjectId: number;
+    streamId?: number;
+    academicYearId: number;
+    termId: number;
+    classroomName?: string;
+    subjectName?: string;
+    streamName?: string;
+    teacherName?: string;
+  };
 };
