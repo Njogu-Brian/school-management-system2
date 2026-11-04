@@ -382,6 +382,7 @@ class ImportTerm12027Requirements extends Command
         return match (strtoupper(trim($label))) {
             'PP1' => ['PP1', 'PP 1', 'Pre Primary 1', 'Pre-Primary 1'],
             'PP2' => ['PP2', 'PP 2', 'Pre Primary 2', 'Pre-Primary 2'],
+            'FOUNDATION' => ['Foundation', 'Foundation Class', 'FOUNDATION'],
             default => [$label],
         };
     }

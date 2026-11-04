@@ -67,6 +67,26 @@ return [
         term1_2027_requirement_item('Queenex Blossom Kiswahili Waridi kitabu cha kwanza', 1, 'book', 'Queenex', 'books', false, 450, false, null),
     ],
 
+    'Foundation' => [
+        term1_2027_requirement_item('Tissue Rolls', 4, 'rolls', 'Hannan, Velvex, Bella, Toilex, Neptune', 'toiletries', true, 45, false, null),
+        term1_2027_requirement_item('Wet Wipes', 1, 'piece', 'Softcare', 'toiletries', true, 160, false, null),
+        term1_2027_requirement_item('A4 Photocopy Ream Paper', 1, 'ream', 'JK', 'stationery', true, 600, false, null),
+        term1_2027_requirement_item('Jumbo Crayons', 1, 'packet', 'Jumbo', 'stationery', true, 300, false, null),
+        term1_2027_requirement_item('Pencils', 1, 'packet', 'Nataraj, Pelican', 'stationery', true, 140, false, null),
+        term1_2027_requirement_item('Spring File', 1, 'piece', null, 'stationery', false, 50, false, null),
+        term1_2027_requirement_item('Pritt glue 22g', 1, 'piece', 'Pritt', 'stationery', true, 200, false, null),
+        term1_2027_requirement_item('Masking Tape half inch', 1, 'piece', null, 'stationery', true, 25, false, null),
+        term1_2027_requirement_item('Manila Paper', 2, 'piece', null, 'stationery', true, 40, false, null),
+        term1_2027_requirement_item('Luminous Paper', 2, 'piece', null, 'stationery', true, 40, false, null),
+        term1_2027_requirement_item('Building Blocks', 1, 'piece', null, 'stationery', true, 700, false, null),
+        term1_2027_requirement_item('Water Paint', 1, 'packet', 'M&G', 'stationery', true, 280, false, null),
+        term1_2027_requirement_item('Modelling Clay (500 grams)', 1, 'piece', 'MG', 'stationery', true, 220, false, null),
+        term1_2027_requirement_item('Queenex Sound Workbook Foundation', 1, 'book', 'Queenex', 'books', false, 450, false, null),
+        term1_2027_requirement_item('Queenex Mathematical Activities Foundation', 1, 'book', 'Queenex', 'books', false, 450, false, null),
+        term1_2027_requirement_item('Queenex Environmental Activities Foundation', 1, 'book', 'Queenex', 'books', false, 450, false, null),
+        term1_2027_requirement_item('Queenex EKAS Colouring Book', 1, 'book', 'Queenex', 'books', false, 300, false, null),
+    ],
+
     'Grade 1' => [
         term1_2027_requirement_item('Tissue Rolls', 4, 'rolls', 'Hannan, Velvex, Bella, Toilex, Neptune', 'toiletries', true, 45, false, null),
         term1_2027_requirement_item('Pencils', 1, 'packet', 'Officepoint, Pelican, Staedtler, Nataraj', 'stationery', true, 140, false, null),
