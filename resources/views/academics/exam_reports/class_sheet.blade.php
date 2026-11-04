@@ -165,9 +165,9 @@
               </a>
             @endif
             @if(($sheetFlow ?? '') === 'term' && request('academic_year_id') && request('term_id'))
-              <a class="btn btn-outline-secondary" href="{{ route('academics.exam-reports.export.term-workbook', ['academic_year_id' => request('academic_year_id'), 'term_id' => request('term_id')]) }}">
+              <a class="btn btn-outline-secondary" href="{{ route('academics.exam-reports.export.term-workbook', ['academic_year_id' => request('academic_year_id'), 'term_id' => request('term_id')]) }}" title="Includes all-teachers rankings, each exam sitting, and whole-term overview per class">
                 @if(!empty($examReportsFullAccess))
-                  Term workbook (all classes)
+                  Term workbook (all classes + teachers)
                 @else
                   Term workbook (my classes)
                 @endif
@@ -209,7 +209,7 @@
                   @elseif(($metaHdr['mode'] ?? '') === 'subject_paper')
                     {{ $metaHdr['subject']['name'] ?? '' }}
                   @elseif(($metaHdr['mode'] ?? '') === 'term')
-                    Term overview
+                    Whole term overview
                   @elseif(($metaHdr['mode'] ?? '') === 'exam')
                     {{ $metaHdr['exam']['name'] ?? '' }}
                   @endif
@@ -232,7 +232,7 @@
                     } elseif (($m['mode'] ?? '') === 'subject_paper') {
                         $lhSub = $m['subject']['name'] ?? null;
                     } elseif (($m['mode'] ?? '') === 'term') {
-                        $lhSub = 'Term overview';
+                        $lhSub = 'Whole term overview';
                     } elseif (($m['mode'] ?? '') === 'exam') {
                         $lhSub = $m['exam']['name'] ?? null;
                     }

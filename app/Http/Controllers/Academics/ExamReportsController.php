@@ -115,13 +115,14 @@ class ExamReportsController extends Controller
 
         $bundles = $this->buildClassSheetBundles($request, $u);
         $sheets = [];
+        $usedTitles = [];
         foreach ($bundles as $b) {
             if (empty($b['payload'])) {
                 continue;
             }
             $cls = $b['classroom']->name ?? 'Class';
             $sheets[] = [
-                'title' => $this->excelSheetTitle($b['payload'], $cls),
+                'title' => $this->uniqueExcelSheetTitle($this->excelSheetTitle($b['payload'], $cls), $usedTitles),
                 'payload' => $b['payload'],
             ];
         }
@@ -348,6 +349,27 @@ class ExamReportsController extends Controller
             ]];
         }
 
+        $analytics = new AnalyticsService();
+        $bundles = [];
+
+        $sessions = $this->examScope->coreExamSessionsForTerm($ay, $termId, $classroom->id, $streamId);
+        foreach ($sessions as $session) {
+            $session->loadMissing('examType');
+            $sittingPayload = $cache->rememberExamSessionClassSheet(
+                $session,
+                $classroom,
+                $streamId,
+                fn () => $builder->buildForExamSession($session, $classroom, $streamId)
+            );
+            $sittingPayload['most_improved'] = $analytics->mostImprovedForExamSession(
+                $session,
+                $classroom,
+                $streamId,
+                $sittingPayload
+            );
+            $bundles[] = ['classroom' => $classroom, 'payload' => $sittingPayload, 'notice' => null];
+        }
+
         $payload = $cache->rememberTermClassSheet(
             $ay,
             $termId,
@@ -363,7 +385,7 @@ class ExamReportsController extends Controller
             ? null
             : 'Exam papers exist for this class/year/term, but no marks have been entered yet.';
 
-        $payload['most_improved'] = (new AnalyticsService())->mostImprovedForTermScope(
+        $payload['most_improved'] = $analytics->mostImprovedForTermScope(
             $ay,
             $termId,
             $classroom,
@@ -372,7 +394,9 @@ class ExamReportsController extends Controller
             $request->integer('improvement_exam_type_id') ?: null
         );
 
-        return [['classroom' => $classroom, 'payload' => $payload, 'notice' => $notice]];
+        $bundles[] = ['classroom' => $classroom, 'payload' => $payload, 'notice' => $notice];
+
+        return $bundles;
     }
 
     private function excelSheetTitle(array $payload, string $classLabel): string
@@ -397,6 +421,28 @@ class ExamReportsController extends Controller
         return mb_substr($classLabel.' Sheet', 0, 31);
     }
 
+    /**
+     * @param  array<string, true>  $used
+     */
+    private function uniqueExcelSheetTitle(string $base, array &$used): string
+    {
+        $title = mb_substr(trim($base), 0, 31);
+        if ($title === '') {
+            $title = 'Sheet';
+        }
+
+        $n = 2;
+        while (isset($used[$title])) {
+            $suffix = ' '.$n;
+            $title = mb_substr(trim($base), 0, max(1, 31 - mb_strlen($suffix))).$suffix;
+            $n++;
+        }
+
+        $used[$title] = true;
+
+        return $title;
+    }
+
     public function exportTermWorkbook(Request $request)
     {
         $request->validate([
@@ -419,8 +465,12 @@ class ExamReportsController extends Controller
         }
 
         $filename = "term-workbook-{$ay}-{$termId}.xlsx";
+        $generatedBy = (string) ($u?->name ?? 'System');
 
-        return Excel::download(new TermWorkbookExport($ay, $termId, $classroomIds), $filename);
+        return Excel::download(
+            new TermWorkbookExport($ay, $termId, $classroomIds, $generatedBy),
+            $filename
+        );
     }
 
     public function teacherPerformance(Request $request, AnalyticsService $analytics, SchoolWideTeacherRankingService $schoolRankings)

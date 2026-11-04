@@ -200,7 +200,12 @@ class ApiExamReportsController extends Controller
             }
         }
 
-        return Excel::download(new TermWorkbookExport($ay, $termId, $classroomIds), $filename);
+        $generatedBy = (string) ($u?->name ?? 'System');
+
+        return Excel::download(
+            new TermWorkbookExport($ay, $termId, $classroomIds, $generatedBy),
+            $filename
+        );
     }
 
     public function masteryProfile(Request $request, AnalyticsService $analytics)
