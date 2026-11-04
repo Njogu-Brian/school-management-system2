@@ -475,12 +475,18 @@ class SchoolWideTeacherRankingService
 
             $subjects = $attacher->attach(
                 collect($cat['per_subject_teacher'] ?? [])->map(function (array $row) {
-                    $row['match_key'] = ($row['category_key'] ?? '').':'.($row['subject_id'] ?? '').':'.($row['teacher_id'] ?? '');
+                    $row['match_key'] = ($row['category_key'] ?? '').':'
+                        .($row['classroom_id'] ?? '').':'
+                        .($row['subject_id'] ?? '').':'
+                        .($row['teacher_id'] ?? '');
 
                     return $row;
                 }),
                 collect($prevCat['per_subject_teacher'] ?? [])->map(function (array $row) {
-                    $row['match_key'] = ($row['category_key'] ?? '').':'.($row['subject_id'] ?? '').':'.($row['teacher_id'] ?? '');
+                    $row['match_key'] = ($row['category_key'] ?? '').':'
+                        .($row['classroom_id'] ?? '').':'
+                        .($row['subject_id'] ?? '').':'
+                        .($row['teacher_id'] ?? '');
 
                     return $row;
                 }),
@@ -560,8 +566,9 @@ class SchoolWideTeacherRankingService
         // Fill missing mark teacher_id from classroom_subjects when possible.
         $assignmentTeachers = $this->assignmentTeacherLookup($paperIds);
         $categoryByExam = $this->categoryLookupForPapers($paperIds);
+        $classroomByExam = $this->classroomLookupForPapers($paperIds);
 
-        $marks = $marks->map(function (ExamMark $m) use ($assignmentTeachers, $categoryByExam) {
+        $marks = $marks->map(function (ExamMark $m) use ($assignmentTeachers, $categoryByExam, $classroomByExam) {
             if (empty($m->teacher_id)) {
                 $key = (int) $m->exam_id.':'.(int) $m->subject_id;
                 $staffId = $assignmentTeachers[$key] ?? null;
@@ -573,6 +580,9 @@ class SchoolWideTeacherRankingService
                 'level_category',
                 $categoryByExam[(int) $m->exam_id] ?? ClassroomLevelCategory::OTHER
             );
+            $classroom = $classroomByExam[(int) $m->exam_id] ?? null;
+            $m->setAttribute('classroom_id', $classroom?->id);
+            $m->setAttribute('classroom_name', $classroom?->name);
 
             return $m;
         })->filter(fn (ExamMark $m) => ! empty($m->teacher_id))->values();
@@ -591,8 +601,14 @@ class SchoolWideTeacherRankingService
 
         $passThreshold = ($this->passMarkPercent() / 100.0) * $maxMarks;
 
+        // One row per class × subject × teacher so Subject-by-Subject shows the specific class subject.
         $perSubjectTeacher = $marks
-            ->groupBy(fn (ExamMark $m) => ($m->getAttribute('level_category') ?? ClassroomLevelCategory::OTHER).':'.$m->subject_id.':'.$m->teacher_id)
+            ->groupBy(function (ExamMark $m) {
+                $category = $m->getAttribute('level_category') ?? ClassroomLevelCategory::OTHER;
+                $classroomId = (int) ($m->getAttribute('classroom_id') ?? 0);
+
+                return $category.':'.$classroomId.':'.$m->subject_id.':'.$m->teacher_id;
+            })
             ->map(function (Collection $rows) use ($teachers, $subjects, $passThreshold) {
                 $first = $rows->first();
                 $vals = $rows->pluck('marks_obtained')->map(fn ($v) => (float) $v)->values();
@@ -605,10 +621,13 @@ class SchoolWideTeacherRankingService
                 $s = $subjects->get($first->subject_id);
                 $subjectName = $s ? (($s->code ?? '') ? (($s->code ?? '').' - '.($s->name ?? '')) : ($s->name ?? '')) : null;
                 $category = (string) ($first->getAttribute('level_category') ?? ClassroomLevelCategory::OTHER);
+                $classroomId = (int) ($first->getAttribute('classroom_id') ?? 0);
 
                 return [
                     'category_key' => $category,
                     'category' => ClassroomLevelCategory::labelFor($category),
+                    'classroom_id' => $classroomId ?: null,
+                    'classroom' => $first->getAttribute('classroom_name'),
                     'subject_id' => (int) $first->subject_id,
                     'subject' => $subjectName,
                     'teacher_id' => (int) $first->teacher_id,
@@ -627,6 +646,7 @@ class SchoolWideTeacherRankingService
                     return null;
                 }
 
+                // Rank teachers within each subject across classes in this phase.
                 $rankedSubjects = $rows
                     ->groupBy('subject_id')
                     ->map(function (Collection $subjectRows) {
@@ -638,6 +658,11 @@ class SchoolWideTeacherRankingService
                     })
                     ->values()
                     ->flatten(1)
+                    ->sortBy([
+                        ['classroom', 'asc'],
+                        ['subject', 'asc'],
+                        ['rank_in_subject', 'asc'],
+                    ])
                     ->values();
 
                 $perTeacher = $rows
@@ -695,6 +720,20 @@ class SchoolWideTeacherRankingService
      */
     private function categoryLookupForPapers(array $paperIds): array
     {
+        $out = [];
+        foreach ($this->classroomLookupForPapers($paperIds) as $examId => $classroom) {
+            $out[(int) $examId] = ClassroomLevelCategory::resolve($classroom);
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  list<int>  $paperIds
+     * @return array<int, Classroom|null> exam_id => classroom
+     */
+    private function classroomLookupForPapers(array $paperIds): array
+    {
         $exams = Exam::query()
             ->whereIn('id', $paperIds)
             ->get(['id', 'classroom_id']);
@@ -707,8 +746,7 @@ class SchoolWideTeacherRankingService
 
         $out = [];
         foreach ($exams as $exam) {
-            $classroom = $exam->classroom_id ? $classrooms->get($exam->classroom_id) : null;
-            $out[(int) $exam->id] = ClassroomLevelCategory::resolve($classroom);
+            $out[(int) $exam->id] = $exam->classroom_id ? $classrooms->get($exam->classroom_id) : null;
         }
 
         return $out;

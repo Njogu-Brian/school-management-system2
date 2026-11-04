@@ -3,6 +3,53 @@
 @push('styles')
     @include('settings.partials.styles')
     @include('academics.exam_reports.partials.exam_report_print_css')
+    <style>
+      /* Prefer fitting teacher-performance grids on one screen without sideways scroll. */
+      .teacher-perf-fit .table-responsive {
+        overflow-x: auto;
+      }
+      .teacher-perf-fit .exam-report-marks-table {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100%;
+        table-layout: fixed;
+        font-size: 0.8rem;
+      }
+      .teacher-perf-fit .exam-report-marks-table thead th,
+      .teacher-perf-fit .exam-report-marks-table tbody td {
+        padding: 0.35rem 0.4rem;
+        white-space: normal;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        vertical-align: top;
+      }
+      .teacher-perf-fit .exam-report-marks-table .tp-num {
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+      }
+      .teacher-perf-fit .exam-report-marks-table .tp-rank,
+      .teacher-perf-fit .exam-report-marks-table .tp-count {
+        white-space: nowrap;
+        text-align: center;
+        width: 2.75rem;
+      }
+      .teacher-perf-fit .tp-subject-line {
+        font-weight: 600;
+        line-height: 1.2;
+      }
+      .teacher-perf-fit .tp-class-line {
+        color: #64748b;
+        font-size: 0.72rem;
+        line-height: 1.2;
+        margin-top: 0.1rem;
+      }
+      @media (min-width: 1200px) {
+        .teacher-perf-fit .exam-report-marks-table {
+          font-size: 0.8125rem;
+        }
+      }
+    </style>
 @endpush
 
 @section('content')
@@ -76,7 +123,7 @@
 
         @if($reportView === 'school')
           @foreach(collect($payload['by_category'] ?? []) as $category)
-            <div class="settings-card mb-3">
+            <div class="settings-card mb-3 teacher-perf-fit">
               <div class="card-header d-flex flex-wrap align-items-center gap-2">
                 <i class="bi bi-layers"></i>
                 <h5 class="mb-0">{{ $category['label'] ?? 'Category' }}</h5>
@@ -95,21 +142,21 @@
                   <div class="col-lg-6">
                     <div class="d-flex align-items-center gap-2 mb-2"><i class="bi bi-people"></i><strong>Teacher Rankings</strong></div>
                     <div class="table-responsive">
-                      <table class="table table-modern align-middle mb-0 exam-report-marks-table">
+                      <table class="table table-modern table-sm align-middle mb-0 exam-report-marks-table">
                         <thead class="table-light">
                           <tr>
-                            <th>Rank</th><th>Teacher</th><th>Subjects</th><th>Mean</th><th>Prev</th><th>Δ</th>
+                            <th class="tp-rank">Rank</th><th>Teacher</th><th class="tp-count">Subj</th><th class="tp-num">Mean</th><th class="tp-num">Prev</th><th class="tp-num">Δ</th>
                           </tr>
                         </thead>
                         <tbody>
                           @forelse(($category['per_teacher'] ?? []) as $row)
                             <tr>
-                              <td class="fw-semibold">{{ $row['rank'] }}</td>
+                              <td class="fw-semibold tp-rank">{{ $row['rank'] }}</td>
                               <td>{{ $row['teacher'] ?? 'Unassigned' }}</td>
-                              <td>{{ $row['subjects_count'] }}</td>
-                              <td>{{ $row['mean_of_subject_means'] }}</td>
-                              <td>{{ $row['prev_mean'] ?? '—' }}</td>
-                              <td class="fw-semibold">{{ isset($row['improvement']) ? (($row['improvement'] > 0 ? '+' : '').$row['improvement']) : '—' }}</td>
+                              <td class="tp-count">{{ $row['subjects_count'] }}</td>
+                              <td class="tp-num">{{ $row['mean_of_subject_means'] }}</td>
+                              <td class="tp-num">{{ $row['prev_mean'] ?? '—' }}</td>
+                              <td class="fw-semibold tp-num">{{ isset($row['improvement']) ? (($row['improvement'] > 0 ? '+' : '').$row['improvement']) : '—' }}</td>
                             </tr>
                           @empty
                             <tr><td colspan="6" class="text-center text-muted py-3">No teacher stats in this phase.</td></tr>
@@ -121,23 +168,28 @@
                   <div class="col-lg-6">
                     <div class="d-flex align-items-center gap-2 mb-2"><i class="bi bi-bar-chart"></i><strong>Subject-by-Subject</strong></div>
                     <div class="table-responsive">
-                      <table class="table table-modern align-middle mb-0 exam-report-marks-table">
+                      <table class="table table-modern table-sm align-middle mb-0 exam-report-marks-table">
                         <thead class="table-light">
                           <tr>
-                            <th>Subject</th><th>Teacher</th><th>Rank</th><th>Mean</th><th>Prev</th><th>Δ</th><th>Pass %</th><th>Count</th>
+                            <th>Class subject</th><th>Teacher</th><th class="tp-rank">Rank</th><th class="tp-num">Mean</th><th class="tp-num">Prev</th><th class="tp-num">Δ</th><th class="tp-num">Pass</th><th class="tp-count">n</th>
                           </tr>
                         </thead>
                         <tbody>
                           @forelse(($category['per_subject_teacher'] ?? []) as $row)
                             <tr>
-                              <td class="fw-semibold">{{ $row['subject'] }}</td>
+                              <td>
+                                <div class="tp-subject-line">{{ $row['subject'] }}</div>
+                                @if(!empty($row['classroom']))
+                                  <div class="tp-class-line">{{ $row['classroom'] }}</div>
+                                @endif
+                              </td>
                               <td>{{ $row['teacher'] ?? 'Unassigned' }}</td>
-                              <td class="fw-semibold">{{ $row['rank_in_subject'] }}</td>
-                              <td>{{ $row['mean'] }}</td>
-                              <td>{{ $row['prev_mean'] ?? '—' }}</td>
-                              <td class="fw-semibold">{{ isset($row['improvement']) ? (($row['improvement'] > 0 ? '+' : '').$row['improvement']) : '—' }}</td>
-                              <td>{{ $row['pass_rate'] }}</td>
-                              <td>{{ $row['count'] }}</td>
+                              <td class="fw-semibold tp-rank">{{ $row['rank_in_subject'] }}</td>
+                              <td class="tp-num">{{ $row['mean'] }}</td>
+                              <td class="tp-num">{{ $row['prev_mean'] ?? '—' }}</td>
+                              <td class="fw-semibold tp-num">{{ isset($row['improvement']) ? (($row['improvement'] > 0 ? '+' : '').$row['improvement']) : '—' }}</td>
+                              <td class="tp-num">{{ $row['pass_rate'] }}</td>
+                              <td class="tp-count">{{ $row['count'] }}</td>
                             </tr>
                           @empty
                             <tr><td colspan="8" class="text-center text-muted py-3">No subject stats in this phase.</td></tr>
@@ -153,7 +205,7 @@
 
         @elseif($reportView === 'teacher')
           @php $summary = $payload['summary'] ?? []; @endphp
-          <div class="settings-card mb-3">
+          <div class="settings-card mb-3 teacher-perf-fit">
             <div class="card-header d-flex flex-wrap align-items-center gap-2">
               <i class="bi bi-person-badge"></i>
               <h5 class="mb-0">{{ $payload['teacher'] ?? 'Teacher' }}</h5>
@@ -179,26 +231,28 @@
                 <p class="small text-muted">Sections: {{ implode(' · ', $summary['sections']) }}</p>
               @endif
               <div class="table-responsive">
-                <table class="table table-modern align-middle mb-0 exam-report-marks-table">
+                <table class="table table-modern table-sm align-middle mb-0 exam-report-marks-table">
                   <thead class="table-light">
                     <tr>
-                      <th>Section</th><th>Class</th><th>Subject</th><th>Mean</th><th>Prev</th><th>Δ</th><th>Pass %</th><th>Count</th>
+                      <th>Section</th><th>Class subject</th><th class="tp-num">Mean</th><th class="tp-num">Prev</th><th class="tp-num">Δ</th><th class="tp-num">Pass</th><th class="tp-count">n</th>
                     </tr>
                   </thead>
                   <tbody>
                     @forelse(($payload['rows'] ?? []) as $row)
                       <tr>
                         <td>{{ $row['category'] ?? '—' }}</td>
-                        <td class="fw-semibold">{{ $row['classroom'] ?? '—' }}</td>
-                        <td>{{ $row['subject'] }}</td>
-                        <td>{{ $row['mean'] }}</td>
-                        <td>{{ $row['prev_mean'] ?? '—' }}</td>
-                        <td class="fw-semibold">{{ isset($row['improvement']) ? (($row['improvement'] > 0 ? '+' : '').$row['improvement']) : '—' }}</td>
-                        <td>{{ $row['pass_rate'] }}</td>
-                        <td>{{ $row['count'] }}</td>
+                        <td>
+                          <div class="tp-subject-line">{{ $row['subject'] }}</div>
+                          <div class="tp-class-line">{{ $row['classroom'] ?? '—' }}</div>
+                        </td>
+                        <td class="tp-num">{{ $row['mean'] }}</td>
+                        <td class="tp-num">{{ $row['prev_mean'] ?? '—' }}</td>
+                        <td class="fw-semibold tp-num">{{ isset($row['improvement']) ? (($row['improvement'] > 0 ? '+' : '').$row['improvement']) : '—' }}</td>
+                        <td class="tp-num">{{ $row['pass_rate'] }}</td>
+                        <td class="tp-count">{{ $row['count'] }}</td>
                       </tr>
                     @empty
-                      <tr><td colspan="8" class="text-center text-muted py-4">No subject rows for this teacher.</td></tr>
+                      <tr><td colspan="7" class="text-center text-muted py-4">No subject rows for this teacher.</td></tr>
                     @endforelse
                   </tbody>
                 </table>
@@ -207,25 +261,29 @@
           </div>
 
         @else
-          <div class="row g-3">
+          @php
+            $classViewClassroomName = collect($classrooms ?? [])->firstWhere('id', (int) request('classroom_id'))?->name
+              ?? ($payload['meta']['classroom_name'] ?? null);
+          @endphp
+          <div class="row g-3 teacher-perf-fit">
             <div class="col-lg-6">
               <div class="settings-card h-100">
                 <div class="card-header d-flex align-items-center gap-2 d-print-none"><i class="bi bi-people"></i><h5 class="mb-0">Teacher Rankings</h5></div>
                 <div class="card-body p-0">
                   <div class="table-responsive">
-                    <table class="table table-modern align-middle mb-0 exam-report-marks-table">
+                    <table class="table table-modern table-sm align-middle mb-0 exam-report-marks-table">
                       <thead class="table-light">
-                        <tr><th>Rank</th><th>Teacher</th><th>Subjects</th><th>Mean</th><th>Prev</th><th>Δ</th></tr>
+                        <tr><th class="tp-rank">Rank</th><th>Teacher</th><th class="tp-count">Subj</th><th class="tp-num">Mean</th><th class="tp-num">Prev</th><th class="tp-num">Δ</th></tr>
                       </thead>
                       <tbody>
                         @foreach(($payload['per_teacher'] ?? []) as $row)
                           <tr>
-                            <td class="fw-semibold">{{ $row['rank'] }}</td>
+                            <td class="fw-semibold tp-rank">{{ $row['rank'] }}</td>
                             <td>{{ $row['teacher'] ?? 'Unassigned' }}</td>
-                            <td>{{ $row['subjects_count'] }}</td>
-                            <td>{{ $row['mean_of_subject_means'] }}</td>
-                            <td>{{ $row['prev_mean'] ?? '—' }}</td>
-                            <td class="fw-semibold">{{ isset($row['improvement']) ? (($row['improvement'] > 0 ? '+' : '').$row['improvement']) : '—' }}</td>
+                            <td class="tp-count">{{ $row['subjects_count'] }}</td>
+                            <td class="tp-num">{{ $row['mean_of_subject_means'] }}</td>
+                            <td class="tp-num">{{ $row['prev_mean'] ?? '—' }}</td>
+                            <td class="fw-semibold tp-num">{{ isset($row['improvement']) ? (($row['improvement'] > 0 ? '+' : '').$row['improvement']) : '—' }}</td>
                           </tr>
                         @endforeach
                         @if(empty($payload['per_teacher']))
@@ -243,20 +301,25 @@
                 <div class="card-header d-flex align-items-center gap-2 d-print-none"><i class="bi bi-bar-chart"></i><h5 class="mb-0">Subject-by-Subject</h5></div>
                 <div class="card-body p-0">
                   <div class="table-responsive">
-                    <table class="table table-modern align-middle mb-0 exam-report-marks-table">
+                    <table class="table table-modern table-sm align-middle mb-0 exam-report-marks-table">
                       <thead class="table-light">
-                        <tr><th>Subject</th><th>Teacher</th><th>Mean</th><th>Prev</th><th>Δ</th><th>Pass %</th><th>Count</th></tr>
+                        <tr><th>Class subject</th><th>Teacher</th><th class="tp-num">Mean</th><th class="tp-num">Prev</th><th class="tp-num">Δ</th><th class="tp-num">Pass</th><th class="tp-count">n</th></tr>
                       </thead>
                       <tbody>
                         @foreach(($payload['per_subject'] ?? []) as $row)
                           <tr>
-                            <td class="fw-semibold">{{ $row['subject'] }}</td>
+                            <td>
+                              <div class="tp-subject-line">{{ $row['subject'] }}</div>
+                              @if(!empty($row['classroom']) || !empty($classViewClassroomName))
+                                <div class="tp-class-line">{{ $row['classroom'] ?? $classViewClassroomName }}</div>
+                              @endif
+                            </td>
                             <td>{{ $row['teacher'] ?? 'Unassigned' }}</td>
-                            <td>{{ $row['mean'] }}</td>
-                            <td>{{ $row['prev_mean'] ?? '—' }}</td>
-                            <td class="fw-semibold">{{ isset($row['improvement']) ? (($row['improvement'] > 0 ? '+' : '').$row['improvement']) : '—' }}</td>
-                            <td>{{ $row['pass_rate'] }}</td>
-                            <td>{{ $row['count'] }}</td>
+                            <td class="tp-num">{{ $row['mean'] }}</td>
+                            <td class="tp-num">{{ $row['prev_mean'] ?? '—' }}</td>
+                            <td class="fw-semibold tp-num">{{ isset($row['improvement']) ? (($row['improvement'] > 0 ? '+' : '').$row['improvement']) : '—' }}</td>
+                            <td class="tp-num">{{ $row['pass_rate'] }}</td>
+                            <td class="tp-count">{{ $row['count'] }}</td>
                           </tr>
                         @endforeach
                         @if(empty($payload['per_subject']))

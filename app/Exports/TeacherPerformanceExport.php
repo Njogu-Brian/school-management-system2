@@ -55,9 +55,10 @@ class TeacherPerformanceExport implements FromArray, WithTitle
 
                 $out[] = [];
                 $out[] = ['Subject-by-Subject'];
-                $out[] = ['Subject', 'Teacher', 'Rank in subject', 'Mean', 'Prev mean', 'Improvement', 'Pass %', 'Count'];
+                $out[] = ['Class', 'Subject', 'Teacher', 'Rank in subject', 'Mean', 'Prev mean', 'Improvement', 'Pass %', 'Count'];
                 foreach ($category['per_subject_teacher'] ?? [] as $row) {
                     $out[] = [
+                        $row['classroom'] ?? '',
                         $row['subject'] ?? '',
                         $row['teacher'] ?? 'Unassigned',
                         $row['rank_in_subject'] ?? null,
@@ -117,15 +118,26 @@ class TeacherPerformanceExport implements FromArray, WithTitle
         $out[] = ['Subject-by-Subject'];
         $subjectRows = $this->sheetPayload['per_subject_teacher'] ?? $this->sheetPayload['per_subject'] ?? [];
         $hasRank = collect($subjectRows)->contains(fn ($r) => array_key_exists('rank_in_subject', $r));
-        $out[] = $hasRank
-            ? ['Subject', 'Teacher', 'Rank in subject', 'Mean', 'Prev mean', 'Improvement', 'Pass %', 'Count']
-            : ['Subject', 'Teacher', 'Mean', 'Prev mean', 'Improvement', 'Pass %', 'Count'];
+        $hasClass = collect($subjectRows)->contains(fn ($r) => ! empty($r['classroom'] ?? null));
+        $out[] = array_values(array_filter([
+            $hasClass ? 'Class' : null,
+            'Subject',
+            'Teacher',
+            $hasRank ? 'Rank in subject' : null,
+            'Mean',
+            'Prev mean',
+            'Improvement',
+            'Pass %',
+            'Count',
+        ], fn ($v) => $v !== null));
 
         foreach ($subjectRows as $row) {
-            $line = [
-                $row['subject'] ?? '',
-                $row['teacher'] ?? 'Unassigned',
-            ];
+            $line = [];
+            if ($hasClass) {
+                $line[] = $row['classroom'] ?? '';
+            }
+            $line[] = $row['subject'] ?? '';
+            $line[] = $row['teacher'] ?? 'Unassigned';
             if ($hasRank) {
                 $line[] = $row['rank_in_subject'] ?? null;
             }
