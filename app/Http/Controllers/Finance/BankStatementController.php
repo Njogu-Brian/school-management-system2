@@ -5172,9 +5172,23 @@ class BankStatementController extends Controller
             }
         }
 
+        $returnQuery = [];
+        foreach ($request->all() as $key => $value) {
+            if (! is_string($key) || ! str_starts_with($key, 'return_')) {
+                continue;
+            }
+            if (is_scalar($value) && $value !== '') {
+                $returnQuery[substr($key, strlen('return_'))] = $value;
+            }
+        }
+        // Default after archive: archived tab, unless caller asked to stay on a filter set.
+        if ($returnQuery === []) {
+            $returnQuery = ['view' => 'archived'];
+        }
+
         if ($archived === 0 && empty($errors)) {
             return redirect()
-                ->route('finance.bank-statements.index')
+                ->route('finance.bank-statements.index', $returnQuery)
                 ->with('error', 'No archivable transactions found. Draft, unassigned, and auto-assigned M-Pesa/bank rows can be archived.');
         }
         
@@ -5183,8 +5197,11 @@ class BankStatementController extends Controller
             $message .= " Errors: " . implode(', ', array_slice($errors, 0, 5));
         }
         
+        // Land on Archived so the user can see the moved rows immediately.
+        $returnQuery['view'] = 'archived';
+
         return redirect()
-            ->route('finance.bank-statements.index', ['view' => 'archived'] + request()->except('view'))
+            ->route('finance.bank-statements.index', $returnQuery)
             ->with($errors ? 'warning' : 'success', $message);
     }
 

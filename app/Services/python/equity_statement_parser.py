@@ -1224,8 +1224,12 @@ def parse_bank_table(rows, header_row=None, page_number=None, table_index=None):
     start_idx = 1 if header_row_found else 0
 
     if header_row:
-        header_cells = [str(c).strip() if c is not None else "" for c in header_row]
-        header_upper = [c.upper() for c in header_cells]
+        # Equity IB PDFs wrap headers ("Transaction\nReference") — normalize before matching.
+        header_cells = [
+            collapse_narration(str(c)).upper() if c is not None else ""
+            for c in header_row
+        ]
+        header_upper = header_cells
 
         def _hdr(i: int) -> str:
             return header_upper[i] if 0 <= i < len(header_upper) else ""
@@ -1263,32 +1267,40 @@ def parse_bank_table(rows, header_row=None, page_number=None, table_index=None):
 
             else:
                 # Equity PDFs sometimes split multi-line headers across adjacent cells, e.g. "CUSTOMER" | "REFERENCE"
-                # or "TRANSACTION" | "REFERENCE". Handle that explicitly so we don't mis-label "REFERENCE" alone.
+                # or "TRANSACTION" | "REFERENCE". Only join neighbors for those fragment cells — never match
+                # "TRANSACTION REFERENCE" inside "… TRANSACTION REFERENCE CUSTOMER REFERENCE …".
                 prev_str = _hdr(i - 1)
                 next_str = _hdr(i + 1)
-                combined_prev = _joined(prev_str, cell_str)
-                combined_next = _joined(cell_str, next_str)
+                is_fragment = cell_str in {"REFERENCE", "TRANSACTION", "CUSTOMER", "TRANS", "TRAN", "TXN"}
+                combined_prev = _joined(prev_str, cell_str) if is_fragment else cell_str
+                combined_next = _joined(cell_str, next_str) if is_fragment else cell_str
 
                 # Detect "Customer Reference" (often numeric/phone-like; should NOT be used as primary ref)
                 if ("CUSTOMER REFERENCE" in cell_str) or ("CUSTOMER REF" in cell_str) or \
-                   ("CUSTOMER REFERENCE" in combined_prev) or ("CUSTOMER REFERENCE" in combined_next) or \
-                   (cell_str == "REFERENCE" and "CUSTOMER" in prev_str):
-                    customer_reference_col = i if "REFERENCE" in cell_str else i
+                   (is_fragment and (
+                       ("CUSTOMER REFERENCE" in combined_prev) or ("CUSTOMER REFERENCE" in combined_next) or
+                       (cell_str == "REFERENCE" and "CUSTOMER" in prev_str)
+                   )):
+                    customer_reference_col = i
 
-                # Detect "Transaction Reference" (the one we want)
-                if ("TRANSACTION REFERENCE" in cell_str) or ("TRANS REF" in cell_str) or ("TRAN REF" in cell_str) or \
-                   ("TXN REF" in cell_str) or ("TRANS. REF" in cell_str) or \
-                   ("TRANSACTION REFERENCE" in combined_prev) or ("TRANSACTION REFERENCE" in combined_next) or \
-                   (cell_str == "REFERENCE" and "TRANSACTION" in prev_str) or \
-                   (cell_str == "TRANSACTION" and "REFERENCE" in next_str):
+                # Detect "Transaction Reference" (the one we want). Never assign a Customer Reference column.
+                if "CUSTOMER" in cell_str:
+                    pass
+                elif ("TRANSACTION REFERENCE" in cell_str) or ("TRANS REF" in cell_str) or ("TRAN REF" in cell_str) or \
+                     ("TXN REF" in cell_str) or ("TRANS. REF" in cell_str) or \
+                     (is_fragment and (
+                         ("TRANSACTION REFERENCE" in combined_prev) or ("TRANSACTION REFERENCE" in combined_next) or
+                         (cell_str == "REFERENCE" and "TRANSACTION" in prev_str) or
+                         (cell_str == "TRANSACTION" and "REFERENCE" in next_str)
+                     )):
                     transaction_reference_col = i
 
                 # If we see a generic "REFERENCE" cell, only treat it as transaction ref if it is NOT tied to customer/remarks.
-                if transaction_reference_col is None and "REFERENCE" in cell_str:
-                    if "CUSTOMER" in cell_str or "REMARK" in cell_str or "REMARKS" in cell_str:
+                if transaction_reference_col is None and cell_str == "REFERENCE":
+                    if "CUSTOMER" in prev_str or "REMARK" in prev_str or "REMARK" in next_str:
                         pass
-                    elif cell_str == "REFERENCE" and ("CUSTOMER" in prev_str or "REMARK" in prev_str):
-                        pass
+                    elif "TRANSACTION" in prev_str or "TRANS" in prev_str or "TRAN" in prev_str:
+                        transaction_reference_col = i
                     else:
                         transaction_reference_col = i  # fallback; will be validated against data below
 
@@ -1301,7 +1313,10 @@ def parse_bank_table(rows, header_row=None, page_number=None, table_index=None):
             return s.startswith("254") or s.startswith("0") or s.startswith("01")
 
         def _is_amount_like(s: str) -> bool:
-            return parse_amount(s) is not None or parse_amount_allow_negative(s) is not None
+            # Currency only (has decimal/comma money shape). Pure digit refs like 54529116
+            # must NOT be treated as amounts or Transaction Reference scoring collapses.
+            s = collapse_narration(s or "")
+            return bool(re.fullmatch(r"[\d,]+\.\d{2}", s))
 
         def _is_date_like(s: str) -> bool:
             return bool(re.search(r"\d{1,2}[/-]\d{1,2}[/-]\d{2,4}", s or ""))
@@ -1315,7 +1330,7 @@ def parse_bank_table(rows, header_row=None, page_number=None, table_index=None):
                 raw = r[col_idx]
                 if raw is None:
                     continue
-                v = str(raw).strip()
+                v = collapse_narration(str(raw))
                 if not v:
                     continue
                 seen += 1
@@ -1341,15 +1356,15 @@ def parse_bank_table(rows, header_row=None, page_number=None, table_index=None):
                     break
             return score
 
-        # Choose the best candidate by scoring; only override if it improves confidence.
-        if rows:
+        # Choose the best candidate by scoring only when the header did not name
+        # Transaction Reference. An explicit header column is authoritative.
+        header_locked_txn_ref = transaction_reference_col is not None
+        if rows and not header_locked_txn_ref:
             col_count = max((len(r) for r in rows if r), default=0)
             if col_count > 0:
                 scores = [(ci, _score_ref_col(ci)) for ci in range(col_count)]
                 best_col, best_score = max(scores, key=lambda t: t[1])
-
-                current_score = _score_ref_col(transaction_reference_col) if transaction_reference_col is not None else -999
-                if best_score > max(1, current_score):
+                if best_score > 1:
                     transaction_reference_col = best_col
 
     for row_offset, row in enumerate(rows[start_idx:], start=0):
@@ -1457,6 +1472,11 @@ def parse_bank_table(rows, header_row=None, page_number=None, table_index=None):
             if date_col is not None and date_col < len(row):
                 tran_date = str(row[date_col]).strip() if row[date_col] else ""
             
+            # Narrative column must stay 1:1 with the PDF cell (whitespace collapse only).
+            narrative_is_exact = False
+            if header_row and particulars_col is not None and 0 <= particulars_col < len(header_upper):
+                narrative_is_exact = "NARRATIVE" in header_upper[particulars_col]
+
             if particulars_col is not None and particulars_col < len(row):
                 # Get the full particulars - handle cases where cell might be None or empty
                 cell_value = row[particulars_col] if particulars_col < len(row) else None
@@ -1464,10 +1484,13 @@ def parse_bank_table(rows, header_row=None, page_number=None, table_index=None):
                     particulars = collapse_narration(str(cell_value))
                 else:
                     particulars = ""
-                
-                # CRITICAL: If particulars is incomplete (starts with "---" or is very short), 
+
+                # When the PDF exposes a Narrative column, never splice adjacent cells into it.
+                if narrative_is_exact and particulars and not particulars.startswith('---'):
+                    pass
+                # CRITICAL: If particulars is incomplete (starts with "---" or is very short),
                 # try to combine with adjacent cells to get the full description
-                if not particulars or len(particulars) < 10 or particulars.startswith('---'):
+                elif not particulars or len(particulars) < 10 or particulars.startswith('---'):
                     # Try combining with cells to the right (particulars might be split across columns)
                     combined_parts = [particulars] if particulars else []
                     
@@ -1924,11 +1947,23 @@ def parse_bank_table(rows, header_row=None, page_number=None, table_index=None):
             # Transaction code: prefer column from statement (Equity "Transaction Reference") when present
             transaction_code = None
             if transaction_reference_col is not None and transaction_reference_col < len(row) and row[transaction_reference_col]:
-                ref_cell = str(row[transaction_reference_col]).strip()
+                ref_cell = collapse_narration(str(row[transaction_reference_col]))
+                # Never treat Customer Reference / phone / account-like values as Transaction Reference.
+                if customer_reference_col is not None and transaction_reference_col == customer_reference_col:
+                    ref_cell = ""
                 if ref_cell and len(ref_cell) >= 2 and not ref_cell.upper().startswith(('TOTAL', 'BALANCE', 'NOTE')):
-                    transaction_code = ref_cell
+                    if re.fullmatch(r"254\d{9}", ref_cell) or re.fullmatch(r"0\d{9}", ref_cell):
+                        ref_cell = ""
+                    else:
+                        transaction_code = ref_cell
             if not transaction_code:
                 transaction_code = extract_transaction_code(particulars)
+                # Still reject phone-like fallbacks.
+                if transaction_code and (
+                    re.fullmatch(r"254\d{9}", str(transaction_code))
+                    or re.fullmatch(r"0\d{9}", str(transaction_code))
+                ):
+                    transaction_code = None
             
             transaction_data = {
                 'tran_date': parsed_date,
@@ -1945,6 +1980,8 @@ def parse_bank_table(rows, header_row=None, page_number=None, table_index=None):
             if table_index is not None:
                 transaction_data['table_index'] = table_index
             transaction_data['source'] = 'bank_table'
+            if narrative_is_exact:
+                transaction_data['narrative_source'] = 'bank_table'
             transactions.append(transaction_data)
         except Exception as e:
             print(f"Error parsing bank row: {e}", file=sys.stderr)
@@ -2853,33 +2890,23 @@ def overlay_table_narratives(transactions: list, pages: list) -> list:
         if not table_part:
             continue
 
-        # Exact ref+date+amount match: use the PDF Narrative column only when it is
-        # at least as good as the text-block extract (never regress a clean APP/ line).
+        table_code = collapse_narration(str(row.get("transaction_code") or ""))
+        old_code = collapse_narration(str(t.get("transaction_code") or ""))
+
+        def _phone_like_ref(s: str) -> bool:
+            return bool(re.fullmatch(r"254\d{9}", s or "") or re.fullmatch(r"0\d{9}", s or ""))
+
+        # Always prefer the PDF Transaction Reference column over phone/customer-ref leftovers.
+        if table_code and (not old_code or _phone_like_ref(old_code) or old_code.upper() != table_code.upper()):
+            if not _phone_like_ref(table_code):
+                t["transaction_code"] = table_code
+
+        # Exact ref+date+amount match: Narrative column is source of truth (1:1).
         trust_table = best_score >= 3
         if trust_table:
             if _looks_merged_equity_narrative(table_part):
                 continue
-            old_part = collapse_narration(t.get("particulars") or "")
-            accept = _is_better_equity_narrative(old_part, table_part) or (
-                table_part.upper() != old_part.upper()
-                and _looks_complete_equity_narrative(table_part)
-                and (
-                    not _looks_complete_equity_narrative(old_part)
-                    or len(table_part) >= len(old_part)
-                )
-                and not (
-                    old_part.upper().startswith("APP/")
-                    and "APP/" not in table_part.upper()
-                )
-                and not (
-                    old_part.upper().startswith("CHICKEN")
-                    and "CHICKEN" not in table_part.upper()
-                )
-                and not (
-                    old_part.upper().startswith("EAZZY-")
-                    and "EAZZY-" not in table_part.upper()
-                )
-            )
+            accept = True
         else:
             accept = _is_better_equity_narrative(t.get("particulars"), table_part)
 
@@ -2925,33 +2952,48 @@ def main():
                 page_texts = [page.get('text') or '' for page in pages]
                 transactions = parse_paybill_from_text(page_texts)
         else:
-            # Equity: text-block parsing is reliable for date/amount/ref boundaries, but often
-            # truncates or merges the Narrative. Prefer text-block structure, then overlay the
-            # real Narrative column from pdfplumber tables whenever it is fuller/cleaner.
-            full_text = "\n".join([(p.get("text") or "") for p in pages if (p.get("text") or "").strip()])
-            transactions = parse_equity_transactions_from_text(full_text)
+            # Equity: when the PDF exposes Narrative + Transaction Reference columns, the table
+            # is the source of truth (1:1 narration, real refs, no text-wrap ghosts).
+            table_transactions = _collect_table_transactions(pages)
+            table_with_refs = [
+                t for t in table_transactions
+                if collapse_narration(str(t.get("transaction_code") or ""))
+                and collapse_narration(str(t.get("particulars") or ""))
+            ]
+            table_ok = (
+                len(table_transactions) >= 10
+                and len(table_with_refs) >= max(8, int(0.75 * len(table_transactions)))
+            )
 
-            # Fallback: retain the legacy methods if block parsing fails for a new/unknown layout.
-            if not transactions:
-                text_transactions = []
-                last_balance = None
-                for page in pages:
-                    page_number = page.get('page_number')
-                    page_text = page.get('text') or ""
-                    if page_text and len(page_text) > 50:
-                        detected, last_balance = detect_table_rows(
-                            page_text,
-                            page_number=page_number,
-                            initial_balance=last_balance,
-                        )
-                        text_transactions.extend(detected)
+            if table_ok:
+                transactions = table_transactions
+                debug_log(
+                    f"[EQUITY] bank_table source_of_truth count={len(transactions)} "
+                    f"with_ref={len(table_with_refs)}"
+                )
+            else:
+                # Legacy path: text-block structure + Narrative overlay for odd layouts.
+                full_text = "\n".join([(p.get("text") or "") for p in pages if (p.get("text") or "").strip()])
+                transactions = parse_equity_transactions_from_text(full_text)
 
-                table_transactions = _collect_table_transactions(pages)
-                transactions = list(text_transactions) or table_transactions
+                if not transactions:
+                    text_transactions = []
+                    last_balance = None
+                    for page in pages:
+                        page_number = page.get('page_number')
+                        page_text = page.get('text') or ""
+                        if page_text and len(page_text) > 50:
+                            detected, last_balance = detect_table_rows(
+                                page_text,
+                                page_number=page_number,
+                                initial_balance=last_balance,
+                            )
+                            text_transactions.extend(detected)
 
-            if transactions and pages:
-                transactions = overlay_table_narratives(transactions, pages)
-    
+                    transactions = list(text_transactions) or table_transactions
+
+                if transactions and pages:
+                    transactions = overlay_table_narratives(transactions, pages)    
     # Fallback to OCR if pdfplumber didn't work or returned little content
     if not transactions and OCR_AVAILABLE:
         print("Falling back to OCR...", file=sys.stderr)

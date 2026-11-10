@@ -477,9 +477,14 @@
                 </button>
             </form>
             
-            @if(request('view') == 'unassigned' || (!request('view') || request('view') == 'all'))
+            @if(request('view') !== 'archived')
             <form id="bulkArchiveForm" method="POST" action="{{ route('finance.bank-statements.bulk-archive') }}">
                 @csrf
+                @foreach(request()->except(['_token']) as $key => $value)
+                    @if(is_scalar($value))
+                        <input type="hidden" name="return_{{ $key }}" value="{{ $value }}">
+                    @endif
+                @endforeach
                 <div id="bulkArchiveTransactionIdsContainer"></div>
                 <button type="button" class="btn btn-finance btn-finance-secondary" onclick="bulkArchive()" id="bulkArchiveBtn" style="display: none;">
                     <i class="bi bi-archive"></i> Archive Selected
@@ -940,13 +945,16 @@
             const bulkArchiveIdsContainer = document.getElementById('bulkArchiveTransactionIdsContainer');
             const bulkSwimmingIdsContainer = document.getElementById('bulkSwimmingTransactionIdsContainer');
             const bulkConfirmBtn = document.getElementById('bulkConfirmBtn');
-            const bulkArchiveBtn = document.getElementById('bulkArchiveIdsContainer');
+            const bulkArchiveBtn = document.getElementById('bulkArchiveBtn');
             const bulkActionsContainer = document.getElementById('bulkActionsContainer');
             
             // Clear existing hidden inputs
-            bulkIdsContainer.innerHTML = '';
+            if (bulkIdsContainer) {
+                bulkIdsContainer.innerHTML = '';
+            }
             if (bulkArchiveIdsContainer) {
-                bulkArchiveIdsContainer.innerHTML = '';
+                // Keep return_* hidden fields; only clear transaction_ids[]
+                bulkArchiveIdsContainer.querySelectorAll('input[name="transaction_ids[]"]').forEach(el => el.remove());
             }
             if (bulkSwimmingIdsContainer) {
                 bulkSwimmingIdsContainer.innerHTML = '';
@@ -1024,11 +1032,14 @@
                 bulkConfirmBtn.style.display = 'none';
             }
 
-            // Hint when selection has no confirmable transactions
+            // Hint when selection has archivable / confirmable mix
             var hintEl = document.getElementById('bulkSelectionHint');
             if (hintEl) {
-                if (checked.length > 0 && confirmableIds.length === 0) {
-                    hintEl.textContent = 'Selected transactions are already confirmed and collected. No action needed.';
+                if (checked.length > 0 && confirmableIds.length === 0 && archivableIds.length > 0) {
+                    hintEl.textContent = archivableIds.length + ' selected transaction(s) can be archived.';
+                    hintEl.style.display = 'block';
+                } else if (checked.length > 0 && confirmableIds.length === 0 && archivableIds.length === 0) {
+                    hintEl.textContent = 'Selected transactions cannot be archived or confirmed from here (already collected, duplicated, or archived).';
                     hintEl.style.display = 'block';
                 } else {
                     hintEl.textContent = '';
@@ -1040,6 +1051,7 @@
             if (bulkArchiveBtn) {
                 if (archivableIds.length > 0) {
                     bulkArchiveBtn.style.display = 'inline-block';
+                    bulkArchiveBtn.innerHTML = '<i class="bi bi-archive"></i> Archive Selected (' + archivableIds.length + ')';
                 } else {
                     bulkArchiveBtn.style.display = 'none';
                 }
@@ -1192,12 +1204,18 @@
                 .map(cb => parseInt(cb.value));
             
             if (checked.length === 0) {
-                alert('Please select at least one unmatched transaction to archive');
+                alert('Please select at least one draft/unmatched transaction to archive');
+                return;
+            }
+
+            const form = document.getElementById('bulkArchiveForm');
+            if (!form) {
+                alert('Bulk archive is not available on this view.');
                 return;
             }
             
             const bulkArchiveIdsContainer = document.getElementById('bulkArchiveTransactionIdsContainer');
-            bulkArchiveIdsContainer.innerHTML = '';
+            bulkArchiveIdsContainer.querySelectorAll('input[name="transaction_ids[]"]').forEach(el => el.remove());
             checked.forEach(id => {
                 const input = document.createElement('input');
                 input.type = 'hidden';
@@ -1206,8 +1224,8 @@
                 bulkArchiveIdsContainer.appendChild(input);
             });
             
-            if (confirm(`Archive ${checked.length} unmatched transaction(s)? This will move them to the archived view.`)) {
-                document.getElementById('bulkArchiveForm').submit();
+            if (confirm(`Archive ${checked.length} transaction(s)? They will move to the Archived tab. Linked payments (if any) are reversed.`)) {
+                form.submit();
             }
         }
 

@@ -136,6 +136,18 @@ class BankStatementParser
             $credit = $txnData['credit'] ?? 0;
             $debit = $txnData['debit'] ?? 0;
             $transactionCode = $txnData['transaction_code'] ?? null;
+            $rejectedPhoneReference = null;
+            // Equity: Transaction Reference only — never store Customer Reference / MSISDN as the ref.
+            if ($this->isPhoneLikeBankReference($transactionCode)) {
+                $rejectedPhoneReference = is_string($transactionCode) ? $transactionCode : null;
+                $transactionCode = null;
+            }
+            if (is_string($transactionCode)) {
+                $transactionCode = trim($transactionCode);
+                if ($transactionCode === '' || strcasecmp($transactionCode, 'N/A') === 0) {
+                    $transactionCode = null;
+                }
+            }
             
             // Determine amount and type (use credit if available, otherwise debit)
             $amount = $credit > 0 ? $credit : $debit;
@@ -146,6 +158,9 @@ class BankStatementParser
             $phoneNumber = $this->extractPhoneNumber($particulars);
             if ($phoneNumber === null && preg_match('/MPESA|PAY BILL|2547|\b07\d/i', $particulars)) {
                 $phoneNumber = MpesaStatementIdentity::toLocalMaskedPhone($txnData['phone_number_extracted'] ?? null);
+            }
+            if ($phoneNumber === null && $rejectedPhoneReference) {
+                $phoneNumber = MpesaStatementIdentity::toLocalMaskedPhone($rejectedPhoneReference);
             }
             
             // IMPORTANT: avoid creating duplicates when a Payment already exists and is already linked elsewhere.
@@ -267,16 +282,15 @@ class BankStatementParser
                 $transactionCode = $embeddedRef;
             }
 
-            // STEP 1b: Same description + amount + date (catches draft/no-ref vs collected/with-ref pairs)
+            // STEP 1b: Exact same description on the same date (100% narrative match) draws duplicate attention.
             if (!$isDuplicate && is_string($particulars) && trim($particulars) !== '') {
                 $existingByDesc = BankStatementTransaction::where('description', $particulars)
-                    ->where('amount', $amount)
                     ->whereDate('transaction_date', $transactionDate)
                     ->where('is_duplicate', false)
                     ->first();
                 if ($existingByDesc) {
                     $isDuplicate = true;
-                    \Log::info('Skipping duplicate bank statement transaction (description match)', [
+                    \Log::info('Skipping duplicate bank statement transaction (description+date match)', [
                         'description' => $particulars,
                         'amount' => $amount,
                         'transaction_date' => $transactionDate,
@@ -1341,6 +1355,32 @@ class BankStatementParser
         }
 
         return MpesaStatementIdentity::extractPhoneFromText($description);
+    }
+
+    /**
+     * True when a parser "reference" is actually a phone / customer-reference style value.
+     * Duplicate detection must use Equity Transaction Reference, not MSISDN.
+     */
+    protected function isPhoneLikeBankReference(mixed $reference): bool
+    {
+        if (! is_string($reference)) {
+            return false;
+        }
+        $ref = trim($reference);
+        if ($ref === '') {
+            return false;
+        }
+        if (preg_match('/^254\d{9}$/', $ref)) {
+            return true;
+        }
+        if (preg_match('/^0\d{9}$/', $ref)) {
+            return true;
+        }
+        if (preg_match('/^07\d{2}\*{3}\d{3}$/', $ref)) {
+            return true;
+        }
+
+        return false;
     }
     
     /**
