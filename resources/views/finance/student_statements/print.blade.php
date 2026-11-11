@@ -33,6 +33,7 @@
 
     // Soft year/grade dividers only — do NOT regroup by term_name (that splits
     // invoices and payments into separate blocks). Term ends stay as "closed at X" rows.
+    $pdfMode = !empty($isPdfExport);
 @endphp
 <!DOCTYPE html>
 <html>
@@ -47,37 +48,41 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
+        /*
+         * DomPDF often applies @media screen rules and treats width:100% as the
+         * full page (ignoring @page margins), clipping the right edge.
+         * PDF path: @page margin 0 + equal body padding. Browser: real @page margins.
+         */
         @page {
             size: A4 portrait;
-            margin: 10mm;
+            margin: {{ $pdfMode ? '0' : '12mm 14mm' }};
         }
 
-        body {
+        html, body {
             font-family: 'DejaVu Sans', Arial, sans-serif;
             font-size: {{ max(9, (int) $brandBodyFont - 2) }}px;
             color: {{ setting('finance_text_color', '#000') }};
-            width: 100%;
-            max-width: 100%;
-            padding: 0;
-            margin: 0;
             background: #fff;
+            width: auto;
+            max-width: none;
+            margin: 0;
+            padding: {{ $pdfMode ? '12mm 14mm 14mm 14mm' : '0' }};
             position: relative;
         }
 
-        @media screen {
-            body {
-                width: 210mm;
-                min-height: 297mm;
-                padding: 10mm;
-                margin: 0 auto;
-                box-shadow: 0 0 0.5mm rgba(0,0,0,0.08);
-            }
+        @if(! $pdfMode)
+        body {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 12mm 14mm;
+            margin: 0 auto;
+            box-shadow: 0 0 0.5mm rgba(0,0,0,0.08);
         }
-        
+
         @media print {
             body {
-                width: 100%;
+                width: auto;
                 min-height: auto;
                 padding: 0;
                 margin: 0;
@@ -87,6 +92,7 @@
             .transactions-table tbody tr:hover { background-color: transparent !important; }
             .transactions-table th { background: {{ $brandPrimary }} !important; }
         }
+        @endif
         
         .header {
             margin-bottom: 24px;
@@ -167,9 +173,9 @@
             background-color: {{ $brandPrimary }};
             color: #fff;
             font-weight: 700;
-            font-size: 11px;
+            font-size: 8px;
             text-transform: uppercase;
-            letter-spacing: 0.3px;
+            letter-spacing: 0.2px;
         }
         
         .transactions-table th.amount-col,
@@ -190,21 +196,21 @@
         }
         
         .transactions-table .date-col {
-            width: 12%;
+            width: 11%;
         }
         
         .transactions-table .narration-col {
-            width: 40%;
+            width: 42%;
             white-space: normal;
         }
         
         .transactions-table .amount-col {
-            width: 14%;
+            width: 15%;
             text-align: right;
         }
         
         .transactions-table .balance-col {
-            width: 16%;
+            width: 17%;
             text-align: right;
         }
         
@@ -229,11 +235,12 @@
         }
         
         .summary-section {
-            margin-top: 28px;
-            padding: 20px;
+            margin-top: 14px;
+            padding: 12px 14px;
             background: #f8fafc;
             border: 1px solid #e2e8f0;
             border-radius: 4px;
+            page-break-inside: avoid;
         }
         
         .summary-row {
@@ -271,15 +278,6 @@
             text-align: center;
             border-radius: 4px;
             letter-spacing: 0.5px;
-        }
-        
-        .footer {
-            margin-top: 36px;
-            padding-top: 16px;
-            border-top: 1px solid #e2e8f0;
-            font-size: {{ max(9, (int)$brandSmallFont - 1) }}px;
-            color: {{ $brandMuted }};
-            text-align: center;
         }
         
         .print-btn {
@@ -359,7 +357,7 @@
                 <th class="narration-col">Narration</th>
                 <th class="amount-col">Dr Amount</th>
                 <th class="amount-col">Cr Amount</th>
-                <th class="balance-col">Running Bal.</th>
+                <th class="balance-col">Balance</th>
             </tr>
         </thead>
         <tbody>
@@ -424,26 +422,25 @@
         </div>
     </div>
     
-    <table style="width:100%; border-collapse:collapse; margin-top:12px; margin-bottom:8px;">
+    <!-- Stamp + footer kept together to avoid a near-empty final page -->
+    <table style="width:100%; border-collapse:collapse; margin-top:10px; page-break-inside:avoid;">
         <tr>
-            <td style="text-align:right; vertical-align:bottom;">
+            <td style="width:55%; vertical-align:bottom; text-align:left;">
                 @include('academics.report_cards.partials.school_stamp', [
                     'stampDate' => \App\Support\SchoolStampDate::forGenerated(now()),
                     'isPdf' => !empty($isPdfExport),
                 ])
             </td>
+            <td style="width:45%; vertical-align:bottom; text-align:right; font-size:{{ max(8, (int)$brandSmallFont - 2) }}px; color:{{ $brandMuted }};">
+                @if(!empty($statementFooter))
+                    {!! $statementFooter !!}
+                @else
+                    <div>SERVED BY: {{ $schoolName }}</div>
+                    <div style="margin-top: 4px; font-style: italic;">Powered by Mzizi School Management ERP</div>
+                @endif
+                <div style="margin-top: 6px;">Generated: {{ now()->format('d M Y, H:i') }}</div>
+            </td>
         </tr>
     </table>
-
-    <!-- Footer -->
-    <div class="footer">
-        @if(!empty($statementFooter))
-            {!! $statementFooter !!}
-        @else
-            <div>SERVED BY: {{ $schoolName }}</div>
-            <div style="margin-top: 5px; font-style: italic;">Powered by Mzizi School Management ERP</div>
-        @endif
-        <div style="margin-top: 6px;">Generated: {{ now()->format('d M Y, H:i') }}</div>
-    </div>
 </body>
 </html>

@@ -8,19 +8,23 @@
     $brandSmallFont = $brandSmallFont ?? setting('finance_small_font_size', '12');
 @endphp
 <style>
+    /* DomPDF: @page margins + width:100% clips the right edge — pad the container instead. */
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    @page { size: A4 portrait; margin: 10mm; }
-    body {
+    @page { size: A4 portrait; margin: 0; }
+    html, body {
         font-family: 'DejaVu Sans', Arial, sans-serif;
         font-size: {{ max(10, (int) $brandBodyFont - 2) }}px;
         color: {{ setting('finance_text_color', '#333') }};
         background: #fff;
-        width: 100%;
+        width: auto;
+        margin: 0;
+        padding: 0;
     }
     .invoice-container {
-        width: 100%;
-        max-width: 100%;
-        padding: 0;
+        width: auto;
+        max-width: none;
+        /* ~0.5" print margins on all sides */
+        padding: 12mm 14mm 14mm 14mm;
         page-break-after: always;
         page-break-inside: auto;
         margin: 0;
@@ -78,7 +82,8 @@
         width: 100%;
         margin: 12px 0;
         border-collapse: collapse;
-        font-size: 11px;
+        table-layout: fixed;
+        font-size: 10px;
     }
     .allocations-table thead {
         background-color: {{ $brandPrimary }};
@@ -86,14 +91,28 @@
     }
     .allocations-table th,
     .allocations-table td {
-        padding: 6px 7px;
+        padding: 5px 4px;
         text-align: left;
         border: 1px solid #ddd;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
     }
-    .allocations-table th { font-weight: bold; font-size: {{ $brandSmallFont }}px; }
-    .allocations-table td { font-size: {{ $brandSmallFont }}px; }
+    .allocations-table th { font-weight: bold; font-size: {{ max(8, (int) $brandSmallFont - 2) }}px; }
+    .allocations-table td { font-size: {{ max(8, (int) $brandSmallFont - 2) }}px; }
     .allocations-table tbody tr:nth-child(even) { background-color: #f9f9f9; }
-    .allocations-table .text-right { text-align: right; }
+    .allocations-table .text-right { text-align: right; padding-right: 2px; }
+    .allocations-table th:nth-child(1),
+    .allocations-table td:nth-child(1) { width: 5%; }
+    .allocations-table th:nth-child(2),
+    .allocations-table td:nth-child(2) { width: 22%; }
+    .allocations-table th:nth-child(3),
+    .allocations-table td:nth-child(3) { width: 16%; }
+    .allocations-table th:nth-child(4),
+    .allocations-table td:nth-child(4) { width: 27%; }
+    .allocations-table th:nth-child(5),
+    .allocations-table td:nth-child(5) { width: 15%; }
+    .allocations-table th:nth-child(6),
+    .allocations-table td:nth-child(6) { width: 15%; }
     .total-section {
         margin-top: 10px;
         padding: 8px 10px;
