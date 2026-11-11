@@ -196,6 +196,17 @@
     <strong>Important:</strong> Fees once paid are not refundable or transferable. No fee rebate will be given for absenteeism.
 </div>
 
+<table style="width:100%; border-collapse:collapse; margin-top:10px; margin-bottom:6px;">
+    <tr>
+        <td style="text-align:right; vertical-align:bottom;">
+            @include('academics.report_cards.partials.school_stamp', [
+                'stampDate' => \App\Support\SchoolStampDate::forGenerated($printedAt ?? now()),
+                'isPdf' => true,
+            ])
+        </td>
+    </tr>
+</table>
+
 <div class="footer">
     <div class="thank-you">Thank You!</div>
     <div class="footer-meta">This is a computer-generated invoice. No signature required.</div>

@@ -520,6 +520,11 @@ class ReportCardBatchService
             'year_trend' => $termTrend,
             'branding'   => $branding,
             'published_at' => $report->published_at?->toIso8601String(),
+            // Official stamp uses fixed term dates (not published_at): T1=1 Apr, T2=31 Jul, T3=30 Oct.
+            'stamp_date' => \App\Support\SchoolStampDate::forReportCardTerm(
+                $report->term?->name ?? $report->term_id,
+                $report->academicYear?->year
+            )->toIso8601String(),
             'generated'  => [
                 'by'   => auth()->user()?->name ?? 'System',
                 'at'   => now()->format('d M Y, H:i'),

@@ -1,0 +1,27 @@
+---
+description: Keep git working tree clean; never leave half-staged deploy mess
+alwaysApply: true
+---
+
+# Clean working tree
+
+## Rule
+
+Leave the repo in a **clean** state after commits and before/after production deploys: no accidental staged deletions, no orphaned untracked copies of tracked files, no “MM” half-staged files.
+
+## Before every deploy or push to `main`
+
+1. `git status` must show a **clean** tree (or only intentional untracked scratch files the user said to keep).
+2. If dirty: **commit** intended work, or **stash** unrelated WIP with a clear message — do not push a half-committed mix.
+3. Never stage mass deletions unless the user explicitly asked to delete those paths.
+4. If a file appears both `D` (staged delete) and `??` (untracked), restore it to the index (`git restore --staged --worktree -- <path>` or re-add) unless deletion was intentional.
+
+## After finishing a task
+
+- Commit or stash before switching tasks.
+- Do not leave large website/mobile/docs WIP mixed with an unrelated hotfix on `main`.
+- Prefer small, focused commits on `main` over one giant dirty tree.
+
+## Index failures
+
+If `fatal: unable to write new index file` / `index.lock`: remove stale `.git/index.lock` only when no other git process is writing, free disk space if needed, retry. Do not force-push or rewrite history to “fix” a dirty tree.

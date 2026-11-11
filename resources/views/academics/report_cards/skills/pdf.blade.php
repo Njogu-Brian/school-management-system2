@@ -117,7 +117,12 @@
 
     <div style="text-align:right; margin-top: 12px;">
         @include('academics.report_cards.partials.school_stamp', [
-            'stampDate' => !empty($dto['published_at']) ? \Illuminate\Support\Carbon::parse($dto['published_at']) : null,
+            'stampDate' => !empty($dto['stamp_date'])
+                ? \Illuminate\Support\Carbon::parse($dto['stamp_date'])
+                : \App\Support\SchoolStampDate::forReportCardTerm(
+                    $dto['context']['term'] ?? null,
+                    $dto['context']['year'] ?? null
+                ),
             'isPdf' => true,
         ])
     </div>

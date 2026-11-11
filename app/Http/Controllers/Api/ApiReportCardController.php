@@ -68,6 +68,10 @@ class ApiReportCardController extends Controller
                 'overall_grade' => null,
                 'status' => $rc->published_at ? 'published' : 'draft',
                 'generated_at' => $rc->published_at?->toIso8601String(),
+                'stamp_date' => \App\Support\SchoolStampDate::forReportCardTerm(
+                    $rc->term?->name ?? $rc->term_id,
+                    $rc->academicYear?->year
+                )->toDateString(),
                 'created_at' => $rc->created_at?->toIso8601String() ?? '',
                 'updated_at' => $rc->updated_at?->toIso8601String() ?? '',
                 'subjects' => [],
@@ -211,6 +215,10 @@ class ApiReportCardController extends Controller
             'principal_comment' => $principalComment,
             'status' => $rc->published_at ? 'published' : 'draft',
             'generated_at' => $rc->published_at?->toIso8601String(),
+            'stamp_date' => \App\Support\SchoolStampDate::forReportCardTerm(
+                $rc->term?->name ?? $rc->term_id,
+                $rc->academicYear?->year
+            )->toDateString(),
             'created_at' => $rc->created_at?->toIso8601String() ?? '',
             'updated_at' => $rc->updated_at?->toIso8601String() ?? '',
             'public_token' => $parentLocked ? null : $rc->public_token,

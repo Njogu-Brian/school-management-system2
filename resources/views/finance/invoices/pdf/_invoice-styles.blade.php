@@ -9,20 +9,21 @@
 @endphp
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    @page { size: A4 portrait; margin: 0; }
+    @page { size: A4 portrait; margin: 10mm; }
     body {
         font-family: 'DejaVu Sans', Arial, sans-serif;
-        font-size: {{ $brandBodyFont }}px;
+        font-size: {{ max(10, (int) $brandBodyFont - 2) }}px;
         color: {{ setting('finance_text_color', '#333') }};
         background: #fff;
+        width: 100%;
     }
     .invoice-container {
         width: 100%;
-        max-width: 210mm;
-        padding: 12px 18px;
+        max-width: 100%;
+        padding: 0;
         page-break-after: always;
-        page-break-inside: avoid;
-        margin: 0 auto;
+        page-break-inside: auto;
+        margin: 0;
     }
     .invoice-container:last-child { page-break-after: auto; }
     .header {
@@ -32,22 +33,22 @@
         margin-bottom: 10px;
     }
     .header-school-name, .header h1 {
-        font-size: {{ $brandHeadingFont }}px;
+        font-size: {{ max(14, (int) $brandHeadingFont - 4) }}px;
         color: {{ $brandPrimary }};
         margin-bottom: 4px;
         font-weight: bold;
     }
     .school-info {
-        font-size: {{ $brandBodyFont }}px;
+        font-size: {{ max(9, (int) $brandBodyFont - 3) }}px;
         color: {{ $brandMuted }};
-        line-height: 1.4;
+        line-height: 1.35;
     }
     .receipt-title {
         text-align: center;
-        font-size: {{ (int)$brandHeadingFont - 3 }}px;
+        font-size: {{ max(12, (int) $brandHeadingFont - 6) }}px;
         font-weight: bold;
         color: {{ $brandPrimary }};
-        margin-bottom: 10px;
+        margin-bottom: 8px;
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }

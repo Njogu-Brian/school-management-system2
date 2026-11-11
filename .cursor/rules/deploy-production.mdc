@@ -1,5 +1,5 @@
 ---
-description: What "deploy to production / prd" means — commit, push, SSH ERP, run deploy script
+description: Deploy via GitHub main only — clean tree, commit, push, SSH sync from origin/main
 alwaysApply: true
 ---
 
@@ -9,9 +9,10 @@ When the user asks to **deploy to production**, **deploy to prd**, or equivalent
 
 ## Required sequence
 
-1. **Commit** all intended local changes (ask only if scope is unclear; if they said sync everything, include the full dirty tree).
-2. **Push** to `origin main` (`git push -u origin HEAD` when on `main`).
-3. **SSH** to the ERP host and run the production deploy script.
+1. **Clean tree first** — follow `.cursor/rules/clean-working-tree.mdc`. Commit intended work or stash the rest until `git status` is clean (aside from intentional scratch).
+2. **Commit** all intended local changes (ask only if scope is unclear; if they said sync everything, include the full dirty tree in commits before push).
+3. **Push** to GitHub `origin main` (`git push -u origin HEAD` when on `main`). Production must always track GitHub `main` — never deploy uncommitted local-only edits via SCP/rsync of a dirty tree.
+4. **SSH** to the ERP host and reset hard to `origin/main`, then run the production deploy script.
 
 Do not stop after push and wait for GitHub Actions alone unless the user explicitly asks for Actions-only deploy.
 
@@ -40,3 +41,4 @@ ssh school-erp 'cd /var/www/erp && git fetch origin main && git reset --hard ori
 - Pushing `main` also triggers `.github/workflows/deploy-production.yml`; still run the SSH deploy when the user asked for a full sync so production matches this session immediately.
 - Never force-push `main`. Never skip hooks unless the user asks.
 - Do not commit `.env`, PEM keys, or other secrets.
+- After deploy, local `main` should match `origin/main` with a clean working tree (stash leftover WIP if needed).

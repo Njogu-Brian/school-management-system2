@@ -48,32 +48,44 @@
             box-sizing: border-box;
         }
         
+        @page {
+            size: A4 portrait;
+            margin: 10mm;
+        }
+
         body {
             font-family: 'DejaVu Sans', Arial, sans-serif;
-            font-size: {{ $brandBodyFont }}px;
+            font-size: {{ max(9, (int) $brandBodyFont - 2) }}px;
             color: {{ setting('finance_text_color', '#000') }};
-            width: 210mm; /* A4 width */
-            min-height: 297mm; /* A4 height */
-            padding: 10mm;
-            margin: 0 auto;
+            width: 100%;
+            max-width: 100%;
+            padding: 0;
+            margin: 0;
             background: #fff;
             position: relative;
         }
-        
-        @media print {
+
+        @media screen {
             body {
                 width: 210mm;
                 min-height: 297mm;
                 padding: 10mm;
+                margin: 0 auto;
+                box-shadow: 0 0 0.5mm rgba(0,0,0,0.08);
+            }
+        }
+        
+        @media print {
+            body {
+                width: 100%;
+                min-height: auto;
+                padding: 0;
                 margin: 0;
+                box-shadow: none;
             }
             .no-print { display: none !important; }
             .transactions-table tbody tr:hover { background-color: transparent !important; }
             .transactions-table th { background: {{ $brandPrimary }} !important; }
-            @page {
-                size: A4;
-                margin: 10mm;
-            }
         }
         
         .header {
@@ -88,15 +100,15 @@
         }
         
         .header-logo img {
-            height: 72px;
-            max-width: 160px;
+            height: 56px;
+            max-width: 130px;
             object-fit: contain;
         }
         
         .school-name {
-            font-size: 20px;
+            font-size: 16px;
             font-weight: 700;
-            margin-bottom: 6px;
+            margin-bottom: 4px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             color: {{ $brandPrimary }};
@@ -117,9 +129,9 @@
         
         .statement-title {
             text-align: center;
-            font-size: {{ (int)$brandHeadingFont + 2 }}px;
+            font-size: {{ max(13, (int) $brandHeadingFont - 2) }}px;
             font-weight: 700;
-            margin: 24px 0 16px;
+            margin: 12px 0 10px;
             text-transform: uppercase;
             letter-spacing: 1px;
             color: {{ $brandPrimary }};
@@ -137,15 +149,18 @@
         .transactions-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 24px;
-            font-size: 11px;
+            margin-bottom: 16px;
+            font-size: 9px;
+            table-layout: fixed;
         }
         
         .transactions-table th,
         .transactions-table td {
-            padding: 10px 8px;
+            padding: 5px 4px;
             text-align: left;
             border: 1px solid #e2e8f0;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
         
         .transactions-table th {
@@ -175,21 +190,21 @@
         }
         
         .transactions-table .date-col {
-            width: 11%;
+            width: 12%;
         }
         
         .transactions-table .narration-col {
-            width: 44%;
-            white-space: pre-wrap;
+            width: 40%;
+            white-space: normal;
         }
         
         .transactions-table .amount-col {
-            width: 13%;
+            width: 14%;
             text-align: right;
         }
         
         .transactions-table .balance-col {
-            width: 13%;
+            width: 16%;
             text-align: right;
         }
         
@@ -409,6 +424,17 @@
         </div>
     </div>
     
+    <table style="width:100%; border-collapse:collapse; margin-top:12px; margin-bottom:8px;">
+        <tr>
+            <td style="text-align:right; vertical-align:bottom;">
+                @include('academics.report_cards.partials.school_stamp', [
+                    'stampDate' => \App\Support\SchoolStampDate::forGenerated(now()),
+                    'isPdf' => !empty($isPdfExport),
+                ])
+            </td>
+        </tr>
+    </table>
+
     <!-- Footer -->
     <div class="footer">
         @if(!empty($statementFooter))
@@ -417,6 +443,7 @@
             <div>SERVED BY: {{ $schoolName }}</div>
             <div style="margin-top: 5px; font-style: italic;">Powered by Mzizi School Management ERP</div>
         @endif
+        <div style="margin-top: 6px;">Generated: {{ now()->format('d M Y, H:i') }}</div>
     </div>
 </body>
 </html>
