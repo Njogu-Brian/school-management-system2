@@ -19,8 +19,10 @@ export function HeroSection({
 }) {
   const cmsImage = cmsHero ? sectionImage(cmsHero) : undefined;
   const heroImage = cmsImage || (heroMedia ? mediaUrl(heroMedia, "xl") ?? heroMedia.url : LEGACY_HEROES.homeMural);
-  const headline = cmsHero?.title || BRAND.heroHeadline;
-  const subline = cmsHero?.subtitle || BRAND.heroSubheadline;
+  const headline =
+    cmsHero?.title || "Preschool, Primary and Junior School in Wangige, Kiambu County";
+  const subline =
+    cmsHero?.subtitle || BRAND.heroSubheadline || "Building a Sure Foundation – Where Learning is Fun!";
   const intro = cmsHero?.content?.replace(/\s+/g, " ").trim() || BRAND.heroIntro;
 
   return (

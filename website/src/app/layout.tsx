@@ -3,9 +3,10 @@ import { Playfair_Display, DM_Sans } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import { AnalyticsTracker } from "@/components/analytics/AnalyticsTracker";
-import { BRAND, CONTACT, SOCIAL } from "@/content/schoolContent";
+import { LiveEditorRoot } from "@/components/live-editor/LiveEditorRoot";
+import { BRAND } from "@/content/schoolContent";
 import { assetPath } from "@/lib/assetPath";
-import { PUBLIC_PAGES, SITE_NAME, SITE_URL } from "@/lib/seo";
+import { PUBLIC_PAGES, SITE_NAME, SITE_URL, schoolJsonLd, websiteJsonLd } from "@/lib/seo";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -36,6 +37,8 @@ export const metadata: Metadata = {
     "CBC school Wangige",
     "creche Wangige",
     "junior secondary Wangige",
+    "preschool in Wangige",
+    "primary school in Wangige",
   ],
   alternates: { canonical: SITE_URL },
   robots: {
@@ -63,42 +66,11 @@ export const metadata: Metadata = {
     images: [{ url: BRAND.logoUrl, alt: SITE_NAME }],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: home.title,
     description: home.description,
     images: [BRAND.logoUrl],
   },
-};
-
-const schoolSchema = {
-  "@context": "https://schema.org",
-  "@type": ["School", "EducationalOrganization"],
-  name: BRAND.name,
-  alternateName: [BRAND.shortName, "Royal Kings School"],
-  url: SITE_URL,
-  logo: BRAND.logoUrl,
-  image: BRAND.logoUrl,
-  description: home.description,
-  foundingDate: String(BRAND.founded),
-  telephone: CONTACT.phone,
-  email: CONTACT.email,
-  slogan: BRAND.tagline,
-  address: {
-    "@type": "PostalAddress",
-    streetAddress: CONTACT.address,
-    addressLocality: "Wangige",
-    addressRegion: "Kiambu",
-    postalCode: "00100",
-    addressCountry: "KE",
-  },
-  geo: {
-    "@type": "GeoCoordinates",
-    latitude: -1.222539,
-    longitude: 36.710752,
-  },
-  hasMap: CONTACT.mapsUrl,
-  sameAs: [SOCIAL.facebook, SOCIAL.instagram, SOCIAL.tiktok],
-  areaServed: ["Wangige", "Kiambu County", "Nairobi"],
 };
 
 export default function RootLayout({
@@ -111,13 +83,22 @@ export default function RootLayout({
       <head>
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(schoolSchema) }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(schoolJsonLd()) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd()) }}
         />
       </head>
-      <body className="min-h-full flex flex-col bg-rk-white font-sans text-rk-text antialiased">
+      <body
+        className="min-h-full flex flex-col bg-rk-white font-sans text-rk-text antialiased"
+        suppressHydrationWarning
+      >
         <QueryProvider>
-          <AnalyticsTracker />
-          {children}
+          <LiveEditorRoot>
+            <AnalyticsTracker />
+            {children}
+          </LiveEditorRoot>
         </QueryProvider>
       </body>
     </html>

@@ -20,6 +20,18 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "**" },
     ],
   },
+  async redirects() {
+    return [
+      { source: "/about-us", destination: "/about", permanent: true },
+      { source: "/school-fees", destination: "/fees", permanent: true },
+      { source: "/co-curricular-activities", destination: "/co-curricular", permanent: true },
+      { source: "/school-transport", destination: "/transport", permanent: true },
+      { source: "/news", destination: "/blog", permanent: true },
+      { source: "/contact-us", destination: "/contact", permanent: true },
+      { source: "/kindergarten-wangige", destination: "/preschool-wangige", permanent: true },
+      { source: "/nursery-school-wangige", destination: "/preschool-wangige", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;

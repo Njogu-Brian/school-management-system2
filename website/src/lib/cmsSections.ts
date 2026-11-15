@@ -91,6 +91,9 @@ export function sectionVariant(section: PageSection): string | undefined {
   return typeof v === "string" ? v : undefined;
 }
 
-export function useGalleryCatalog(section: PageSection): boolean {
+export function shouldUseGalleryCatalog(section: PageSection): boolean {
   return sectionSettings(section).use_gallery_catalog === true;
 }
+
+/** @deprecated Prefer shouldUseGalleryCatalog — avoids eslint treating this as a React Hook. */
+export const useGalleryCatalog = shouldUseGalleryCatalog;

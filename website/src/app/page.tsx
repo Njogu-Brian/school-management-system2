@@ -1,44 +1,16 @@
-"use client";
+import type { Metadata } from "next";
+import { HomePageClient } from "./HomePageClient";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { pageMetadata, faqJsonLd } from "@/lib/seo";
+import { PARENT_INFO_FAQS } from "@/content/seoLandingContent";
 
-import { SiteShell } from "@/components/layout/SiteShell";
-import { useEvents, useTestimonials, useWebsiteSettings, useHomepage } from "@/hooks/useWebsiteData";
-import { useHeroMedia, usePremiumGallery } from "@/hooks/usePremiumMedia";
-import { useBrandContent } from "@/hooks/useBrandContent";
-import { useSchoolPathways } from "@/hooks/useSchoolPathways";
-import { enrichBrandItemsWithMedia } from "@/lib/premiumMedia";
-import { HeroSection } from "@/sections/HeroSection";
-import { HomePromos } from "@/components/cms/HomePromos";
-import { SchoolStoryFromCms } from "@/components/cms/SchoolStoryFromCms";
-import { FindYourPlaceSection } from "@/sections/brand/FindYourPlaceSection";
-import { OneJourney } from "@/sections/brand/OneJourney";
-import { BeyondClassroom } from "@/sections/brand/BeyondClassroom";
-import { TestimonialsCarousel, LatestEvents } from "@/sections/HomeSections";
+export const metadata: Metadata = pageMetadata("/");
 
 export default function HomePage() {
-  const { data: settings } = useWebsiteSettings();
-  const brand = useBrandContent();
-  const events = useEvents();
-  const testimonials = useTestimonials(true);
-  const { data: heroMedia } = useHeroMedia();
-  const { data: premiumMedia = [] } = usePremiumGallery({ per_page: 24 });
-  const { data: homepageData } = useHomepage();
-  const homepageSections = homepageData?.page?.sections ?? [];
-  const heroSection = homepageSections.find((section) => section.key === "hero_main");
-  const { pathways, intro } = useSchoolPathways();
-
-  const journeyMilestones = enrichBrandItemsWithMedia(brand.items("journey_milestone"), premiumMedia);
-  const cocurricular = enrichBrandItemsWithMedia(brand.items("cocurricular"), premiumMedia);
-
   return (
-    <SiteShell>
-      <HeroSection settings={settings} heroMedia={heroMedia ?? undefined} cmsHero={heroSection} />
-      <HomePromos sections={homepageSections} />
-      <SchoolStoryFromCms sections={homepageSections} />
-      <FindYourPlaceSection pathways={pathways} subtitle={intro.subtitle} />
-      <OneJourney milestones={journeyMilestones} />
-      <BeyondClassroom items={cocurricular} />
-      <TestimonialsCarousel testimonials={testimonials.data || []} />
-      <LatestEvents events={events.data || []} />
-    </SiteShell>
+    <>
+      <JsonLd data={faqJsonLd(PARENT_INFO_FAQS.slice(0, 5))} />
+      <HomePageClient />
+    </>
   );
 }
