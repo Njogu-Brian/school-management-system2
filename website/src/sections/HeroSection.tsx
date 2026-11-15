@@ -19,8 +19,15 @@ export function HeroSection({
 }) {
   const cmsImage = cmsHero ? sectionImage(cmsHero) : undefined;
   const heroImage = cmsImage || (heroMedia ? mediaUrl(heroMedia, "xl") ?? heroMedia.url : LEGACY_HEROES.homeMural);
+  // Keep local-SEO H1 visible even when CMS still stores the brand tagline as hero title.
+  const cmsTitle = cmsHero?.title?.trim() || "";
+  const brandTitles = new Set(
+    [BRAND.heroHeadline, BRAND.tagline, "Building a Sure Foundation"].filter(Boolean).map((t) => t.toLowerCase()),
+  );
   const headline =
-    cmsHero?.title || "Preschool, Primary and Junior School in Wangige, Kiambu County";
+    cmsTitle && !brandTitles.has(cmsTitle.toLowerCase())
+      ? cmsTitle
+      : "Preschool, Primary and Junior School in Wangige, Kiambu County";
   const subline =
     cmsHero?.subtitle || BRAND.heroSubheadline || "Building a Sure Foundation – Where Learning is Fun!";
   const intro = cmsHero?.content?.replace(/\s+/g, " ").trim() || BRAND.heroIntro;

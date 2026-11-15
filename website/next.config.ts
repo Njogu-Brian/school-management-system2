@@ -32,6 +32,23 @@ const nextConfig: NextConfig = {
       { source: "/nursery-school-wangige", destination: "/preschool-wangige", permanent: true },
     ];
   },
+  async headers() {
+    return [
+      {
+        // Avoid year-long CDN/browser caching of HTML after deploys
+        source: "/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=0, s-maxage=60, stale-while-revalidate=300" },
+        ],
+      },
+      {
+        source: "/_next/static/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
