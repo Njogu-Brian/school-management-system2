@@ -6,13 +6,14 @@ import { Autoplay, Pagination } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/pagination";
 import type { Testimonial, GalleryItem, WebsiteEvent, HomepageData } from "@/types/website";
-import { ResponsiveImage } from "@/components/media/ResponsiveImage";
 import { LEGACY_TESTIMONIALS, GALLERY_PHOTOS } from "@/content/schoolContent";
 import { fadeUp } from "@/animations/variants";
 import Link from "next/link";
 import { getErpParentPortalUrl } from "@/lib/erpUrls";
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
+import { EditableText } from "@/components/live-editor/EditableText";
+import { EditableImage } from "@/components/live-editor/EditableImage";
 
 export function TestimonialsCarousel({ testimonials }: { testimonials: Testimonial[] }) {
   const items: Testimonial[] =
@@ -31,24 +32,40 @@ export function TestimonialsCarousel({ testimonials }: { testimonials: Testimoni
   return (
     <section className="bg-[#faf7ff] py-20">
       <div className="mx-auto max-w-6xl px-4 lg:px-8">
-        <h2 className="text-center font-serif text-3xl font-bold text-[var(--rk-purple-deep)]">What Parents Say</h2>
+        <EditableText
+          editKey="testimonials.title"
+          as="h2"
+          className="text-center font-serif text-3xl font-bold text-[var(--rk-purple-deep)]"
+        >
+          What Parents Say
+        </EditableText>
         <Swiper modules={[Autoplay, Pagination]} autoplay={{ delay: 5000 }} pagination={{ clickable: true }} className="mt-10 !pb-12">
           {items.map((t) => (
             <SwiperSlide key={t.id}>
               <blockquote className="rk-testimonial-card mx-auto max-w-3xl text-center">
                 {t.photo && (
-                  <ResponsiveImage
+                  <EditableImage
+                    editKey={`testimonials.${t.id}.photo`}
                     src={t.photo}
-                    srcSet={t.photo_srcset}
                     alt={t.name}
                     className="mx-auto mb-rk-4 h-16 w-16 rounded-full object-cover ring-2 ring-rk-gold"
-                    sizes="64px"
                   />
                 )}
-                <p className="rk-testimonial-card__quote">&ldquo;{t.message}&rdquo;</p>
-                <footer className="rk-testimonial-card__author">
-                  {t.name}{t.relationship ? ` · ${t.relationship}` : ""}
-                </footer>
+                <EditableText
+                  editKey={`testimonials.${t.id}.message`}
+                  as="p"
+                  multiline
+                  className="rk-testimonial-card__quote"
+                >
+                  {t.message}
+                </EditableText>
+                <EditableText
+                  editKey={`testimonials.${t.id}.author`}
+                  as="footer"
+                  className="rk-testimonial-card__author"
+                >
+                  {`${t.name}${t.relationship ? ` · ${t.relationship}` : ""}`}
+                </EditableText>
               </blockquote>
             </SwiperSlide>
           ))}
@@ -129,22 +146,40 @@ export function LatestEvents({ events }: { events: WebsiteEvent[] }) {
     <section className="bg-[var(--rk-purple-deep)] py-20 text-white">
       <div className="mx-auto max-w-6xl px-4 lg:px-8">
         <div className="flex items-end justify-between">
-          <h2 className="font-serif text-3xl font-bold">Latest Events</h2>
+          <EditableText editKey="events.title" as="h2" className="font-serif text-3xl font-bold">
+            Latest Events
+          </EditableText>
           <Link href="/campus-life#events" className="text-sm text-[var(--rk-gold)] hover:underline">View all</Link>
         </div>
         <div className="mt-10 grid gap-6 md:grid-cols-2">
           {upcoming.map((event) => (
             <motion.article key={`${event.source}-${event.id}`} variants={fadeUp} initial="hidden" whileInView="visible" viewport={{ once: true }} className="overflow-hidden rounded-2xl bg-white/10 backdrop-blur">
               {event.cover_image && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={event.cover_image} alt={event.title} className="h-40 w-full object-cover" loading="lazy" />
+                <EditableImage
+                  editKey={`events.${event.source}-${event.id}.cover`}
+                  src={event.cover_image}
+                  alt={event.title}
+                  className="h-40 w-full object-cover"
+                />
               )}
               <div className="p-5">
                 <div className="flex items-center justify-between gap-2">
-                  <h3 className="font-semibold">{event.title}</h3>
+                  <EditableText
+                    editKey={`events.${event.source}-${event.id}.title`}
+                    as="h3"
+                    className="font-semibold"
+                  >
+                    {event.title}
+                  </EditableText>
                   <EventCountdown date={event.start_date} />
                 </div>
-                <p className="mt-2 text-sm text-white/70">{event.location} · {event.start_date}</p>
+                <EditableText
+                  editKey={`events.${event.source}-${event.id}.meta`}
+                  as="p"
+                  className="mt-2 text-sm text-white/70"
+                >
+                  {`${event.location} · ${event.start_date}`}
+                </EditableText>
               </div>
             </motion.article>
           ))}

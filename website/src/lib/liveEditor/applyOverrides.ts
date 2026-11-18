@@ -13,6 +13,11 @@ function img(overrides: LiveOverrides, key: string, fallback: string | undefined
   return overrides.images[key] ?? base;
 }
 
+function vid(overrides: LiveOverrides, key: string, fallback: string | undefined | null) {
+  const base = fallback ?? "";
+  return overrides.videos[key] ?? base;
+}
+
 function applyBrandItem(item: BrandItem, type: string, index: number, overrides: LiveOverrides): BrandItem {
   const base = `brand.${type}.${index}`;
   return {
@@ -21,6 +26,7 @@ function applyBrandItem(item: BrandItem, type: string, index: number, overrides:
     subtitle: t(overrides, `${base}.subtitle`, item.subtitle),
     body: t(overrides, `${base}.body`, item.body),
     image_url: img(overrides, `${base}.image`, item.image_url) || item.image_url,
+    video_url: vid(overrides, `${base}.video`, item.video_url) || item.video_url,
   };
 }
 
@@ -78,6 +84,7 @@ export function applyCampusReelOverrides(
       title: t(overrides, `${base}.title`, r.title),
       caption: t(overrides, `${base}.caption`, r.caption),
       poster: img(overrides, `${base}.poster`, r.poster),
+      facebookUrl: vid(overrides, `${base}.video`, r.facebookUrl) || r.facebookUrl,
     };
   });
 }

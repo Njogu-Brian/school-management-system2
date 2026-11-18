@@ -15,6 +15,11 @@ import { BeyondClassroom } from "@/sections/brand/BeyondClassroom";
 import { VideoMoments } from "@/sections/brand/VideoMoments";
 import { TestimonialsCarousel, LatestEvents } from "@/sections/HomeSections";
 import Link from "next/link";
+import { useMemo } from "react";
+import { useLiveEditorOptional } from "@/components/live-editor/LiveEditorProvider";
+import { applyBrandOverrides } from "@/lib/liveEditor/applyOverrides";
+import { EMPTY_OVERRIDES } from "@/lib/liveEditor/types";
+import { EditableText } from "@/components/live-editor/EditableText";
 
 export function HomePageClient() {
   const { data: settings } = useWebsiteSettings();
@@ -27,9 +32,18 @@ export function HomePageClient() {
   const homepageSections = homepageData?.page?.sections ?? [];
   const heroSection = homepageSections.find((section) => section.key === "hero_main");
   const { pathways, intro } = useSchoolPathways();
+  const editor = useLiveEditorOptional();
 
-  const journeyMilestones = enrichBrandItemsWithMedia(brand.items("journey_milestone"), premiumMedia);
-  const cocurricular = enrichBrandItemsWithMedia(brand.items("cocurricular"), premiumMedia);
+  const brandWithOverrides = useMemo(() => {
+    const base = {
+      journey_milestone: enrichBrandItemsWithMedia(brand.items("journey_milestone"), premiumMedia),
+      cocurricular: enrichBrandItemsWithMedia(brand.items("cocurricular"), premiumMedia),
+    };
+    return applyBrandOverrides(base, editor?.overrides ?? EMPTY_OVERRIDES);
+  }, [brand, premiumMedia, editor?.overrides]);
+
+  const journeyMilestones = brandWithOverrides.journey_milestone || [];
+  const cocurricular = brandWithOverrides.cocurricular || [];
 
   return (
     <SiteShell>
@@ -42,22 +56,30 @@ export function HomePageClient() {
           <ul className="flex flex-wrap justify-center gap-3 text-sm font-semibold">
             <li>
               <Link href="/preschool-wangige" className="rounded-rk-pill bg-rk-soft-lavender px-4 py-2 text-rk-deep-purple hover:bg-rk-gold">
-                Preschool in Wangige
+                <EditableText editKey="home.pill.preschool" as="span">
+                  Preschool in Wangige
+                </EditableText>
               </Link>
             </li>
             <li>
               <Link href="/primary-school-wangige" className="rounded-rk-pill bg-rk-soft-lavender px-4 py-2 text-rk-deep-purple hover:bg-rk-gold">
-                Primary School
+                <EditableText editKey="home.pill.primary" as="span">
+                  Primary School
+                </EditableText>
               </Link>
             </li>
             <li>
               <Link href="/junior-school-wangige" className="rounded-rk-pill bg-rk-soft-lavender px-4 py-2 text-rk-deep-purple hover:bg-rk-gold">
-                Junior School
+                <EditableText editKey="home.pill.junior" as="span">
+                  Junior School
+                </EditableText>
               </Link>
             </li>
             <li>
               <Link href="/admissions" className="rounded-rk-pill bg-rk-purple px-4 py-2 text-white hover:bg-rk-deep-purple">
-                Admissions
+                <EditableText editKey="home.pill.admissions" as="span">
+                  Admissions
+                </EditableText>
               </Link>
             </li>
           </ul>

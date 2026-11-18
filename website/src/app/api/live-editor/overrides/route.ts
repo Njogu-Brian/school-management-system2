@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
-import { EMPTY_OVERRIDES, type LiveOverrides, isLiveEditorAllowed } from "@/lib/liveEditor/types";
+import {
+  EMPTY_OVERRIDES,
+  type LiveOverrides,
+  isLiveEditorAllowed,
+  normalizeOverrides,
+} from "@/lib/liveEditor/types";
 import { overridesFilePath } from "@/lib/liveEditor/paths";
 
 export const runtime = "nodejs";
@@ -9,14 +14,9 @@ export const dynamic = "force-dynamic";
 async function readOverrides(): Promise<LiveOverrides> {
   try {
     const raw = await fs.readFile(overridesFilePath(), "utf8");
-    const parsed = JSON.parse(raw) as Partial<LiveOverrides>;
-    return {
-      texts: parsed.texts ?? {},
-      images: parsed.images ?? {},
-      updatedAt: parsed.updatedAt ?? null,
-    };
+    return normalizeOverrides(JSON.parse(raw) as Partial<LiveOverrides>);
   } catch {
-    return { ...EMPTY_OVERRIDES, texts: {}, images: {} };
+    return { ...EMPTY_OVERRIDES, texts: {}, images: {}, videos: {} };
   }
 }
 
@@ -32,8 +32,7 @@ export async function PUT(request: Request) {
 
   const body = (await request.json()) as Partial<LiveOverrides>;
   const next: LiveOverrides = {
-    texts: body.texts && typeof body.texts === "object" ? body.texts : {},
-    images: body.images && typeof body.images === "object" ? body.images : {},
+    ...normalizeOverrides(body),
     updatedAt: new Date().toISOString(),
   };
 

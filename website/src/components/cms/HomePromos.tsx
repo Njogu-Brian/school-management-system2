@@ -3,6 +3,7 @@
 import type { PageSection } from "@/types/website";
 import { assetPath } from "@/lib/assetPath";
 import { sectionPhotos } from "@/lib/cmsSections";
+import { EditableImage } from "@/components/live-editor/EditableImage";
 
 const FALLBACK_BANNER = {
   src: assetPath("/images/2027-admissions-open.jpg"),
@@ -18,10 +19,23 @@ export function HomePromos({ sections }: { sections: PageSection[] }) {
   return (
     <section className="bg-white py-8">
       <div className="rk-container flex flex-col gap-6">
-        {banners.map((photo) => (
-          <a key={photo.src} href={photo.href || "/admissions/apply"} className="block overflow-hidden rounded-rk-xl shadow-rk-lg">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photo.src} alt={photo.title || "2027 Admissions Now Open"} className="h-auto w-full" />
+        {banners.map((photo, index) => (
+          <a
+            key={`${photo.src}-${index}`}
+            href={photo.href || "/admissions/apply"}
+            className="block overflow-hidden rounded-rk-xl shadow-rk-lg"
+            onClick={(e) => {
+              /* allow media replace without navigating while editing */
+              const editing = document.querySelector(".rk-live-editor-bar");
+              if (editing) e.preventDefault();
+            }}
+          >
+            <EditableImage
+              editKey={`home.promo.${index}.image`}
+              src={photo.src}
+              alt={photo.title || "2027 Admissions Now Open"}
+              className="h-auto w-full"
+            />
           </a>
         ))}
       </div>

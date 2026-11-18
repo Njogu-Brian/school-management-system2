@@ -1,9 +1,14 @@
+"use client";
+
 import Link from "next/link";
 import type { WebsiteSettings } from "@/types/website";
 import { BRAND, CONTACT, SOCIAL } from "@/content/schoolContent";
 import { SocialBar } from "@/components/layout/SocialBar";
 import { assetPath } from "@/lib/assetPath";
 import { getUsersAppUrl } from "@/lib/erpUrls";
+import { EditableText } from "@/components/live-editor/EditableText";
+import { EditableImage } from "@/components/live-editor/EditableImage";
+import { useLiveText } from "@/components/live-editor/LiveEditorProvider";
 
 const QUICK_LINKS: Array<{ href: string; label: string; external?: boolean }> = [
   { href: "/admissions/apply", label: "Admissions" },
@@ -17,10 +22,12 @@ const QUICK_LINKS: Array<{ href: string; label: string; external?: boolean }> = 
 
 export function SiteFooter({ settings }: { settings?: WebsiteSettings }) {
   const logo = settings?.logo || BRAND.logoUrl || assetPath("/logo.png");
-  const phone = settings?.phone || CONTACT.phone;
-  const email = settings?.email || CONTACT.email;
-  const admissionsEmail = CONTACT.admissionsEmail;
-  const address = settings?.address || CONTACT.address;
+  const phone = useLiveText("footer.phone", settings?.phone || CONTACT.phone);
+  const email = useLiveText("footer.email", settings?.email || CONTACT.email);
+  const admissionsEmail = useLiveText("footer.admissionsEmail", CONTACT.admissionsEmail);
+  const address = useLiveText("footer.address", settings?.address || CONTACT.address);
+  const schoolName = useLiveText("chrome.schoolName", settings?.school_name || BRAND.shortName);
+  const tagline = useLiveText("chrome.tagline", settings?.tagline || BRAND.tagline);
 
   return (
     <footer className="bg-rk-deep-purple text-white">
@@ -28,8 +35,16 @@ export function SiteFooter({ settings }: { settings?: WebsiteSettings }) {
       <div className="border-b border-white/10">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-rk-5 px-4 py-rk-8 sm:flex-row lg:px-8">
           <div>
-            <p className="font-serif text-lg font-bold text-rk-gold">Stay Connected</p>
-            <p className="mt-rk-1 text-sm text-white/70">Admissions updates, events, and school news.</p>
+            <EditableText editKey="footer.newsletterTitle" as="p" className="font-serif text-lg font-bold text-rk-gold">
+              Stay Connected
+            </EditableText>
+            <EditableText
+              editKey="footer.newsletterLead"
+              as="p"
+              className="mt-rk-1 text-sm text-white/70"
+            >
+              Admissions updates, events, and school news.
+            </EditableText>
           </div>
           <form className="flex w-full max-w-md gap-rk-2" action="/contact" method="get">
             <input
@@ -50,18 +65,34 @@ export function SiteFooter({ settings }: { settings?: WebsiteSettings }) {
         {/* Brand + contact */}
         <div className="lg:col-span-4">
           <div className="flex items-center gap-rk-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={logo} alt="" className="h-14 w-14 rounded-full bg-white object-contain p-0.5 ring-2 ring-rk-gold" />
+            <EditableImage
+              editKey="chrome.logo"
+              src={logo}
+              alt=""
+              className="h-14 w-14 rounded-full bg-white object-contain p-0.5 ring-2 ring-rk-gold"
+            />
             <div>
-              <h3 className="font-serif text-lg text-rk-gold">{settings?.school_name || BRAND.shortName}</h3>
+              <EditableText editKey="chrome.schoolName" as="h3" className="font-serif text-lg text-rk-gold">
+                {schoolName}
+              </EditableText>
               <p className="text-xs text-white/60">Since {BRAND.founded}</p>
             </div>
           </div>
-          <p className="mt-rk-4 text-sm leading-relaxed text-white/70">{settings?.tagline || BRAND.tagline}</p>
+          <EditableText
+            editKey="chrome.tagline"
+            as="p"
+            className="mt-rk-4 text-sm leading-relaxed text-white/70"
+          >
+            {tagline}
+          </EditableText>
 
           <ul className="mt-rk-6 space-y-rk-2 text-sm text-white/80">
             <li>
-              <a href={`tel:${CONTACT.phoneRaw}`} className="hover:text-rk-gold">{phone}</a>
+              <a href={`tel:${CONTACT.phoneRaw}`} className="hover:text-rk-gold">
+                <EditableText editKey="footer.phone" as="span">
+                  {phone}
+                </EditableText>
+              </a>
             </li>
             <li>
               <a href={`https://wa.me/${CONTACT.whatsapp}`} target="_blank" rel="noreferrer" className="hover:text-rk-gold">
@@ -69,13 +100,30 @@ export function SiteFooter({ settings }: { settings?: WebsiteSettings }) {
               </a>
             </li>
             <li>
-              <a href={`mailto:${email}`} className="hover:text-rk-gold">{email}</a>
+              <a href={`mailto:${email}`} className="hover:text-rk-gold">
+                <EditableText editKey="footer.email" as="span">
+                  {email}
+                </EditableText>
+              </a>
             </li>
             <li>
-              <a href={`mailto:${admissionsEmail}`} className="hover:text-rk-gold">Admissions: {admissionsEmail}</a>
+              <a href={`mailto:${admissionsEmail}`} className="hover:text-rk-gold">
+                Admissions:{" "}
+                <EditableText editKey="footer.admissionsEmail" as="span">
+                  {admissionsEmail}
+                </EditableText>
+              </a>
             </li>
-            <li className="pt-rk-1 text-white/70">{address}</li>
-            <li className="text-white/60">{CONTACT.postal}</li>
+            <li className="pt-rk-1 text-white/70">
+              <EditableText editKey="footer.address" as="span" multiline>
+                {address}
+              </EditableText>
+            </li>
+            <li className="text-white/60">
+              <EditableText editKey="footer.postal" as="span">
+                {CONTACT.postal}
+              </EditableText>
+            </li>
           </ul>
 
           <div className="mt-rk-5">

@@ -10,7 +10,22 @@ import {
   type ReactNode,
 } from "react";
 import { useSearchParams } from "next/navigation";
-import { EMPTY_OVERRIDES, type LiveOverrides, isLiveEditorAllowed } from "@/lib/liveEditor/types";
+import {
+  EMPTY_OVERRIDES,
+  type LiveMediaKind,
+  type LiveOverrides,
+  isLiveEditorAllowed,
+  normalizeOverrides,
+} from "@/lib/liveEditor/types";
+import { MediaPicker } from "./MediaPicker";
+
+type MediaPickerRequest = {
+  key: string;
+  kind: LiveMediaKind;
+  currentUrl?: string;
+  title?: string;
+  target: "image" | "video";
+};
 
 type LiveEditorContextValue = {
   allowed: boolean;
@@ -21,11 +36,14 @@ type LiveEditorContextValue = {
   setEditing: (v: boolean) => void;
   getText: (key: string, fallback: string) => string;
   getImage: (key: string, fallback: string) => string;
+  getVideo: (key: string, fallback: string) => string;
   setText: (key: string, value: string) => void;
   setImage: (key: string, value: string) => void;
+  setVideo: (key: string, value: string) => void;
   save: () => Promise<void>;
   reload: () => Promise<void>;
-  uploadImage: (key: string, file: File) => Promise<string>;
+  uploadMedia: (key: string, file: File) => Promise<string>;
+  openMediaPicker: (req: Omit<MediaPickerRequest, "target"> & { target?: "image" | "video" }) => void;
 };
 
 const LiveEditorContext = createContext<LiveEditorContextValue | null>(null);
@@ -44,6 +62,7 @@ export function LiveEditorProvider({ children }: { children: ReactNode }) {
   const [saving, setSaving] = useState(false);
   const [userEditing, setUserEditing] = useState<boolean | null>(null);
   const [storageEditing, setStorageEditing] = useState(false);
+  const [picker, setPicker] = useState<MediaPickerRequest | null>(null);
 
   useEffect(() => {
     if (!allowed) return;
@@ -60,14 +79,9 @@ export function LiveEditorProvider({ children }: { children: ReactNode }) {
     try {
       const res = await fetch("/api/live-editor/overrides", { cache: "no-store" });
       if (!res.ok) return;
-      const data = (await res.json()) as LiveOverrides;
-      const normalized: LiveOverrides = {
-        texts: data.texts ?? {},
-        images: data.images ?? {},
-        updatedAt: data.updatedAt ?? null,
-      };
-      setOverrides(normalized);
-      setBaseline(JSON.stringify(normalized));
+      const data = normalizeOverrides((await res.json()) as LiveOverrides);
+      setOverrides(data);
+      setBaseline(JSON.stringify(data));
     } catch {
       /* keep defaults */
     }
@@ -75,7 +89,6 @@ export function LiveEditorProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!allowed) return;
-    // Load draft overrides once when the editor is available.
     void reload();
   }, [allowed, reload]);
 
@@ -102,6 +115,11 @@ export function LiveEditorProvider({ children }: { children: ReactNode }) {
     [overrides.images],
   );
 
+  const getVideo = useCallback(
+    (key: string, fallback: string) => overrides.videos[key] ?? fallback,
+    [overrides.videos],
+  );
+
   const setText = useCallback((key: string, value: string) => {
     setOverrides((prev) => ({
       ...prev,
@@ -116,6 +134,13 @@ export function LiveEditorProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const setVideo = useCallback((key: string, value: string) => {
+    setOverrides((prev) => ({
+      ...prev,
+      videos: { ...prev.videos, [key]: value },
+    }));
+  }, []);
+
   const save = useCallback(async () => {
     if (!allowed) return;
     setSaving(true);
@@ -126,7 +151,7 @@ export function LiveEditorProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify(overrides),
       });
       if (!res.ok) throw new Error("Save failed");
-      const data = (await res.json()) as LiveOverrides;
+      const data = normalizeOverrides((await res.json()) as LiveOverrides);
       setOverrides(data);
       setBaseline(JSON.stringify(data));
     } finally {
@@ -134,21 +159,31 @@ export function LiveEditorProvider({ children }: { children: ReactNode }) {
     }
   }, [allowed, overrides]);
 
-  const uploadImage = useCallback(
-    async (key: string, file: File) => {
-      const form = new FormData();
-      form.append("file", file);
-      form.append("key", key);
-      const res = await fetch("/api/live-editor/upload", { method: "POST", body: form });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error || "Upload failed");
-      }
-      const data = (await res.json()) as { url: string };
-      setImage(key, data.url);
-      return data.url;
+  const uploadMedia = useCallback(async (key: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("key", key);
+    const res = await fetch("/api/live-editor/upload", { method: "POST", body: form });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as { error?: string }).error || "Upload failed");
+    }
+    const data = (await res.json()) as { url: string };
+    return data.url;
+  }, []);
+
+  const openMediaPicker = useCallback(
+    (req: Omit<MediaPickerRequest, "target"> & { target?: "image" | "video" }) => {
+      if (!allowed || !editing) return;
+      setPicker({
+        key: req.key,
+        kind: req.kind ?? "image",
+        currentUrl: req.currentUrl,
+        title: req.title,
+        target: req.target ?? (req.kind === "video" ? "video" : "image"),
+      });
     },
-    [setImage],
+    [allowed, editing],
   );
 
   const value = useMemo<LiveEditorContextValue>(
@@ -161,11 +196,14 @@ export function LiveEditorProvider({ children }: { children: ReactNode }) {
       setEditing,
       getText,
       getImage,
+      getVideo,
       setText,
       setImage,
+      setVideo,
       save,
       reload: allowed ? reload : noopAsync,
-      uploadImage,
+      uploadMedia,
+      openMediaPicker,
     }),
     [
       allowed,
@@ -176,15 +214,40 @@ export function LiveEditorProvider({ children }: { children: ReactNode }) {
       setEditing,
       getText,
       getImage,
+      getVideo,
       setText,
       setImage,
+      setVideo,
       save,
       reload,
-      uploadImage,
+      uploadMedia,
+      openMediaPicker,
     ],
   );
 
-  return <LiveEditorContext.Provider value={value}>{children}</LiveEditorContext.Provider>;
+  return (
+    <LiveEditorContext.Provider value={value}>
+      {children}
+      {picker ? (
+        <MediaPicker
+          open
+          title={picker.title || (picker.target === "video" ? "Replace video" : "Replace photo")}
+          kind={picker.kind}
+          currentUrl={picker.currentUrl}
+          onClose={() => setPicker(null)}
+          onUpload={(file) => uploadMedia(picker.key, file)}
+          onSelect={(url, meta) => {
+            if (picker.target === "video" || meta.kind === "video") {
+              setVideo(picker.key, url);
+            } else {
+              setImage(picker.key, url);
+            }
+            setPicker(null);
+          }}
+        />
+      ) : null}
+    </LiveEditorContext.Provider>
+  );
 }
 
 export function useLiveEditor() {
@@ -209,4 +272,10 @@ export function useLiveImage(key: string, fallback: string): string {
   const ctx = useLiveEditorOptional();
   if (!ctx) return fallback;
   return ctx.getImage(key, fallback);
+}
+
+export function useLiveVideo(key: string, fallback: string): string {
+  const ctx = useLiveEditorOptional();
+  if (!ctx) return fallback;
+  return ctx.getVideo(key, fallback);
 }

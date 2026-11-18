@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ImgHTMLAttributes } from "react";
+import type { ImgHTMLAttributes, KeyboardEvent, MouseEvent } from "react";
 import { useLiveEditorOptional } from "./LiveEditorProvider";
 
 type EditableImageProps = {
@@ -18,30 +18,8 @@ export function EditableImage({
   ...rest
 }: EditableImageProps) {
   const editor = useLiveEditorOptional();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const resolved = editor ? editor.getImage(editKey, src) : src;
   const editing = Boolean(editor?.editing);
-
-  const pick = () => {
-    if (!editing) return;
-    inputRef.current?.click();
-  };
-
-  const onFile = async (file: File | undefined) => {
-    if (!file || !editor) return;
-    setError(null);
-    setUploading(true);
-    try {
-      await editor.uploadImage(editKey, file);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed");
-    } finally {
-      setUploading(false);
-      if (inputRef.current) inputRef.current.value = "";
-    }
-  };
 
   if (!editing) {
     return (
@@ -49,6 +27,18 @@ export function EditableImage({
       <img src={resolved} alt={alt} className={className} onClick={onClick} {...rest} />
     );
   }
+
+  const openPicker = (e?: MouseEvent | KeyboardEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    editor?.openMediaPicker({
+      key: editKey,
+      kind: "image",
+      target: "image",
+      currentUrl: resolved,
+      title: "Replace photo",
+    });
+  };
 
   return (
     <span className={`rk-editable-image-wrap ${className}`}>
@@ -59,9 +49,7 @@ export function EditableImage({
         data-edit-key={editKey}
         className="rk-editable-image h-full w-full object-cover"
         onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          pick();
+          openPicker(e);
           onClick?.(e);
         }}
         {...rest}
@@ -70,29 +58,13 @@ export function EditableImage({
         role="button"
         tabIndex={0}
         className="rk-editable-image-badge"
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          pick();
-        }}
+        onClick={openPicker}
         onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            e.stopPropagation();
-            pick();
-          }
+          if (e.key === "Enter" || e.key === " ") openPicker(e);
         }}
       >
-        {uploading ? "Uploading…" : "Replace photo"}
+        Replace media
       </span>
-      {error ? <span className="rk-editable-image-error">{error}</span> : null}
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif"
-        className="hidden"
-        onChange={(e) => void onFile(e.target.files?.[0])}
-      />
     </span>
   );
 }

@@ -139,6 +139,26 @@ export function VideoMoments({ limit = 24 }: { limit?: number }) {
                 <span className="absolute left-1/2 top-1/2 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-rk-gold text-rk-deep-purple shadow-rk-lg ring-4 ring-white/30">
                   <PlayIcon />
                 </span>
+                {editor?.editing ? (
+                  <button
+                    type="button"
+                    className="rk-editable-image-badge"
+                    style={{ top: "28%", zIndex: 8 }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      editor.openMediaPicker({
+                        key: `campus.reel.${reel.id}.video`,
+                        kind: "video",
+                        target: "video",
+                        currentUrl: reel.facebookUrl,
+                        title: `Replace reel · ${reel.title}`,
+                      });
+                    }}
+                  >
+                    Replace video
+                  </button>
+                ) : null}
                 <div className="absolute inset-x-0 bottom-0 p-3">
                   <p className="text-xs font-bold uppercase tracking-wider text-rk-gold">
                     {reel.category.replace("-", " ")}

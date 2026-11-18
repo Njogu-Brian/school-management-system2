@@ -8,6 +8,9 @@ import { BRAND } from "@/content/schoolContent";
 import { SocialBar } from "@/components/layout/SocialBar";
 import { assetPath } from "@/lib/assetPath";
 import { getUsersAppUrl } from "@/lib/erpUrls";
+import { EditableText } from "@/components/live-editor/EditableText";
+import { EditableImage } from "@/components/live-editor/EditableImage";
+import { useLiveText } from "@/components/live-editor/LiveEditorProvider";
 
 const NAV_GROUPS = [
   {
@@ -52,28 +55,40 @@ export function SiteHeader({ settings }: { settings?: WebsiteSettings }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const schoolName = settings?.school_name || BRAND.shortName;
+  const schoolName = useLiveText("chrome.schoolName", settings?.school_name || BRAND.shortName);
+  const tagline = useLiveText("chrome.tagline", settings?.tagline || BRAND.tagline);
+  const contactLine = useLiveText("chrome.contactLine", CONTACT_LINE);
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-rk-deep-purple/95 backdrop-blur-md">
       <div className="border-b border-white/5 bg-rk-purple-dark/80">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-1.5 text-xs text-white/80 lg:px-8">
-          <span className="hidden sm:inline">{CONTACT_LINE}</span>
+          <EditableText editKey="chrome.contactLine" as="span" className="hidden sm:inline">
+            {contactLine}
+          </EditableText>
           <SocialBar compact />
         </div>
       </div>
 
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 lg:px-8">
         <Link href="/" className="flex items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <EditableImage
+            editKey="chrome.logo"
             src={logoSrc(settings)}
             alt={`${schoolName} logo`}
             className="h-11 w-11 rounded-full bg-white object-contain p-0.5 shadow-md ring-2 ring-rk-gold"
           />
           <div className="min-w-0">
-            <p className="truncate font-serif text-base font-semibold text-white sm:text-lg">{schoolName}</p>
-            <p className="truncate text-xs text-rk-gold">{settings?.tagline || BRAND.tagline}</p>
+            <EditableText
+              editKey="chrome.schoolName"
+              as="p"
+              className="truncate font-serif text-base font-semibold text-white sm:text-lg"
+            >
+              {schoolName}
+            </EditableText>
+            <EditableText editKey="chrome.tagline" as="p" className="truncate text-xs text-rk-gold">
+              {tagline}
+            </EditableText>
           </div>
         </Link>
 

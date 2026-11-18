@@ -1,9 +1,11 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { ResponsiveImage } from "@/components/media/ResponsiveImage";
 import type { BrandItem } from "@/types/brand";
 import { heroReveal } from "@/animations/variants";
+import { EditableText } from "@/components/live-editor/EditableText";
+import { EditableImage } from "@/components/live-editor/EditableImage";
+import { useLiveEditorOptional } from "@/components/live-editor/LiveEditorProvider";
 
 /** Bento layout slots for 8 co-curricular tiles */
 const BENTO_SLOTS = [
@@ -26,6 +28,7 @@ function tileSlot(index: number, item: BrandItem) {
 
 export function BeyondClassroom({ items }: { items: BrandItem[] }) {
   const reduceMotion = useReducedMotion();
+  const editor = useLiveEditorOptional();
 
   if (!items.length) return null;
 
@@ -48,53 +51,101 @@ export function BeyondClassroom({ items }: { items: BrandItem[] }) {
     >
       <div className="rk-container">
         <header className="mx-auto max-w-2xl text-center">
-          <motion.h2 {...reveal(0)} id="beyond-classroom-heading" className="rk-h2">
-            Beyond the Classroom
-          </motion.h2>
-          <motion.p {...reveal(1)} className="rk-lead mt-rk-4">
-            Premium co-curricular programmes that unlock every child&apos;s gifts — on campus and beyond.
-          </motion.p>
+          <motion.div {...reveal(0)}>
+            <EditableText
+              editKey="beyondClassroom.title"
+              as="h2"
+              id="beyond-classroom-heading"
+              className="rk-h2"
+            >
+              Beyond the Classroom
+            </EditableText>
+          </motion.div>
+          <motion.div {...reveal(1)}>
+            <EditableText
+              editKey="beyondClassroom.lead"
+              as="p"
+              multiline
+              className="rk-lead mt-rk-4"
+            >
+              Premium co-curricular programmes that unlock every child's gifts — on campus and beyond.
+            </EditableText>
+          </motion.div>
         </header>
 
         <div className="rk-bento-grid mt-rk-12">
-          {items.map((item, i) => (
-            <motion.article
-              key={item.id ?? item.title}
-              {...reveal(i + 2)}
-              className={`rk-bento-tile group ${tileSlot(i, item)}`}
-            >
-              {item.video_url ? (
-                <video
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  className="rk-bento-tile__media"
-                  poster={item.image_url}
-                >
-                  <source src={item.video_url} type="video/mp4" />
-                </video>
-              ) : item.image_url ? (
-                <ResponsiveImage
-                  src={item.image_url}
-                  srcSet={(item.settings?.srcset as string) || undefined}
-                  alt={item.title ?? "Co-curricular programme"}
-                  className="rk-bento-tile__media"
-                  sizes="(max-width: 768px) 50vw, 25vw"
-                />
-              ) : (
-                <div className="rk-bento-tile__media bg-rk-soft-lavender" />
-              )}
-
-              <div className="rk-bento-tile__overlay" aria-hidden />
-              <div className="rk-bento-tile__content">
-                <h3 className="rk-bento-tile__title">{item.title}</h3>
-                {item.body && (
-                  <p className="rk-bento-tile__text">{item.body}</p>
+          {items.map((item, i) => {
+            const base = `brand.cocurricular.${i}`;
+            const imageUrl = editor?.getImage(`${base}.image`, item.image_url || "") || item.image_url;
+            const videoUrl = editor?.getVideo(`${base}.video`, item.video_url || "") || item.video_url;
+            return (
+              <motion.article
+                key={item.id ?? item.title}
+                {...reveal(i + 2)}
+                className={`rk-bento-tile group ${tileSlot(i, item)}`}
+              >
+                {videoUrl && !editor?.editing ? (
+                  <video
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    className="rk-bento-tile__media"
+                    poster={imageUrl}
+                  >
+                    <source src={videoUrl} type="video/mp4" />
+                  </video>
+                ) : imageUrl ? (
+                  <EditableImage
+                    editKey={`${base}.image`}
+                    src={imageUrl}
+                    alt={item.title ?? "Co-curricular programme"}
+                    className="rk-bento-tile__media"
+                  />
+                ) : (
+                  <div className="rk-bento-tile__media bg-rk-soft-lavender" />
                 )}
-              </div>
-            </motion.article>
-          ))}
+
+                {editor?.editing ? (
+                  <button
+                    type="button"
+                    className="rk-editable-image-badge"
+                    style={{ top: "18%", zIndex: 8 }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      editor.openMediaPicker({
+                        key: `${base}.video`,
+                        kind: "video",
+                        target: "video",
+                        currentUrl: videoUrl || "",
+                        title: `Replace video · ${item.title || "programme"}`,
+                      });
+                    }}
+                  >
+                    {videoUrl ? "Replace video" : "Add video"}
+                  </button>
+                ) : null}
+
+                <div className="rk-bento-tile__overlay" aria-hidden />
+                <div className="rk-bento-tile__content">
+                  <EditableText editKey={`${base}.title`} as="h3" className="rk-bento-tile__title">
+                    {item.title || ""}
+                  </EditableText>
+                  {item.body && (
+                    <EditableText
+                      editKey={`${base}.body`}
+                      as="p"
+                      multiline
+                      className="rk-bento-tile__text"
+                    >
+                      {item.body}
+                    </EditableText>
+                  )}
+                </div>
+              </motion.article>
+            );
+          })}
         </div>
       </div>
     </section>

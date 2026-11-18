@@ -27,17 +27,19 @@ WEBSITE_BASE_PATH=$BASE_PATH
 NEXT_PUBLIC_API_URL=$API_URL
 NEXT_PUBLIC_ERP_LOGIN_URL=$ERP_LOGIN_URL
 NEXT_PUBLIC_BASE_PATH=$BASE_PATH
+NEXT_PUBLIC_LIVE_EDITOR=1
 EOF
 cp .env.production .env.production.local
 
 npm ci
-WEBSITE_BASE_PATH="$BASE_PATH" NEXT_PUBLIC_BASE_PATH="$BASE_PATH" npm run build
+WEBSITE_BASE_PATH="$BASE_PATH" NEXT_PUBLIC_BASE_PATH="$BASE_PATH" NEXT_PUBLIC_LIVE_EDITOR=1 npm run build
 
 echo "==> Starting with PM2 on port $PORT..."
 if command -v pm2 >/dev/null 2>&1; then
   pm2 delete "$PM2_NAME" 2>/dev/null || true
   cd "$WEB_ROOT"
   WEBSITE_BASE_PATH="$BASE_PATH" NEXT_PUBLIC_API_URL="$API_URL" NEXT_PUBLIC_ERP_LOGIN_URL="$ERP_LOGIN_URL" \
+    NEXT_PUBLIC_LIVE_EDITOR=1 \
     pm2 start ecosystem.config.cjs --update-env
   pm2 save
 else
